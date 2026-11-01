@@ -1,13 +1,13 @@
-# Stella Sora Runtime 2 — chẩn đoán lần 2
+# Stella Sora Runtime 2 — diagnostics 3
 
-[Tải ZIP diagnostics 2](releases/StellaSora-Runtime2-diagnostics2.zip)
+[Tải ZIP diagnostics 3](releases/StellaSora-Runtime2-diagnostics3.zip)
 
-**Chưa sửa được lỗi tính năng không tác dụng.** Gói này bổ sung số lượt vào entry, số phương thức khớp và chữ ký hàm thực tế để xác định nguyên nhân tiếp theo.
+Bản chẩn đoán mới theo dõi entry chung của bộ thông dịch và sửa chữ ký RealDamage. **Chưa xác nhận tính năng gameplay hoạt động.**
 
-Thoát game, thay DLL trong bản sao thư mục công cụ, chạy một trận 30–60 giây rồi gửi SSTool2.log cạnh DLL. Xem [hướng dẫn](runtime2/README.vi.md).
+Thoát game, thay DLL trong bản sao thư mục công cụ, chạy trận 30–60 giây rồi gửi SSTool2.log. [Hướng dẫn](runtime2/README.vi.md).
 
-Build Windows x64 và 8 nhóm mock tests với sanitizer đã đạt. Chưa kiểm thử bản mới trong game.
+Build Windows x64 và 9 nhóm mock tests với sanitizer đã đạt; chưa thử bản mới trong game.
 
-SHA-256 ZIP: `1f3f9eb96d242b6fb9a858e7de5622878473f7054cda7868fd83c76c1f4cf8b2`.
+SHA-256 ZIP: `3164d49353bed0345552b1657b84e9984e0ad65d50876665b7e34874c0ec7059`.
 
-Gói có DLL, mã nguồn và giấy phép; không chứa tệp game, log cá nhân, khóa hoặc Injector.
+Gói chứa DLL, mã nguồn và giấy phép; không chứa game, Injector, log cá nhân hoặc khóa.

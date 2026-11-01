@@ -26,7 +26,7 @@ static struct Target targets[TARGET_COUNT]={
  {"SkillInfo","set_currentEnergy","System.Void",1,A_VALUE8,{"TrueSync.FDP"},0,-1,0},
  {"AdventureModuleController","DriveUpdate","System.Void",0,A_VOID,{0},0,-1,0},
  {"MonsterToughnessInfo","DamageToToughness","System.Boolean",3,A_TOUGHNESS,{"AdventureActor","System.Int64","System.Collections.Generic.IList<System.Int32>"},0,-1,0},
- {"AdventureActor","RealDamage","System.Void",3,A_DAMAGE,{"System.Int64","System.Boolean","Damage"},0,-1,0}
+ {"AdventureActor","RealDamage","System.Void",3,A_DAMAGE,{"System.Int64","System.Boolean","Nova.Client.Recorder.Types.Damage"},0,-1,0}
 };
 #define MAX_GROUPS 16
 struct Group {void *entry,*original;int abi;bool conflict,enabled;volatile LONG entry_calls,null_methods;void *volatile sample_method;};
@@ -214,6 +214,32 @@ SLOT(8) SLOT(9) SLOT(10) SLOT(11) SLOT(12) SLOT(13) SLOT(14) SLOT(15)
 #define HANDLERS(prefix) {(void*)prefix##0,(void*)prefix##1,(void*)prefix##2,(void*)prefix##3,(void*)prefix##4,(void*)prefix##5,(void*)prefix##6,(void*)prefix##7,(void*)prefix##8,(void*)prefix##9,(void*)prefix##10,(void*)prefix##11,(void*)prefix##12,(void*)prefix##13,(void*)prefix##14,(void*)prefix##15}
 static void *handlers[7][MAX_GROUPS]={HANDLERS(hit),HANDLERS(vo),HANDLERS(ib),HANDLERS(in),HANDLERS(va),HANDLERS(to),HANDLERS(da)};
 #undef HANDLERS
+/* Profile-specific telemetry only: Execute(MethodInfo*, StackObject*, void*).
+ * All observed arguments and return storage are passed through unchanged.
+ * Called only after main.c verifies the complete GameAssembly SHA-256. */
+typedef void (*InterpreterFn)(const void *,void *,void *);
+static InterpreterFn interpreter_original;
+static volatile LONG interpreter_calls,interpreter_targets[TARGET_COUNT];
+static void interpreter_probe(const void *method,void *args,void *result) {
+ InterlockedIncrement(&interpreter_calls);
+ for(int i=0;i<TARGET_COUNT;i++)if(method&&method==targets[i].method)
+  InterlockedIncrement(&interpreter_targets[i]);
+ interpreter_original(method,args,result);
+}
+bool install_interpreter_probe(HMODULE game) {
+ static const unsigned char prologue[]={0x4c,0x89,0x44,0x24,0x18,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57};
+ unsigned char *entry=(unsigned char*)game+0x64e270;
+ if(memcmp(entry,prologue,sizeof(prologue))) {
+  log_line("INTERPRETER PROBE unavailable: profile prologue mismatch");return false;
+ }
+ void *original=NULL;
+ MH_STATUS status=MH_CreateHook(entry,(void*)interpreter_probe,&original);
+ if(status!=MH_OK){log_line("INTERPRETER PROBE create failed: %s",MH_StatusToString(status));return false;}
+ memcpy(&interpreter_original,&original,sizeof(original));
+ status=MH_EnableHook(entry);
+ log_line("INTERPRETER PROBE: %s (telemetry only; no gameplay changes)",MH_StatusToString(status));
+ return status==MH_OK;
+}
 static bool executable(void *entry) {
  MEMORY_BASIC_INFORMATION m;
  if(!entry||!VirtualQuery(entry,&m,sizeof(m))||m.State!=MEM_COMMIT||m.Protect&PAGE_GUARD)return false;
@@ -277,6 +303,20 @@ bool initialize_backend(void) {
  return true;
 }
 void report_observed_calls(void) {
+ static bool interpreter_reported[TARGET_COUNT];
+ static LONG last_interpreter_calls;
+ LONG current=read_atomic(&interpreter_calls);
+ if(current!=last_interpreter_calls){
+  last_interpreter_calls=current;
+  static ULONGLONG last_report;
+  ULONGLONG now=GetTickCount64();
+  if(now-last_report>=10000){last_report=now;log_line("INTERPRETER calls=%ld",(long)current);}
+ }
+ for(int i=0;i<TARGET_COUNT;i++)if(!interpreter_reported[i]&&read_atomic(&interpreter_targets[i])) {
+  interpreter_reported[i]=true;
+  log_line("INTERPRETER TARGET %s.%s calls=%ld",targets[i].type,targets[i].name,(long)read_atomic(&interpreter_targets[i]));
+ }
+
  static bool reported[TARGET_COUNT];
  static bool entry_reported[MAX_GROUPS],sample_reported[MAX_GROUPS],null_reported[MAX_GROUPS];
  for(int g=0;g<group_count;g++) {

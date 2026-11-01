@@ -8,6 +8,8 @@ void *player_class=(void*)1,*monster_class=(void*)2;
 static void *player=(void*)10,*monster=(void*)20,*weapon=(void*)30;
 static const char mi_clear,mi_drive,mi_reduce,mi_reset,mi_energy,mi_tough,mi_real,mi_hit,mi_other;
 static unsigned calls;
+static const void *probe_method;static void *probe_args,*probe_result;
+static void probe_original(const void*m,void*a,void*r){probe_method=m;probe_args=a;probe_result=r;}
 static int32_t last_id;
 static int64_t last_damage;
 static uint64_t last_value;
@@ -123,5 +125,13 @@ int main(void){
  void_dispatch(0,(void*)80,&mi_drive);
  assert(calls==1&&moves==1&&syncs==1&&moved_position[0]==10&&moved_position[1]==23&&moved_y==7.5);
  puts("PASS vacuum runtime invocation flow, vector arguments and player/dead-monster filtering");
+ interpreter_original=probe_original;
+ int probe_input=42,probe_output=17;
+ interpreter_probe(&mi_drive,&probe_input,&probe_output);
+ assert(probe_method==&mi_drive&&probe_args==&probe_input&&probe_result==&probe_output);
+ assert(probe_input==42&&probe_output==17&&interpreter_calls==1&&interpreter_targets[DRIVE]==1);
+ interpreter_probe(NULL,NULL,NULL);
+ assert(!probe_method&&!probe_args&&!probe_result&&interpreter_calls==2&&interpreter_targets[DRIVE]==1);
+ puts("PASS interpreter telemetry exact-argument passthrough and target/null filtering");
  return 0;
 }

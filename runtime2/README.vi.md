@@ -1,10 +1,10 @@
-# Stella Sora Runtime 2 — bản thử nghiệm cho bộ tệp đã gửi
+# Stella Sora Runtime 2 — diagnostics 3
 
-**Bản diagnostics 2: bổ sung log, chưa sửa được lỗi tính năng không có tác dụng.** Người dùng đã chạy bản trước: menu mở được, 3/6 tính năng được bật nhưng không có tác dụng. Kiểm thử mock đạt không chứng minh tính năng chạy trong game.
+**Bản chẩn đoán, chưa xác nhận gameplay hoạt động.** Sửa tên đầy đủ của tham số RealDamage và theo dõi entry chung của bộ thông dịch tại RVA 0x64e270, chỉ sau khi SHA-256 GameAssembly khớp profile. Entry được kiểm tra prologue trước khi cài hook. Probe chuyển nguyên MethodInfo, argument stack và return storage cho hàm gốc; không tự diễn giải hoặc sửa các đối số.
 
-Log mới ghi riêng số lượt vào entry (`entry calls`) và số phương thức khớp (`matching targets`), chữ ký thực tế khi không tìm thấy RealDamage và địa chỉ nạp GameAssembly. Chạy một trận khoảng 30–60 giây rồi gửi `SSTool2.log` cạnh DLL để xác định bước sửa tiếp theo.
+Log ghi INTERPRETER calls và INTERPRETER TARGET khi phương thức mục tiêu đi qua entry này. Không thấy target ở đây cũng chưa chứng minh phương thức không chạy: các lời gọi nội bộ có thể đi qua frame khác. Không dùng probe này làm bằng chứng tính năng đã hoạt động.
 
-Đối chiếu tĩnh log trước với đúng GameAssembly cho thấy nhóm OnHitActor và DamageToToughness trỏ tới RVA `0x6627f0`, nơi báo lỗi `NotSupportNative2Managed`. Đây không phải thân hàm gameplay. Các entry còn lại là cầu nối vào bộ thông dịch; log trước chỉ đếm phương thức khớp nên chưa xác định được liệu game có đi qua cầu nối đó.
+Chạy một trận 30–60 giây, dùng kỹ năng rồi gửi SSTool2.log cạnh DLL. Không cần gửi lại tệp game. Bản Windows x64 đã build; 9 nhóm mock tests với ASan/UBSan đã đạt. Windows/game runtime chưa được kiểm thử tại môi trường build.
 
 ## Cách thử trên máy bạn
 
