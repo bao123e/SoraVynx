@@ -46,6 +46,7 @@ static int verify_tool_file(const wchar_t *path) {
  if(!ok)fail(L"MG_cheat.dll is not the matching SSTool build, or could not be verified. Download the DLL supplied with this launcher; do not use the original key-locked DLL.");
  return ok;
 }
+static int startup_poll;
 static DWORD find_game(void) {
  HANDLE snapshot=CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
  if(snapshot==INVALID_HANDLE_VALUE)return 0;
@@ -60,7 +61,7 @@ static DWORD find_game(void) {
 }
 static uintptr_t remote_module(DWORD pid,const wchar_t *name) {
  HANDLE snapshot=CreateToolhelp32Snapshot(TH32CS_SNAPMODULE|TH32CS_SNAPMODULE32,pid);
- if(snapshot==INVALID_HANDLE_VALUE){loader_log(L"Module snapshot failed pid=%lu error=%lu",pid,GetLastError());return 0;}
+ if(snapshot==INVALID_HANDLE_VALUE){if(!startup_poll)loader_log(L"Module snapshot failed pid=%lu error=%lu",pid,GetLastError());return 0;}
  MODULEENTRY32W entry={0};entry.dwSize=sizeof(entry);uintptr_t base=0;
  if(Module32FirstW(snapshot,&entry))do {
   if(!_wcsicmp(entry.szModule,name)){base=(uintptr_t)entry.modBaseAddr;break;}
@@ -145,7 +146,7 @@ static wchar_t ini_path[32768],selected_path[32768];
 
 static DWORD WINAPI start_worker(void *unused) {
  (void)unused;DWORD pid=find_game();int result=1;
- if(pid==MAXDWORD){fail(L"Multiple StellaSora.exe processes are running. Close extra instances first.");goto done;}
+ if(pid){loader_log(L"Fresh-start request refused: existing pid=%lu",pid);fail(L"Close all StellaSora.exe instances, then use Start game + tool. This build starts a fresh game instead of attaching to an existing session.");goto done;}
  HANDLE launched=NULL;
  if(!pid) {
   if(!selected_path[0]||GetFileAttributesW(selected_path)==INVALID_FILE_ATTRIBUTES){fail(L"Choose the game's StellaSora.exe first.");goto done;}
@@ -155,13 +156,20 @@ static DWORD WINAPI start_worker(void *unused) {
   STARTUPINFOW startup={0};startup.cb=sizeof(startup);PROCESS_INFORMATION info={0};
   if(!CreateProcessW(selected_path,NULL,NULL,NULL,FALSE,0,NULL,directory,&startup,&info)) {fail(L"Could not start the game. Check its path and access permissions.");goto done;}
   CloseHandle(info.hThread);launched=info.hProcess;pid=info.dwProcessId;
+  loader_log(L"Created fresh game pid=%lu; waiting for Windows loader exports, not GameAssembly",pid);
  }
- for(unsigned i=0;i<480;i++) {
-  if(remote_module(pid,L"GameAssembly.dll")){result=load_tool(pid);break;}
-  if(launched&&WaitForSingleObject(launched,0)==WAIT_OBJECT_0){fail(L"The game exited before loading. Start it through its official launcher and try again.");break;}
-  if(i==479){fail(L"Timed out waiting for GameAssembly.dll. Check whether the game has finished starting.");break;}
-  Sleep(250);
+ startup_poll=1;
+ ULONGLONG deadline=GetTickCount64()+120000;
+ for(;;) {
+  if(remote_export(pid,"LoadLibraryW")&&remote_export(pid,"GetLastError")) {
+   startup_poll=0;loader_log(L"Windows loader exports ready in fresh pid=%lu; attempting DLL load immediately",pid);
+   result=load_tool(pid);break;
+  }
+  if(launched&&WaitForSingleObject(launched,0)==WAIT_OBJECT_0){fail(L"The newly started game exited before its Windows loader became ready.");break;}
+  if(GetTickCount64()>=deadline){fail(L"Timed out waiting for Windows loader exports in the fresh game.");break;}
+  Sleep(10);
  }
+ startup_poll=0;
  if(launched)CloseHandle(launched);
  done:PostMessageW(launcher_window,WM_APP+1,(WPARAM)result,0);return 0;
 }
@@ -203,19 +211,19 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,LPWSTR command,int sho
  if(!n||n>=32768)return fail(L"Cannot locate launcher folder.");
  wchar_t *tail=wcsrchr(ini_path,L'\\');if(!tail||(size_t)(tail-ini_path)+24>=32768)return 1;
  wcscpy(tail+1,L"SSTool-launcher.log");wcscpy(loader_log_path,ini_path);
- loader_log(L"=== SSTool path launcher 4 ===");
+ loader_log(L"=== SSTool fresh-start launcher 5 ===");
  wcscpy(tail+1,L"config.ini");
  GetPrivateProfileStringW(L"Config",L"GamePath",L"",selected_path,32768,ini_path);normalize_path(selected_path);
  WNDCLASSW cls={0};cls.lpfnWndProc=launcher_proc;cls.hInstance=instance;cls.lpszClassName=L"SSToolLauncher";
  cls.hCursor=LoadCursorW(NULL,IDC_ARROW);cls.hbrBackground=(HBRUSH)(COLOR_WINDOW+1);
  if(!RegisterClassW(&cls))return 1;
- launcher_window=CreateWindowW(cls.lpszClassName,L"SSTool - Start game",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,680,190,NULL,NULL,instance,NULL);
+ launcher_window=CreateWindowW(cls.lpszClassName,L"SSTool - Fresh start",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,680,190,NULL,NULL,instance,NULL);
  if(!launcher_window)return 1;
  CreateWindowW(L"STATIC",L"Game path (StellaSora.exe):",WS_CHILD|WS_VISIBLE,15,12,620,20,launcher_window,NULL,instance,NULL);
  path_edit=CreateWindowExW(WS_EX_CLIENTEDGE,L"EDIT",selected_path,WS_CHILD|WS_VISIBLE|ES_AUTOHSCROLL,15,35,530,25,launcher_window,NULL,instance,NULL);
  browse_button=CreateWindowW(L"BUTTON",L"Browse...",WS_CHILD|WS_VISIBLE,555,35,95,25,launcher_window,(HMENU)101,instance,NULL);
  start_button=CreateWindowW(L"BUTTON",L"Start game + tool",WS_CHILD|WS_VISIBLE|BS_DEFPUSHBUTTON,15,75,175,28,launcher_window,(HMENU)102,instance,NULL);
- status_text=CreateWindowW(L"STATIC",L"Choose the game once. Its path is saved in config.ini.",WS_CHILD|WS_VISIBLE,15,115,640,25,launcher_window,NULL,instance,NULL);
+ status_text=CreateWindowW(L"STATIC",L"Close the game first. Choose its path, then Start game + tool.",WS_CHILD|WS_VISIBLE,15,115,640,25,launcher_window,NULL,instance,NULL);
  SendMessageW(path_edit,EM_SETLIMITTEXT,32766,0);
  ShowWindow(launcher_window,show);MSG msg;
  while(GetMessageW(&msg,NULL,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}

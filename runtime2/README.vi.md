@@ -1,3 +1,15 @@
+# Fresh-start launcher 5
+
+Bản này sửa lựa chọn phiên game và thời điểm nạp. Đóng hết StellaSora.exe trước, rồi chọn đường dẫn và bấm Start game + tool. Nếu thấy phiên đang chạy, chương trình từ chối thay vì tự attach. Nó tạo tiến trình mới bằng CreateProcessW bình thường, tìm địa chỉ LoadLibraryW/GetLastError từ module thật của tiến trình mới rồi nạp ngay khi các địa chỉ sẵn sàng. DLL tự chờ GameAssembly và Hotfix như trước. Backend DLL giữ nguyên.
+
+Bằng chứng phân tích tĩnh Injector cũ: tại VA 0x140003d2b, tham số dwCreationFlags của CreateProcessA là 4 (CREATE_SUSPENDED); call ở 0x140003d41. ResumeThread ở 0x140004df2. Mã của công cụ mới trước đây chờ GameAssembly, và các log lỗi gần nhất còn dùng chung PID 21216. Những khác biệt này xác định hướng thử thời điểm nạp; chưa chứng minh được nguyên nhân DEADC0DE. Bản mới không sao chép toàn bộ cơ chế suspended của bản cũ hoặc giả định địa chỉ DLL hệ thống giống nhau giữa các tiến trình.
+
+Nếu vẫn lỗi, gửi SSTool-launcher.log mới. stage=0 và DEADC0DE ở bản trước cho thấy adapter chưa tới điểm đánh dấu đầu tiên; chưa xác định thành phần làm thread kết thúc. Chưa được kiểm thử game trên Windows trong môi trường build; không gọi đây là lỗi đã sửa hoàn toàn. Nếu game chỉ mở được qua official launcher, luồng tự mở của bản này có thể chưa phù hợp.
+
+DLL, key, game files và chính sách bảo vệ của game không bị thay đổi. Trình nạp không tự kết thúc game đang chạy.
+
+---
+
 # Loader 4 update
 
 Log của loader 3 xác nhận DLL khớp hash nhưng thread exit 0xffffffff và không thấy module. Mã 18 sau enumeration không phải GetLastError của LoadLibraryW. Chưa xác định được nguyên nhân hoặc giải quyết lỗi runtime đó.
