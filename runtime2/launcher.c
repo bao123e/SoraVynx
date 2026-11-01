@@ -78,7 +78,7 @@ static int load_tool(DWORD pid) {
  }
  VirtualFreeEx(process,remote,0,MEM_RELEASE);CloseHandle(process);
  if(!remote_module(pid,L"MG_cheat.dll"))return fail(L"DLL was not loaded. Check that MG_cheat.dll is a compatible x64 build.");
- 
+
  return 0;
 }
 
