@@ -14,6 +14,7 @@
 #include <wchar.h>
 #include <stdint.h>
 #include "launcher_path.h"
+#include "launcher_capture.h"
 
 static wchar_t loader_log_path[32768];
 static void loader_log(const wchar_t *format,...) {
@@ -66,8 +67,16 @@ static uintptr_t remote_module(DWORD pid,const wchar_t *name) {
  }while(Module32NextW(snapshot,&entry));
  CloseHandle(snapshot);return base;
 }
+static uintptr_t remote_export(DWORD pid,const char *name) {
+ FARPROC address=GetProcAddress(GetModuleHandleW(L"kernel32.dll"),name);HMODULE owner=NULL;wchar_t path[32768];
+ if(!address||!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCWSTR)(uintptr_t)address,&owner))return 0;
+ DWORD n=GetModuleFileNameW(owner,path,32768);if(!n||n>=32768)return 0;
+ wchar_t *tail=wcsrchr(path,L'\\');if(!tail)return 0;
+ uintptr_t base=remote_module(pid,tail+1);if(!base)return 0;
+ return base+(uintptr_t)address-(uintptr_t)owner;
+}
 static int load_tool(DWORD pid) {
- wchar_t dll[32768],owner_path[32768];
+ wchar_t dll[32768];
  DWORD length=GetModuleFileNameW(NULL,dll,32768);
  if(!length||length>=32768)return fail(L"Cannot locate launcher folder.");
  wchar_t *tail=wcsrchr(dll,L'\\');if(!tail)return fail(L"Invalid launcher path.");
@@ -82,26 +91,27 @@ static int load_tool(DWORD pid) {
  if(!process)return fail(L"Cannot open the game. Run this launcher at the same privilege level as the game.");
  BOOL wow64=FALSE;
  if(!IsWow64Process(process,&wow64)||wow64){CloseHandle(process);return fail(L"The game must be a Windows x64 process.");}
- FARPROC load=GetProcAddress(GetModuleHandleW(L"kernel32.dll"),"LoadLibraryW");
- HMODULE owner=NULL;
- if(!load||!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCWSTR)(uintptr_t)load,&owner)) {
-  CloseHandle(process);return fail(L"Cannot resolve Windows DLL loader.");
- }
- length=GetModuleFileNameW(owner,owner_path,32768);tail=wcsrchr(owner_path,L'\\');
- if(!length||length>=32768||!tail){CloseHandle(process);return fail(L"Cannot identify loader module.");}
- uintptr_t base=remote_module(pid,tail+1);
- if(!base){CloseHandle(process);return fail(L"Cannot locate Windows loader module in game.");}
- /* Rebase the exported address by its actual owning module, including forwards. */
- LPTHREAD_START_ROUTINE remote_load=(LPTHREAD_START_ROUTINE)(base+(uintptr_t)load-(uintptr_t)owner);
- loader_log(L"Loader owner=%ls local=%p remote_base=%p entry=%p",owner_path,(void*)owner,(void*)base,(void*)(uintptr_t)remote_load);
+ uintptr_t load=remote_export(pid,"LoadLibraryW"),last_error=remote_export(pid,"GetLastError");
+ if(!load||!last_error){CloseHandle(process);return fail(L"Cannot resolve Windows loader functions.");}
+ loader_log(L"Remote LoadLibraryW=%p GetLastError=%p",(void*)load,(void*)last_error);
  SIZE_T size=(wcslen(dll)+1)*sizeof(wchar_t),written=0;
  void *remote=VirtualAllocEx(process,NULL,size,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
  if(!remote){CloseHandle(process);return fail(L"Cannot allocate DLL path.");}
  if(!WriteProcessMemory(process,remote,dll,size,&written)||written!=size) {
   VirtualFreeEx(process,remote,0,MEM_RELEASE);CloseHandle(process);return fail(L"Cannot write DLL path.");
  }
- HANDLE thread=CreateRemoteThread(process,NULL,0,remote_load,remote,0,NULL);
- if(!thread){VirtualFreeEx(process,remote,0,MEM_RELEASE);CloseHandle(process);return fail(L"Windows could not start the DLL loader.");}
+ struct LoaderResult result={load,last_error,(uintptr_t)remote,0,0,0};
+ void *remote_result=VirtualAllocEx(process,NULL,sizeof(result),MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
+ void *remote_code=VirtualAllocEx(process,NULL,sizeof(loader_code),MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
+ DWORD old_protect=0;
+ if(!remote_result||!remote_code||!WriteProcessMemory(process,remote_result,&result,sizeof(result),&written)||written!=sizeof(result)||
+    !WriteProcessMemory(process,remote_code,loader_code,sizeof(loader_code),&written)||written!=sizeof(loader_code)||
+    !VirtualProtectEx(process,remote_code,sizeof(loader_code),PAGE_EXECUTE_READ,&old_protect)||!FlushInstructionCache(process,remote_code,sizeof(loader_code))) {
+  if(remote_result)VirtualFreeEx(process,remote_result,0,MEM_RELEASE);if(remote_code)VirtualFreeEx(process,remote_code,0,MEM_RELEASE);
+  VirtualFreeEx(process,remote,0,MEM_RELEASE);CloseHandle(process);return fail(L"Cannot prepare Windows loader result capture.");
+ }
+ HANDLE thread=CreateRemoteThread(process,NULL,0,(LPTHREAD_START_ROUTINE)remote_code,remote_result,0,NULL);
+ if(!thread){VirtualFreeEx(process,remote_result,0,MEM_RELEASE);VirtualFreeEx(process,remote_code,0,MEM_RELEASE);VirtualFreeEx(process,remote,0,MEM_RELEASE);CloseHandle(process);return fail(L"Windows could not start the DLL loader.");}
  DWORD wait=WaitForSingleObject(thread,30000),exit_code=0;
  BOOL got_code=GetExitCodeThread(thread,&exit_code);
  loader_log(L"Remote thread wait=0x%08lx GetExitCode=%d exit=0x%08lx",wait,(int)got_code,exit_code);
@@ -110,8 +120,15 @@ static int load_tool(DWORD pid) {
   /* Keep the path allocated while the remote loader might still use it. */
   CloseHandle(process);return fail(L"Loader did not finish in 30 seconds. Do not load again; restart the game and check SSTool2.log.");
  }
+ SIZE_T received=0;
+ BOOL read_ok=ReadProcessMemory(process,remote_result,&result,sizeof(result),&received);
+ loader_log(L"Loader capture read=%d bytes=%llu stage=%lu module=%p immediate_Win32_error=%lu",(int)read_ok,(unsigned long long)received,result.stage,(void*)(uintptr_t)result.module,result.error);
+ VirtualFreeEx(process,remote_result,0,MEM_RELEASE);VirtualFreeEx(process,remote_code,0,MEM_RELEASE);
  VirtualFreeEx(process,remote,0,MEM_RELEASE);CloseHandle(process);
- uintptr_t loaded=0;
+ if(read_ok&&received==sizeof(result)&&result.stage==2&&!result.module) {
+  wchar_t reason[512];swprintf(reason,512,L"LoadLibraryW failed with Windows error %lu. See SSTool-launcher.log for the exact DLL path and hash.",result.error);SetLastError(result.error);return fail(reason);
+ }
+ uintptr_t loaded=(read_ok&&received==sizeof(result)&&result.stage==2)?(uintptr_t)result.module:0;
  for(unsigned attempt=0;attempt<10&&!loaded;attempt++){loaded=remote_module(pid,L"MG_cheat.dll");if(!loaded)Sleep(100);}
  if(!loaded) {
   wchar_t reason[512];swprintf(reason,512,L"Windows loader did not leave the DLL loaded (thread exit 0x%08lx). The launcher log now records the DLL hash and loader result. Restart the game before retrying.",exit_code);
@@ -186,7 +203,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,LPWSTR command,int sho
  if(!n||n>=32768)return fail(L"Cannot locate launcher folder.");
  wchar_t *tail=wcsrchr(ini_path,L'\\');if(!tail||(size_t)(tail-ini_path)+24>=32768)return 1;
  wcscpy(tail+1,L"SSTool-launcher.log");wcscpy(loader_log_path,ini_path);
- loader_log(L"=== SSTool path launcher 3 ===");
+ loader_log(L"=== SSTool path launcher 4 ===");
  wcscpy(tail+1,L"config.ini");
  GetPrivateProfileStringW(L"Config",L"GamePath",L"",selected_path,32768,ini_path);normalize_path(selected_path);
  WNDCLASSW cls={0};cls.lpfnWndProc=launcher_proc;cls.hInstance=instance;cls.lpszClassName=L"SSToolLauncher";

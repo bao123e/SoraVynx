@@ -1,4 +1,12 @@
-# SSTool standalone 3 — đường dẫn và chẩn đoán nạp DLL
+# Loader 4 update
+
+Log của loader 3 xác nhận DLL khớp hash nhưng thread exit 0xffffffff và không thấy module. Mã 18 sau enumeration không phải GetLastError của LoadLibraryW. Chưa xác định được nguyên nhân hoặc giải quyết lỗi runtime đó.
+
+Loader 4 dùng một adapter x64 nhỏ gọi LoadLibraryW bình thường, lưu toàn bộ HMODULE 64-bit và gọi GetLastError ngay trong cùng thread. stage=1 ghi trước LoadLibraryW, stage=2 sau khi lấy kết quả. Nếu thread không đi vào adapter, stage vẫn 0. Adapter không bắt ngoại lệ hoặc tìm cách tiếp tục khi thread bị dừng. Kết quả và stage được đọc về SSTool-launcher.log; không có thay đổi backend game.
+
+Adapter thực đã được chạy trên Linux x64 với mock API dùng Microsoft ABI để kiểm tra thành công, handle đầy đủ 64-bit và trường hợp lỗi 126. Windows GUI/remote execution trong game chưa được kiểm thử tại môi trường build. Giữ DLL hiện tại đã khớp hash; chỉ thay SSTool.exe, khởi động lại game và gửi SSTool-launcher.log mới nếu vẫn lỗi.
+
+# SSTool standalone 4 — đường dẫn và chẩn đoán nạp DLL
 
 Trình nạp 3 bổ sung SSTool-launcher.log cạnh EXE: đường dẫn/kích thước/hash DLL, PID, module chứa LoadLibraryW, địa chỉ sau rebase và mã thoát của luồng nạp. Kiểm tra DLL phải khớp bản build để tránh nạp nhầm file cũ; không đổi giới hạn hash GameAssembly của backend. Thông báo lỗi nạp DLL không còn tự kết luận lỗi x64. Thử lại enumeration module trong tối đa một giây sau khi luồng nạp kết thúc.
 

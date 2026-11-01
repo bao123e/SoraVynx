@@ -14,3 +14,8 @@ if __name__=='__main__':
   subprocess.run(['gcc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(ROOT/'tests/launcher_path_test.c'),'-o',str(path_binary)],check=True)
   subprocess.run([str(path_binary)],check=True)
   print('PASS launcher path normalization: doubled separators, spaces/quotes, UNC and empty path')
+
+  capture_binary=Path(temporary)/'launcher-capture-test'
+  subprocess.run(['gcc','-O1','-std=c11','-Wall','-Wextra','-Werror',str(ROOT/'tests/launcher_capture_test.c'),'-o',str(capture_binary)],check=True)
+  subprocess.run([str(capture_binary)],check=True)
+  print('PASS loader capture x64 ABI, full-width module and immediate error capture with mock API calls')
