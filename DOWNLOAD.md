@@ -1,11 +1,14 @@
-# Stella Sora Runtime 2 — frame test 2
+# SSTool standalone 1
 
-[Tải trực tiếp MG_cheat.dll](releases/MG_cheat.dll)
+Tải hai file vào cùng thư mục:
 
-[ZIP kèm toàn bộ mã nguồn](releases/StellaSora-Runtime2-frame-test2.zip) · [Hướng dẫn](runtime2/README.vi.md)
+- [SSTool.exe](releases/SSTool.exe)
+- [MG_cheat.dll](releases/MG_cheat.dll)
 
-Giữ Unlimited Energy; triển khai God Mode (damage về 0), Damage Multiplier, reset cooldown và Mob Vacuum qua frame. Instant Break bị tắt. Các tính năng mới chưa xác nhận trong game. Multi Hit được thay bằng tăng lượng damage, không lặp đòn.
+Mở game bình thường tới menu chính, rồi chạy SSTool.exe. Trình nạp mới không có bước nhập key. Không dùng Injector.exe cũ. Khởi động lại game trước nếu phiên hiện tại đã nạp DLL.
 
-Build Windows x64 và 13 nhóm mock tests với sanitizer đã đạt. Log FRAME ACTIONS phân biệt số lần áp dụng từng tính năng.
+Damage Multiplier giới hạn 2–50; giao diện hiện hệ số thực, sửa số ngoài khoảng khi rời ô và ghi thay đổi vào log. Mức này là giới hạn công cụ, không xác nhận giới hạn của game.
 
-SHA-256 DLL: `e11d1af2d89aedbc39d8eeee87b70a18c149f068631b4edea90f41eddc35c018`.
+[Hướng dẫn và giới hạn](runtime2/README.vi.md) · [ZIP có mã nguồn tương ứng](releases/SSTool-standalone1.zip)
+
+EXE/DLL Windows x64 đã build; backend qua 13 nhóm mock tests. Trình nạp mới chưa được kiểm thử trên Windows.

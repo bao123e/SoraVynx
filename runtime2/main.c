@@ -9,7 +9,7 @@
 #include <stdlib.h>
 
 static HMODULE self_module;
-static HWND window,checks[FEATURE_COUNT],status_label;
+static HWND window,checks[FEATURE_COUNT],status_label,multiplier_hint;
 static FILE *log_file;
 static CRITICAL_SECTION log_lock;
 static volatile LONG init_state;
@@ -94,7 +94,9 @@ static void refresh_status(void) {
  int available=0;
  for(int i=0;i<FEATURE_COUNT;i++){BOOL enabled=read_atomic(&capabilities[i])!=0;EnableWindow(checks[i],enabled);if(enabled)available++;}
  wchar_t text[256];swprintf(text,256,L"Hooks: %d/6; entry calls: %ld; matching targets: %d/13.\r\nF1 shows/hides. Counts distinguish entry activity from target matches.",available,(long)total_entry_calls(),observed_target_count());
- SetWindowTextW(status_label,text);report_observed_calls();
+ SetWindowTextW(status_label,text);
+ wchar_t hint[64];swprintf(hint,64,L"Multiplier 2-50: x%ld",(long)read_atomic(&multi_count));SetWindowTextW(multiplier_hint,hint);
+ report_observed_calls();
 }
 static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  switch(message) {
@@ -106,10 +108,19 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
    LONG value=SendMessageW(checks[f],BM_GETCHECK,0,0)==BST_CHECKED;
    InterlockedExchange(&feature_flags[f],value);log_line("Feature %d -> %s",f,value?"ON":"OFF");
   } else if(id==200)disable_all();
-  else if((id==201||id==202)&&HIWORD(wp)==EN_CHANGE) {
+  else if((id==201||id==202)&&(HIWORD(wp)==EN_CHANGE||HIWORD(wp)==EN_KILLFOCUS)) {
    BOOL valid=FALSE;UINT value=GetDlgItemInt(hwnd,id,&valid,FALSE);
-   if(valid&&id==201&&value>=2&&value<=50)InterlockedExchange(&multi_count,(LONG)value);
-   if(valid&&id==202&&value>=1&&value<=10)InterlockedExchange(&vacuum_distance,(LONG)value);
+   UINT minimum=id==201?2:1,maximum=id==201?50:10;
+   volatile LONG *setting=id==201?&multi_count:&vacuum_distance;
+   if(HIWORD(wp)==EN_KILLFOCUS) {
+    if(!valid)value=(UINT)read_atomic(setting);
+    if(value<minimum)value=minimum;if(value>maximum)value=maximum;
+    SetDlgItemInt(hwnd,id,value,FALSE);
+   }
+   if(value>=minimum&&value<=maximum&&(valid||HIWORD(wp)==EN_KILLFOCUS)) {
+    LONG previous=InterlockedExchange(setting,(LONG)value);
+    if(previous!=(LONG)value)log_line("SETTING %s=%u",id==201?"damage_multiplier":"vacuum_distance",value);
+   }
   }
   break;
  }
@@ -138,13 +149,13 @@ static DWORD WINAPI run(void *unused) {
  WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=self_module;wc.lpszClassName=L"SSToolRuntime2";
  wc.hCursor=LoadCursorW(NULL,MAKEINTRESOURCEW(32512));wc.hbrBackground=(HBRUSH)(COLOR_WINDOW+1);
  if(!RegisterClassW(&wc))return 1;
- window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"Stella Sora Runtime 2 - frame test 2",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,570,405,NULL,NULL,self_module,NULL);
+ window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"Stella Sora Runtime 2 - standalone 1",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,570,405,NULL,NULL,self_module,NULL);
  if(!window)return 1;
  control(L"STATIC",L"All features start OFF. F1 shows / hides this window.",0,20,16,510,24,0);
  for(int i=0;i<FEATURE_COUNT;i++) {
   checks[i]=control(L"BUTTON",labels[i],BS_AUTOCHECKBOX|WS_TABSTOP,24,49+31*i,260,26,100+i);EnableWindow(checks[i],FALSE);
  }
- control(L"STATIC",L"Multiplier (2-50)",0,310,114,150,20,0);
+ multiplier_hint=control(L"STATIC",L"Multiplier 2-50: x2",0,310,114,150,20,0);
  control(L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,465,110,60,24,201);
  control(L"STATIC",L"Vacuum distance (1-10)",0,310,207,150,22,0);
  control(L"EDIT",L"3",WS_BORDER|ES_NUMBER|WS_TABSTOP,465,203,60,24,202);
@@ -152,7 +163,7 @@ static DWORD WINAPI run(void *unused) {
  status_label=control(L"STATIC",L"Starting...",0,24,289,510,60,0);
  SetTimer(window,1,500,NULL);ShowWindow(window,SW_SHOWNOACTIVATE);
  if(logging) {
-  log_line("=== Stella Sora Runtime 2 frame test 2 ===");
+  log_line("=== Stella Sora Runtime 2 standalone 1 ===");
   log_line("Source: TheReVeaLz/StellaSora-Tool 30f67811411dca754f1b876b4d4dbf6a001e0a20; new runtime backend.");
   log_line("No network, key handling, anti-cheat changes or game file writes. Closing the menu disables every feature.");
   HANDLE thread=CreateThread(NULL,0,initialize,NULL,0,NULL);if(thread)CloseHandle(thread);
