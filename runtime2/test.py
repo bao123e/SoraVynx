@@ -10,3 +10,7 @@ if __name__=='__main__':
    '-fdata-sections','-fsanitize=address,undefined','-I'+str(ROOT/'tests/include'),
    str(ROOT/'tests/backend_test.c'),'-Wl,--gc-sections','-o',str(binary)],check=True)
   subprocess.run([str(binary)],check=True)
+  path_binary=Path(temporary)/'launcher-path-test'
+  subprocess.run(['gcc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(ROOT/'tests/launcher_path_test.c'),'-o',str(path_binary)],check=True)
+  subprocess.run([str(path_binary)],check=True)
+  print('PASS launcher path normalization: doubled separators, spaces/quotes, UNC and empty path')

@@ -1,14 +1,11 @@
-# SSTool standalone 1
+# SSTool standalone 2
 
-Tải hai file vào cùng thư mục:
+[Tải SSTool.exe mới](releases/SSTool.exe) · [MG_cheat.dll](releases/MG_cheat.dll)
 
-- [SSTool.exe](releases/SSTool.exe)
-- [MG_cheat.dll](releases/MG_cheat.dll)
+Đặt hai file cùng thư mục. Có thể đặt config.ini đã có cạnh EXE để tự đọc [Config] GamePath.
 
-Mở game bình thường tới menu chính, rồi chạy SSTool.exe. Trình nạp mới không có bước nhập key. Không dùng Injector.exe cũ. Khởi động lại game trước nếu phiên hiện tại đã nạp DLL.
+Mở SSTool.exe, chọn StellaSora.exe bằng Browse rồi bấm Start game + tool. Đường dẫn được lưu cho lần sau; chương trình mở game, chờ runtime rồi nạp DLL. Nếu game đã chạy thì nạp vào phiên đó. Không cần nhập key.
 
-Damage Multiplier giới hạn 2–50; giao diện hiện hệ số thực, sửa số ngoài khoảng khi rời ô và ghi thay đổi vào log. Mức này là giới hạn công cụ, không xác nhận giới hạn của game.
+[Hướng dẫn](runtime2/README.vi.md) · [ZIP có mã nguồn](releases/SSTool-standalone2.zip)
 
-[Hướng dẫn và giới hạn](runtime2/README.vi.md) · [ZIP có mã nguồn tương ứng](releases/SSTool-standalone1.zip)
-
-EXE/DLL Windows x64 đã build; backend qua 13 nhóm mock tests. Trình nạp mới chưa được kiểm thử trên Windows.
+DLL gameplay giữ nguyên. Build Windows GUI x64, 13 nhóm mock backend và kiểm tra chuẩn hóa đường dẫn đạt; giao diện/khởi chạy game thực chưa được thử trên Windows trong môi trường build.

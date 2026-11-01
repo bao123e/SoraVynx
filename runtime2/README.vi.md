@@ -1,13 +1,24 @@
-# SSTool standalone 1
+# SSTool standalone 2 — chọn đường dẫn và mở game
 
 ## Dùng
 
-1. Tải SSTool.exe và MG_cheat.dll vào cùng một thư mục mới. Giữ nguyên tên hai file.
-2. Thoát phiên game đang nạp DLL cũ. Mở game bình thường bằng launcher của game và vào menu chính.
-3. Chạy SSTool.exe. Khi DLL nạp xong, chờ cửa sổ điều khiển. F1 ẩn/hiện. Không nạp thêm bản DLL thứ hai vào cùng phiên game.
-4. Tất cả tính năng bắt đầu tắt. Thoát game trước khi thay file hoặc chạy lại trình nạp nếu có lỗi.
+1. Đặt SSTool.exe và MG_cheat.dll cùng một thư mục. Thay SSTool.exe bằng bản mới; DLL standalone 1 vẫn dùng được.
+2. Có thể đặt config.ini hiện có cạnh SSTool.exe. Chương trình đọc GamePath trong mục [Config], hỗ trợ đường dẫn có dấu gạch chéo lặp của file đã gửi. Không sử dụng DLLPath_2 hoặc key trong file cấu hình.
+3. Mở SSTool.exe. Dán đường dẫn StellaSora.exe hoặc bấm Browse để chọn file.
+4. Bấm Start game + tool. Đường dẫn được lưu vào config.ini cạnh EXE để dùng lần sau.
+5. Nếu game chưa chạy, chương trình mở game với thư mục làm việc là thư mục game, chờ GameAssembly.dll tối đa 120 giây rồi nạp DLL. Nếu game đang chạy, chương trình nạp vào phiên đang chạy. Hai phiên cùng tên sẽ bị từ chối.
+6. Chờ menu công cụ hiện. F1 ẩn/hiện. Khởi động lại game trước nếu phiên hiện tại đã nạp DLL.
 
-Trình nạp này được viết mới, không có key, cấu hình key hoặc kết nối dịch vụ kích hoạt. Injector.exe cũ không được sửa hoặc sử dụng. Đây là bộ hai file, không phải EXE chứa sẵn DLL. Trình nạp tìm đúng một StellaSora.exe x64, kiểm tra DLL chưa được nạp, dùng Windows LoadLibraryW và báo lỗi nếu Windows không cho phép truy cập tiến trình. Nó không thay đổi anti-cheat hoặc file game. Chạy cùng mức quyền với game; nếu Windows báo từ chối truy cập thì xem thông báo lỗi.
+Trình nạp mới không có bước nhập key, không sử dụng Injector.exe cũ. Nếu game cần official launcher để đăng nhập/khởi động, mở bằng launcher chính thức trước rồi bấm Start game + tool. Chương trình không điều khiển màn hình đăng nhập game.
+
+Đường dẫn cấu hình cá nhân không nằm trong bản phát hành. File mới lưu dạng Unicode INI. Ví dụ cấu trúc (chọn đường dẫn thật bằng Browse):
+
+```ini
+[Config]
+GamePath=C:\Games\StellaSora_EN\StellaSora.exe
+```
+
+Đã build Windows GUI x64, kiểm tra bộ chuẩn hóa đường dẫn với sanitizer (gạch chéo lặp, khoảng trắng/dấu nháy, UNC và rỗng), và chạy lại 13 nhóm mock tests backend. Giao diện, CreateProcess và nạp DLL thực chưa được chạy trên Windows tại môi trường build.
 
 ## Tính năng và giới hạn
 
@@ -24,7 +35,7 @@ GameAssembly phải khớp SHA-256 6adc5de8d2ed85ee752be80b38aff0e5e85d21e6efb61
 
 Log người dùng của frame test 2 ghi energy=9656, god_zero_damage=35, damage_scaled=3643, cooldown_resets=18969, monsters_moved=2800. Các số là số lần xử lý trong code, không chứng minh mọi hiệu ứng cuối cùng đều đúng. Người dùng báo gần hết tính năng có tác dụng. Log cũ không ghi hệ số damage; nhập 20000 giữ hệ số hợp lệ trước đó, không chứng minh x20000 hoạt động.
 
-Standalone 1 giữ backend gameplay, chỉnh giao diện giới hạn và bổ sung trình nạp mới. DLL/EXE đã build Windows x64; 13 nhóm mock tests của backend đạt với ASan/UBSan. GUI mới và trình nạp chưa chạy trên Windows trong môi trường build. Xem SSTool2.log cạnh DLL nếu khởi động dừng; log mới có SETTING damage_multiplier và FRAME ACTIONS.
+Standalone 2 giữ backend gameplay, chỉnh giao diện giới hạn và bổ sung trình nạp mới. DLL/EXE đã build Windows x64; 13 nhóm mock tests của backend đạt với ASan/UBSan. GUI mới và trình nạp chưa chạy trên Windows trong môi trường build. Xem SSTool2.log cạnh DLL nếu khởi động dừng; log mới có SETTING damage_multiplier và FRAME ACTIONS.
 
 ## Build và giấy phép
 
