@@ -1,10 +1,19 @@
-# Stella Sora Runtime 2 — diagnostics 3
+# Stella Sora Runtime 2 — frame test 1
 
-**Bản chẩn đoán, chưa xác nhận gameplay hoạt động.** Sửa tên đầy đủ của tham số RealDamage và theo dõi entry chung của bộ thông dịch tại RVA 0x64e270, chỉ sau khi SHA-256 GameAssembly khớp profile. Entry được kiểm tra prologue trước khi cài hook. Probe chuyển nguyên MethodInfo, argument stack và return storage cho hàm gốc; không tự diễn giải hoặc sửa các đối số.
+**Đổi cơ chế hook, chưa xác nhận hoạt động trong game.** Sau khi log diagnostics 3 ghi hơn 8 triệu lượt vào Execute nhưng không khớp target, phân tích mã máy cho thấy các lời gọi managed nội bộ đi qua EnterFrame (RVA 0x64e1c0), rồi nhảy thẳng về vòng thông dịch, bỏ qua Execute entry. Chín call-site trực tiếp đã được đối chiếu trong GameAssembly đúng hash.
 
-Log ghi INTERPRETER calls và INTERPRETER TARGET khi phương thức mục tiêu đi qua entry này. Không thấy target ở đây cũng chưa chứng minh phương thức không chạy: các lời gọi nội bộ có thể đi qua frame khác. Không dùng probe này làm bằng chứng tính năng đã hoạt động.
+Bản này theo dõi EnterFrame và sửa đối số của hai phương thức trước khi tạo frame:
 
-Chạy một trận 30–60 giây, dùng kỹ năng rồi gửi SSTool2.log cạnh DLL. Không cần gửi lại tệp game. Bản Windows x64 đã build; 9 nhóm mock tests với ASan/UBSan đã đạt. Windows/game runtime chưa được kiểm thử tại môi trường build.
+- Unlimited Energy: với set_currentEnergy, thay giá trị FDP 8 byte bằng get_totalEnergy. Không chặn ClearEnergy; nếu game xóa trực tiếp trường dữ liệu hoặc không gọi setter này, năng lượng vẫn có thể giảm.
+- Instant Break: với DamageToToughness, tăng lượng damage lên toughness hiện tại khi nguồn đòn là PlayerAdventureActor. Chưa xác nhận tác dụng thực tế.
+
+God Mode, Multi Hit, No Cooldown và Mob Vacuum được tắt trong backend frame này vì chưa có đường xử lý đã triển khai. Không nên hiểu bản thử này đáp ứng toàn bộ yêu cầu ban đầu.
+
+Frame được cấp phát bởi hàm gốc, các đối số khác giữ nguyên; không sửa opcode, địa chỉ trả về hay layout object. SHA-256 toàn DLL và prologue của entry phải khớp trước khi cài hook. Dữ liệu argument stack là các slot 8 byte, được đối chiếu ở call-site.
+
+Đã build Windows x64 và qua 10 nhóm mock tests với ASan/UBSan, gồm kiểm tra các slot thay đổi, lọc nguồn đòn, trạng thái tắt và chuyển nguyên tham số cho hàm cấp phát frame gốc. **Chưa chạy DLL trong game tại môi trường build.**
+
+Thoát game, dùng DLL mới thay DLL bản trước trong bản sao công cụ. Vào trận, thử từng tính năng trong hai ô khả dụng. Log FRAME TARGET ghi nhận hàm đi qua EnterFrame; matching targets trên cửa sổ tính cả đường frame. Chưa có FRAME TARGET thì chưa có bằng chứng backend bắt đúng hàm. Chạy khoảng 30–60 giây rồi gửi SSTool2.log cạnh DLL.
 
 ## Cách thử trên máy bạn
 

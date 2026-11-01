@@ -1,13 +1,13 @@
-# Stella Sora Runtime 2 — diagnostics 3
+# Stella Sora Runtime 2 — frame test 1
 
-[Tải ZIP diagnostics 3](releases/StellaSora-Runtime2-diagnostics3.zip)
+[Tải ZIP frame test 1](releases/StellaSora-Runtime2-frame-test1.zip)
 
-Bản chẩn đoán mới theo dõi entry chung của bộ thông dịch và sửa chữ ký RealDamage. **Chưa xác nhận tính năng gameplay hoạt động.**
+Bản thử đổi cơ chế sang hook frame của lời gọi managed nội bộ. Triển khai thay đối số energy setter và toughness damage. Bốn tính năng còn lại bị tắt. **Chưa xác nhận hai tính năng này hoạt động trong game.**
 
-Thoát game, thay DLL trong bản sao thư mục công cụ, chạy trận 30–60 giây rồi gửi SSTool2.log. [Hướng dẫn](runtime2/README.vi.md).
+Build Windows x64 và 10 nhóm mock tests với sanitizer đã đạt. [Hướng dẫn và giới hạn](runtime2/README.vi.md).
 
-Build Windows x64 và 9 nhóm mock tests với sanitizer đã đạt; chưa thử bản mới trong game.
+Thoát game, thay DLL trong bản sao công cụ rồi thử hai tính năng lần lượt. Gửi SSTool2.log sau khoảng 30–60 giây trong trận.
 
-SHA-256 ZIP: `3164d49353bed0345552b1657b84e9984e0ad65d50876665b7e34874c0ec7059`.
+SHA-256 ZIP: `975ce8180c117ea7253b06cef10b887635512a5f0e0aba7783f6e1d13c1d39ed`.
 
 Gói chứa DLL, mã nguồn và giấy phép; không chứa game, Injector, log cá nhân hoặc khóa.

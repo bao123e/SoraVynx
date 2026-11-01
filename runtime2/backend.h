@@ -10,3 +10,4 @@ int observed_target_count(void);
 LONG total_entry_calls(void);
 LONG read_atomic(volatile LONG *value);
 bool install_interpreter_probe(HMODULE game);
+bool install_frame_backend(HMODULE game);

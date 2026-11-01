@@ -240,6 +240,52 @@ bool install_interpreter_probe(HMODULE game) {
  log_line("INTERPRETER PROBE: %s (telemetry only; no gameplay changes)",MH_StatusToString(status));
  return status==MH_OK;
 }
+/* EnterFrame(frameGroup, MethodInfo, StackObject*): verified at nine
+ * internal managed-call sites in the hash-locked profile. StackObject is 8 bytes.
+ * Do not skip allocation, alter frame metadata, or emulate return opcodes. */
+typedef void *(*EnterFrameFn)(void *,const void *,void *);
+static EnterFrameFn enter_frame_original;
+static volatile LONG frame_targets[TARGET_COUNT];
+static _Thread_local int frame_callback_depth;
+static void *enter_frame_hook(void *group,const void *method,void *args) {
+ int id=-1;
+ for(int i=0;i<TARGET_COUNT;i++)if(method&&method==targets[i].method){id=i;break;}
+ if(id>=0)InterlockedIncrement(&frame_targets[id]);
+ if(args&&!frame_callback_depth) {
+  frame_callback_depth++;
+  unsigned char *slots=args;void *self=NULL;memcpy(&self,slots,sizeof(self));
+  if(id==SET_ENERGY&&on(UNLIMITED_ENERGY)) {
+   bool ok;uint64_t full;void *box=invoke(total_energy,self,NULL,&ok);
+   if(ok&&read_box(box,&full,sizeof(full)))memcpy(slots+8,&full,sizeof(full));
+  }
+  if(id==TOUGHNESS&&on(INSTANT_BREAK)) {
+   void *from=NULL;int64_t damage,current;
+   memcpy(&from,slots+8,sizeof(from));memcpy(&damage,slots+16,sizeof(damage));
+   if(damage>0&&is_player(from)) {
+    bool ok;void *box=invoke(toughness_value,self,NULL,&ok);
+    if(ok&&read_box(box,&current,sizeof(current))&&current>damage)memcpy(slots+16,&current,sizeof(current));
+   }
+  }
+  frame_callback_depth--;
+ }
+ return enter_frame_original(group,method,args);
+}
+bool install_frame_backend(HMODULE game) {
+ static const unsigned char signature[]={0x48,0x89,0x5c,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x48,0x89,0x7c,0x24,0x18,0x41,0x56};
+ unsigned char *entry=(unsigned char*)game+0x64e1c0;
+ if(memcmp(entry,signature,sizeof(signature))){log_line("FRAME backend profile mismatch");return false;}
+ void *original=NULL;MH_STATUS status=MH_CreateHook(entry,(void*)enter_frame_hook,&original);
+ if(status!=MH_OK){log_line("FRAME hook create failed: %s",MH_StatusToString(status));return false;}
+ memcpy(&enter_frame_original,&original,sizeof(original));
+ status=MH_EnableHook(entry);
+ log_line("FRAME backend: %s; energy setter and toughness arguments only; gameplay unverified",MH_StatusToString(status));
+ if(status!=MH_OK)return false;
+ /* Existing native bridge coverage was unsuccessful in the supplied runtime logs. */
+ for(int i=0;i<FEATURE_COUNT;i++)InterlockedExchange(&capabilities[i],0);
+ InterlockedExchange(&capabilities[UNLIMITED_ENERGY],targets[SET_ENERGY].method&&total_energy);
+ InterlockedExchange(&capabilities[INSTANT_BREAK],targets[TOUGHNESS].method&&toughness_value);
+ return true;
+}
 static bool executable(void *entry) {
  MEMORY_BASIC_INFORMATION m;
  if(!entry||!VirtualQuery(entry,&m,sizeof(m))||m.State!=MEM_COMMIT||m.Protect&PAGE_GUARD)return false;
@@ -303,6 +349,10 @@ bool initialize_backend(void) {
  return true;
 }
 void report_observed_calls(void) {
+ static bool frame_reported[TARGET_COUNT];
+ for(int i=0;i<TARGET_COUNT;i++)if(!frame_reported[i]&&read_atomic(&frame_targets[i])) {
+  frame_reported[i]=true;log_line("FRAME TARGET %s.%s calls=%ld",targets[i].type,targets[i].name,(long)read_atomic(&frame_targets[i]));
+ }
  static bool interpreter_reported[TARGET_COUNT];
  static LONG last_interpreter_calls;
  LONG current=read_atomic(&interpreter_calls);
@@ -331,7 +381,7 @@ void report_observed_calls(void) {
  }
 }
 int observed_target_count(void) {
- int count=0;for(int i=0;i<TARGET_COUNT;i++)if(read_atomic(&targets[i].observed))count++;
+ int count=0;for(int i=0;i<TARGET_COUNT;i++)if(read_atomic(&targets[i].observed)||read_atomic(&frame_targets[i]))count++;
  return count;
 }
 LONG total_entry_calls(void) {

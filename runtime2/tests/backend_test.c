@@ -7,6 +7,8 @@ const void *hotfix_image;
 void *player_class=(void*)1,*monster_class=(void*)2;
 static void *player=(void*)10,*monster=(void*)20,*weapon=(void*)30;
 static const char mi_clear,mi_drive,mi_reduce,mi_reset,mi_energy,mi_tough,mi_real,mi_hit,mi_other;
+static void *frame_group,*frame_argument;static const void *frame_method;
+static void *frame_original(void*g,const void*m,void*a){frame_group=g;frame_method=m;frame_argument=a;return (void*)123;}
 static unsigned calls;
 static const void *probe_method;static void *probe_args,*probe_result;
 static void probe_original(const void*m,void*a,void*r){probe_method=m;probe_args=a;probe_result=r;}
@@ -133,5 +135,19 @@ int main(void){
  interpreter_probe(NULL,NULL,NULL);
  assert(!probe_method&&!probe_args&&!probe_result&&interpreter_calls==2&&interpreter_targets[DRIVE]==1);
  puts("PASS interpreter telemetry exact-argument passthrough and target/null filtering");
+ reset();enter_frame_original=frame_original;
+ uint64_t frame_args[4]={(uintptr_t)player,7,8,9};
+ feature_flags[UNLIMITED_ENERGY]=1;
+ assert(enter_frame_hook((void*)111,&mi_energy,frame_args)==(void*)123);
+ assert(frame_group==(void*)111&&frame_method==&mi_energy&&frame_argument==frame_args);
+ assert(frame_args[0]==(uintptr_t)player&&frame_args[1]==energy_box.value&&frame_args[2]==8&&frame_args[3]==9);
+ feature_flags[UNLIMITED_ENERGY]=0;frame_args[1]=42;
+ enter_frame_hook(NULL,&mi_energy,frame_args);assert(frame_args[1]==42);
+ feature_flags[INSTANT_BREAK]=1;frame_args[0]=(uintptr_t)monster;frame_args[1]=(uintptr_t)player;frame_args[2]=10;
+ enter_frame_hook(NULL,&mi_tough,frame_args);assert(frame_args[2]==tough_box.value&&frame_args[3]==9);
+ frame_args[1]=(uintptr_t)monster;frame_args[2]=10;
+ enter_frame_hook(NULL,&mi_tough,frame_args);assert(frame_args[2]==10);
+ enter_frame_hook(NULL,NULL,NULL);assert(!frame_method&&!frame_argument&&frame_callback_depth==0);
+ puts("PASS internal frame energy/toughness slots, disabled/filter behavior and allocation passthrough");
  return 0;
 }
