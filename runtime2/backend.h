@@ -7,4 +7,5 @@ extern volatile LONG multi_count, vacuum_distance;
 bool initialize_backend(void);
 void report_observed_calls(void);
 int observed_target_count(void);
+LONG total_entry_calls(void);
 LONG read_atomic(volatile LONG *value);

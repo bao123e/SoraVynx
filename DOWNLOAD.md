@@ -1,13 +1,13 @@
-# Stella Sora Runtime 2 — bản thử nghiệm
+# Stella Sora Runtime 2 — chẩn đoán lần 2
 
-[Tải gói ZIP](releases/StellaSora-Runtime2-test.zip)
+[Tải ZIP diagnostics 2](releases/StellaSora-Runtime2-diagnostics2.zip)
 
-Mở liên kết rồi bấm **Download raw file** (biểu tượng tải xuống) trên GitHub.
+**Chưa sửa được lỗi tính năng không tác dụng.** Gói này bổ sung số lượt vào entry, số phương thức khớp và chữ ký hàm thực tế để xác định nguyên nhân tiếp theo.
 
-ZIP có MG_cheat.dll, hướng dẫn tiếng Việt, mã nguồn và giấy phép. Xem [hướng dẫn sử dụng](runtime2/README.vi.md).
+Thoát game, thay DLL trong bản sao thư mục công cụ, chạy một trận 30–60 giây rồi gửi SSTool2.log cạnh DLL. Xem [hướng dẫn](runtime2/README.vi.md).
 
-**Chưa kiểm chứng trong game Windows.** Đã biên dịch DLL x64 và qua 8 nhóm kiểm thử callback bằng mock với sanitizer; đây chưa phải xác nhận các tính năng hoạt động thực tế.
+Build Windows x64 và 8 nhóm mock tests với sanitizer đã đạt. Chưa kiểm thử bản mới trong game.
 
-SHA-256 gói ZIP: `0200001eb333876ef1e4176aa6725cd8dffe6dd120bc2085746358059d18a71a`.
+SHA-256 ZIP: `1f3f9eb96d242b6fb9a858e7de5622878473f7054cda7868fd83c76c1f4cf8b2`.
 
-Các tệp game, khóa, cấu hình cá nhân và Injector gốc không nằm trong gói này.
+Gói có DLL, mã nguồn và giấy phép; không chứa tệp game, log cá nhân, khóa hoặc Injector.

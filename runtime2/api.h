@@ -52,3 +52,4 @@ void *find_field(void *klass,const char *name,const char *type,bool is_static);
 void *invoke(const void *method,void *object,void **args,bool *ok);
 bool is_player(void *object);
 bool is_monster(void *object);
+void log_candidate_methods(void *klass,const char *name);

@@ -1,6 +1,10 @@
 # Stella Sora Runtime 2 — bản thử nghiệm cho bộ tệp đã gửi
 
-Đây là DLL mới có backend gameplay, không phải giao diện giả hoặc DLL chỉ chẩn đoán. **Đã biên dịch và kiểm thử callback bằng mock trên Linux; chưa chạy trên Windows hoặc xác nhận tác dụng trong game.** Không thể gọi bản này là đã hoạt động hoàn chỉnh cho tới khi có kết quả kiểm thử runtime.
+**Bản diagnostics 2: bổ sung log, chưa sửa được lỗi tính năng không có tác dụng.** Người dùng đã chạy bản trước: menu mở được, 3/6 tính năng được bật nhưng không có tác dụng. Kiểm thử mock đạt không chứng minh tính năng chạy trong game.
+
+Log mới ghi riêng số lượt vào entry (`entry calls`) và số phương thức khớp (`matching targets`), chữ ký thực tế khi không tìm thấy RealDamage và địa chỉ nạp GameAssembly. Chạy một trận khoảng 30–60 giây rồi gửi `SSTool2.log` cạnh DLL để xác định bước sửa tiếp theo.
+
+Đối chiếu tĩnh log trước với đúng GameAssembly cho thấy nhóm OnHitActor và DamageToToughness trỏ tới RVA `0x6627f0`, nơi báo lỗi `NotSupportNative2Managed`. Đây không phải thân hàm gameplay. Các entry còn lại là cầu nối vào bộ thông dịch; log trước chỉ đếm phương thức khớp nên chưa xác định được liệu game có đi qua cầu nối đó.
 
 ## Cách thử trên máy bạn
 
@@ -59,4 +63,4 @@ Không cần mã nguồn game, thư viện VC runtime riêng, Visual Studio ho�
 - [TheReVeaLz/StellaSora-MetadataDecryption](https://github.com/TheReVeaLz/StellaSora-MetadataDecryption), commit `8250d1bb9fa472b8d8ea0da1513649f812ca2d5b`, GPL-3.0. Được dùng để đối chiếu dữ liệu; không link vào DLL.
 - [TsudaKageyu/MinHook](https://github.com/TsudaKageyu/minhook), commit `8af6b4acae5a9388fd742b56fa79ece89d96f823`, giấy phép BSD trong `vendor/minhook/LICENSE.txt`.
 
-Mã nguồn backend và build scripts đi kèm gói nhị phân, theo AGPL-3.0-or-later. Không đăng tải hoặc xuất bản thay đổi lên GitHub từ cuộc trò chuyện này.
+Mã nguồn backend và build scripts đi kèm gói nhị phân, theo AGPL-3.0-or-later. Gói chẩn đoán và mã nguồn được cung cấp trên nhánh runtime2-test.

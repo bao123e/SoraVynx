@@ -29,11 +29,17 @@ static struct Target targets[TARGET_COUNT]={
  {"AdventureActor","RealDamage","System.Void",3,A_DAMAGE,{"System.Int64","System.Boolean","Damage"},0,-1,0}
 };
 #define MAX_GROUPS 16
-struct Group {void *entry,*original;int abi;bool conflict,enabled;};
+struct Group {void *entry,*original;int abi;bool conflict,enabled;volatile LONG entry_calls,null_methods;void *volatile sample_method;};
 static struct Group groups[MAX_GROUPS];static int group_count;
 static const void *total_energy,*toughness_value,*weapon_attack_id;
 static void *from_weapon_field;
 static _Thread_local int hit_depth;
+
+static void record_entry(int slot,const void *method) {
+ InterlockedIncrement(&groups[slot].entry_calls);
+ if(!method)InterlockedIncrement(&groups[slot].null_methods);
+ else InterlockedCompareExchangePointer(&groups[slot].sample_method,(void*)method,NULL);
+}
 
 static bool matches(enum TargetID id,int slot,const void *method) {
  if(method&&targets[id].method==method&&targets[id].group==slot) {
@@ -135,6 +141,7 @@ typedef void (*ValueFn)(void*,uint64_t,const void*);
 typedef bool (*ToughFn)(void*,void*,int64_t,void*,const void*);
 typedef void (*DamageFn)(void*,int64_t,bool,void*,const void*);
 static bool hit_dispatch(int slot,void *self,void *box,int32_t attack,int32_t count,void *actor,void *ray,bool *damaged,void *prefab,bool scaled,bool ignore,const void *method) {
+ record_entry(slot,method);
  HitFn origin=(HitFn)groups[slot].original;bool target=false;
  for(int i=HIT_ACTOR;i<=HIT_BULLET;i++)if(matches((enum TargetID)i,slot,method))target=true;
  if(target&&on(GOD_MODE)&&is_player(actor)){if(damaged)*damaged=false;return false;}
@@ -153,20 +160,24 @@ static bool hit_dispatch(int slot,void *self,void *box,int32_t attack,int32_t co
  hit_depth--;if(damaged)*damaged=any_damage;return result;
 }
 static void void_dispatch(int slot,void *self,const void *method) {
+ record_entry(slot,method);
  bool clear=matches(CLEAR,slot,method),drive=matches(DRIVE,slot,method);
  if(clear&&on(UNLIMITED_ENERGY))return;
  ((VoidFn)groups[slot].original)(self,method);
  if(drive&&on(MOB_VACUUM))vacuum_update(self);
 }
 static void intbool_dispatch(int slot,void *self,int32_t id,bool resume,const void *method) {
+ record_entry(slot,method);
  if(matches(REDUCE,slot,method)&&on(NO_COOLDOWN))return;
  ((IntBoolFn)groups[slot].original)(self,id,resume,method);
 }
 static void int_dispatch(int slot,void *self,int32_t id,const void *method) {
+ record_entry(slot,method);
  if(matches(RESET,slot,method)&&on(NO_COOLDOWN))return;
  ((IntFn)groups[slot].original)(self,id,method);
 }
 static void value_dispatch(int slot,void *self,uint64_t value,const void *method) {
+ record_entry(slot,method);
  if(matches(SET_ENERGY,slot,method)&&on(UNLIMITED_ENERGY)) {
   bool ok;void *box=invoke(total_energy,self,NULL,&ok);uint64_t full;
   if(ok&&read_box(box,&full,sizeof(full)))value=full;
@@ -174,6 +185,7 @@ static void value_dispatch(int slot,void *self,uint64_t value,const void *method
  ((ValueFn)groups[slot].original)(self,value,method);
 }
 static bool toughness_dispatch(int slot,void *self,void *from,int64_t damage,void *tags,const void *method) {
+ record_entry(slot,method);
  if(matches(TOUGHNESS,slot,method)&&on(INSTANT_BREAK)&&damage>0&&is_player(from)) {
   bool ok;void *box=invoke(toughness_value,self,NULL,&ok);int64_t current;
   if(ok&&read_box(box,&current,sizeof(current))&&current>damage)damage=current;
@@ -181,6 +193,7 @@ static bool toughness_dispatch(int slot,void *self,void *from,int64_t damage,voi
  return ((ToughFn)groups[slot].original)(self,from,damage,tags,method);
 }
 static void damage_dispatch(int slot,void *self,int64_t damage,bool flag,void *data,const void *method) {
+ record_entry(slot,method);
  if(matches(REAL_DAMAGE,slot,method)&&on(GOD_MODE)&&is_player(self))return;
  ((DamageFn)groups[slot].original)(self,damage,flag,data,method);
 }
@@ -218,7 +231,7 @@ bool initialize_backend(void) {
  for(int i=0;i<TARGET_COUNT;i++) {
   struct Target *t=&targets[i];void *klass=find_class("",t->type);
   t->method=find_method(klass,t->name,t->ret,t->count,t->params,false);
-  if(!t->method){log_line("UNAVAILABLE %s.%s: signature not found",t->type,t->name);continue;}
+  if(!t->method){log_line("UNAVAILABLE %s.%s: signature not found",t->type,t->name);log_candidate_methods(klass,t->name);continue;}
   if(i==SET_ENERGY) {
    const void *value_type=api.method_get_param(t->method,0);uint32_t alignment=0;
    void *value_class=api.class_from_type(value_type);
@@ -265,11 +278,26 @@ bool initialize_backend(void) {
 }
 void report_observed_calls(void) {
  static bool reported[TARGET_COUNT];
+ static bool entry_reported[MAX_GROUPS],sample_reported[MAX_GROUPS],null_reported[MAX_GROUPS];
+ for(int g=0;g<group_count;g++) {
+  LONG calls=read_atomic(&groups[g].entry_calls),nulls=read_atomic(&groups[g].null_methods);
+  void *sample=InterlockedCompareExchangePointer(&groups[g].sample_method,NULL,NULL);
+  if(calls&&!entry_reported[g]){entry_reported[g]=true;log_line("ENTRY OBSERVED group=%d entry=%p calls=%ld",g,groups[g].entry,(long)calls);}
+  if(sample&&!sample_reported[g]){sample_reported[g]=true;log_line("ENTRY SAMPLE group=%d MethodInfo_argument=%p (address only; not dereferenced)",g,sample);}
+  if(nulls&&!null_reported[g]){null_reported[g]=true;log_line("ENTRY NULL METHODINFO group=%d null_calls=%ld",g,(long)nulls);}
+ }
  for(int i=0;i<TARGET_COUNT;i++)if(!reported[i]&&read_atomic(&targets[i].observed)) {
   reported[i]=true;log_line("OBSERVED target call: %s.%s",targets[i].type,targets[i].name);
  }
 }
 int observed_target_count(void) {
  int count=0;for(int i=0;i<TARGET_COUNT;i++)if(read_atomic(&targets[i].observed))count++;
+ return count;
+}
+LONG total_entry_calls(void) {
+ LONG count=0;for(int i=0;i<group_count;i++) {
+  LONG n=read_atomic(&groups[i].entry_calls);
+  if(n>0&&count<=LONG_MAX-n)count+=n;
+ }
  return count;
 }

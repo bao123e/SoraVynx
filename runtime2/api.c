@@ -84,3 +84,25 @@ bool is_player(void *object) {
 bool is_monster(void *object) {
  return object&&monster_class&&api.class_is_assignable_from(monster_class,api.object_get_class(object));
 }
+void log_candidate_methods(void *klass,const char *name) {
+ unsigned emitted=0;
+ for(void *current=klass;current&&emitted<8;current=api.class_get_parent(current)) {
+  void *iterator=NULL;const void *method;
+  while(emitted<8&&(method=api.class_get_methods(current,&iterator))) {
+   const char *actual=api.method_get_name(method);
+   if(!actual||strcmp(actual,name))continue;
+   uint32_t count=api.method_get_param_count(method);
+   char parameters[2048]={0};
+   for(uint32_t i=0;i<count&&i<32;i++) {
+    char *type=api.type_get_name(api.method_get_param(method,i));
+    size_t used=strlen(parameters);
+    if(used+3<sizeof(parameters))snprintf(parameters+used,sizeof(parameters)-used,"%s%s",i?", ":"",type?type:"<null>");
+    if(type)api.free(type);
+   }
+   char *ret=api.type_get_name(api.method_get_return_type(method));
+   log_line("ACTUAL CANDIDATE %s: %s (%s), params=%u static=%u MethodInfo=%p",name,ret?ret:"<null>",parameters,count,(api.method_get_flags(method,NULL)&0x10)!=0,method);
+   if(ret)api.free(ret);emitted++;
+  }
+ }
+ if(!emitted)log_line("No same-name candidate found for %s",name);
+}

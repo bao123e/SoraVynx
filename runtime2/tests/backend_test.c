@@ -74,6 +74,7 @@ static void reset(void){
  targets[REAL_DAMAGE].method=&mi_real;targets[HIT_ACTOR].method=&mi_hit;
  total_energy=(void*)101;toughness_value=(void*)102;weapon_attack_id=(void*)103;from_weapon_field=(void*)104;
  calls=0;last_id=0;last_value=0;last_damage=0;box_size=8;attack_sequence=200;nest=false;hit_depth=0;multi_count=3;
+ group_count=1;groups[0].entry_calls=groups[0].null_methods=0;groups[0].sample_method=NULL;
  api.object_get_class=object_class;api.class_is_assignable_from=assignable;api.class_value_size=value_size;api.object_unbox=unbox;api.field_static_get_value=static_value;api.field_get_value=field_value;
 }
 int main(void){
@@ -81,6 +82,7 @@ int main(void){
  void_dispatch(0,player,&mi_clear);assert(calls==1);
  feature_flags[UNLIMITED_ENERGY]=1;void_dispatch(0,player,&mi_clear);assert(calls==1);
  void_dispatch(0,player,&mi_other);void_dispatch(0,player,NULL);void_dispatch(0,player,&mi_drive);assert(calls==4);
+ assert(total_entry_calls()==5&&groups[0].null_methods==1&&observed_target_count()==2);
  puts("PASS default-off and shared/null MethodInfo passthrough");
  reset();groups[0].original=(void*)orig_ib;feature_flags[NO_COOLDOWN]=1;
  intbool_dispatch(0,player,123,true,&mi_reduce);assert(!calls);
