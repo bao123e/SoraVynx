@@ -22,5 +22,6 @@ static inline LONG InterlockedCompareExchange(volatile LONG *p,LONG value,LONG e
 static inline LONG InterlockedExchange(volatile LONG *p,LONG value){return __atomic_exchange_n(p,value,__ATOMIC_SEQ_CST);}
 static inline LONG InterlockedIncrement(volatile LONG *p){return __atomic_add_fetch(p,1,__ATOMIC_SEQ_CST);}
 static inline void *InterlockedCompareExchangePointer(void *volatile*p,void *value,void *expected){__atomic_compare_exchange_n(p,&expected,value,0,__ATOMIC_SEQ_CST,__ATOMIC_SEQ_CST);return expected;}
-static inline ULONGLONG GetTickCount64(void){return 1000;}
+static ULONGLONG mock_ticks=1000;
+static inline ULONGLONG GetTickCount64(void){return mock_ticks;}
 static inline size_t VirtualQuery(void *entry,MEMORY_BASIC_INFORMATION *m,size_t size){(void)entry;m->State=MEM_COMMIT;m->Protect=PAGE_EXECUTE_READ;return size;}

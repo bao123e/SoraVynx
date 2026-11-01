@@ -1,19 +1,19 @@
-# Stella Sora Runtime 2 — frame test 1
+# Stella Sora Runtime 2 — frame test 2
 
-**Đổi cơ chế hook, chưa xác nhận hoạt động trong game.** Sau khi log diagnostics 3 ghi hơn 8 triệu lượt vào Execute nhưng không khớp target, phân tích mã máy cho thấy các lời gọi managed nội bộ đi qua EnterFrame (RVA 0x64e1c0), rồi nhảy thẳng về vòng thông dịch, bỏ qua Execute entry. Chín call-site trực tiếp đã được đối chiếu trong GameAssembly đúng hash.
+Unlimited Energy đã được người dùng báo hoạt động với frame test 1. Bản này giữ nguyên thay đối số FDP ở setter và triển khai thêm bốn đường xử lý qua EnterFrame. Các đường mới chưa được xác nhận trong game.
 
-Bản này theo dõi EnterFrame và sửa đối số của hai phương thức trước khi tạo frame:
+- God Mode: đặt lượng sát thương dương thành 0 khi RealDamage nhận đối tượng PlayerAdventureActor. Không bỏ qua toàn bộ thân hàm, không chặn các đường mất máu khác hay trạng thái khống chế.
+- Damage Multiplier: nhân lượng sát thương dương lên MonsterAdventureActor theo hệ số 2–50. Đây là tăng lượng damage, không phải lặp nhiều đòn; tên Multi Hit trên menu đã được đổi. Giá trị tràn được chặn ở INT64_MAX.
+- No Cooldown: trước PlayerSkillCd.UpdateSkillCD(TrueSync.FP), gọi ResetAllSkillCD() qua reflection; có chặn gọi lồng. Chưa xác nhận các loại cooldown đều được reset hoặc có tác dụng ngay trong cùng tick.
+- Mob Vacuum: trước AdventureModuleController.DriveUpdate, chạy đường lấy danh sách/quái còn sống và phép toán vị trí qua runtime, tối đa mỗi 100 ms. Không dùng offset object cũ.
+- Unlimited Energy: giữ cơ chế đã được báo có tác dụng.
+- Instant Break: bị tắt theo yêu cầu, không tiếp tục phát triển.
 
-- Unlimited Energy: với set_currentEnergy, thay giá trị FDP 8 byte bằng get_totalEnergy. Không chặn ClearEnergy; nếu game xóa trực tiếp trường dữ liệu hoặc không gọi setter này, năng lượng vẫn có thể giảm.
-- Instant Break: với DamageToToughness, tăng lượng damage lên toughness hiện tại khi nguồn đòn là PlayerAdventureActor. Chưa xác nhận tác dụng thực tế.
+Chỉ cài hook EnterFrame cho đúng SHA-256 profile và prologue đã đối chiếu. Không cài hook native bridge hoặc Execute probe cũ trong bản này. Log FRAME ACTIONS ghi số lần sửa đối số, reset thành công không báo exception, và cập nhật vị trí quái; các số này không tự chứng minh kết quả gameplay.
 
-God Mode, Multi Hit, No Cooldown và Mob Vacuum được tắt trong backend frame này vì chưa có đường xử lý đã triển khai. Không nên hiểu bản thử này đáp ứng toàn bộ yêu cầu ban đầu.
+Đã build DLL Windows x64 và qua 13 nhóm mock tests với ASan/UBSan. Kiểm thử mới gồm lọc player/monster, trạng thái tắt, giá trị âm, tràn số, reset cooldown gọi lồng/fallback lỗi và vacuum qua frame. Không chạy game tại môi trường build.
 
-Frame được cấp phát bởi hàm gốc, các đối số khác giữ nguyên; không sửa opcode, địa chỉ trả về hay layout object. SHA-256 toàn DLL và prologue của entry phải khớp trước khi cài hook. Dữ liệu argument stack là các slot 8 byte, được đối chiếu ở call-site.
-
-Đã build Windows x64 và qua 10 nhóm mock tests với ASan/UBSan, gồm kiểm tra các slot thay đổi, lọc nguồn đòn, trạng thái tắt và chuyển nguyên tham số cho hàm cấp phát frame gốc. **Chưa chạy DLL trong game tại môi trường build.**
-
-Thoát game, dùng DLL mới thay DLL bản trước trong bản sao công cụ. Vào trận, thử từng tính năng trong hai ô khả dụng. Log FRAME TARGET ghi nhận hàm đi qua EnterFrame; matching targets trên cửa sổ tính cả đường frame. Chưa có FRAME TARGET thì chưa có bằng chứng backend bắt đúng hàm. Chạy khoảng 30–60 giây rồi gửi SSTool2.log cạnh DLL.
+Thoát game trước khi thay DLL. Thử từng tính năng riêng: God Mode khi bị đánh, Damage Multiplier bắt đầu ở 2, No Cooldown sau khi dùng kỹ năng, Mob Vacuum khi có quái còn sống. Nếu tác dụng chưa đúng, gửi SSTool2.log cùng tên tính năng đã thử. Không bật tất cả ngay lần kiểm tra đầu.
 
 ## Cách thử trên máy bạn
 

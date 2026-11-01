@@ -10,7 +10,7 @@ LONG read_atomic(volatile LONG *value){return InterlockedCompareExchange(value,0
 static bool on(enum Feature f){return read_atomic(&capabilities[f])&&read_atomic(&feature_flags[f]);}
 
 enum ABI { A_HIT, A_VOID, A_INTBOOL, A_INT, A_VALUE8, A_TOUGHNESS, A_DAMAGE };
-enum TargetID { HIT_ACTOR,HIT_AREA,HIT_COMPONENT,HIT_WEAPON,HIT_BULLET,REDUCE,RESET,CLEAR,SET_ENERGY,DRIVE,TOUGHNESS,REAL_DAMAGE,TARGET_COUNT };
+enum TargetID { HIT_ACTOR,HIT_AREA,HIT_COMPONENT,HIT_WEAPON,HIT_BULLET,REDUCE,RESET,CLEAR,SET_ENERGY,DRIVE,TOUGHNESS,REAL_DAMAGE,UPDATE_CD,TARGET_COUNT };
 struct Target {const char *type,*name,*ret;int count,abi;const char *params[9];const void *method;int group;volatile LONG observed;};
 static struct Target targets[TARGET_COUNT]={
 #define HIT_PARAMS {"HitBox","System.Int32","System.Int32","LogicEntity","DeterministicRaycastHit&","System.Boolean&","UnityEngine.GameObject","System.Boolean","System.Boolean"}
@@ -26,12 +26,15 @@ static struct Target targets[TARGET_COUNT]={
  {"SkillInfo","set_currentEnergy","System.Void",1,A_VALUE8,{"TrueSync.FDP"},0,-1,0},
  {"AdventureModuleController","DriveUpdate","System.Void",0,A_VOID,{0},0,-1,0},
  {"MonsterToughnessInfo","DamageToToughness","System.Boolean",3,A_TOUGHNESS,{"AdventureActor","System.Int64","System.Collections.Generic.IList<System.Int32>"},0,-1,0},
- {"AdventureActor","RealDamage","System.Void",3,A_DAMAGE,{"System.Int64","System.Boolean","Nova.Client.Recorder.Types.Damage"},0,-1,0}
+ {"AdventureActor","RealDamage","System.Void",3,A_DAMAGE,{"System.Int64","System.Boolean","Nova.Client.Recorder.Types.Damage"},0,-1,0},
+ {"PlayerSkillCd","UpdateSkillCD","System.Void",1,A_VALUE8,{"TrueSync.FP"},0,-1,0}
 };
 #define MAX_GROUPS 16
 struct Group {void *entry,*original;int abi;bool conflict,enabled;volatile LONG entry_calls,null_methods;void *volatile sample_method;};
 static struct Group groups[MAX_GROUPS];static int group_count;
-static const void *total_energy,*toughness_value,*weapon_attack_id;
+static const void *total_energy,*toughness_value,*weapon_attack_id,*reset_all_cd;
+static bool frame_vacuum_ready;
+static volatile LONG frame_actions[FEATURE_COUNT];
 static void *from_weapon_field;
 static _Thread_local int hit_depth;
 
@@ -130,6 +133,7 @@ static void vacuum_update(void *module) {
   void *pos_args[]={api.object_unbox(target)};invoke(vacuum.set_position,tr,pos_args,&ok);if(!ok)continue;
   void *y_args[]={api.object_unbox(height)};invoke(vacuum.set_y,tr,y_args,&ok);if(!ok)continue;
   bool clear=true;void *sync_args[]={&clear};invoke(vacuum.sync,monster,sync_args,&ok);
+  if(ok)InterlockedIncrement(&frame_actions[MOB_VACUUM]);
  }
 }
 
@@ -200,20 +204,7 @@ static void damage_dispatch(int slot,void *self,int64_t damage,bool flag,void *d
 
 /* Per-entry wrappers preserve a known trampoline even if MethodInfo is NULL or
  * the intercepted entry is a shared interpreter thunk for unrelated methods. */
-#define SLOT(n) \
- static bool hit##n(void*a,void*b,int32_t c,int32_t d,void*e,void*f,bool*g,void*h,bool i,bool j,const void*k){return hit_dispatch(n,a,b,c,d,e,f,g,h,i,j,k);} \
- static void vo##n(void*a,const void*b){void_dispatch(n,a,b);} \
- static void ib##n(void*a,int32_t b,bool c,const void*d){intbool_dispatch(n,a,b,c,d);} \
- static void in##n(void*a,int32_t b,const void*c){int_dispatch(n,a,b,c);} \
- static void va##n(void*a,uint64_t b,const void*c){value_dispatch(n,a,b,c);} \
- static bool to##n(void*a,void*b,int64_t c,void*d,const void*e){return toughness_dispatch(n,a,b,c,d,e);} \
- static void da##n(void*a,int64_t b,bool c,void*d,const void*e){damage_dispatch(n,a,b,c,d,e);}
-SLOT(0) SLOT(1) SLOT(2) SLOT(3) SLOT(4) SLOT(5) SLOT(6) SLOT(7)
-SLOT(8) SLOT(9) SLOT(10) SLOT(11) SLOT(12) SLOT(13) SLOT(14) SLOT(15)
-#undef SLOT
-#define HANDLERS(prefix) {(void*)prefix##0,(void*)prefix##1,(void*)prefix##2,(void*)prefix##3,(void*)prefix##4,(void*)prefix##5,(void*)prefix##6,(void*)prefix##7,(void*)prefix##8,(void*)prefix##9,(void*)prefix##10,(void*)prefix##11,(void*)prefix##12,(void*)prefix##13,(void*)prefix##14,(void*)prefix##15}
-static void *handlers[7][MAX_GROUPS]={HANDLERS(hit),HANDLERS(vo),HANDLERS(ib),HANDLERS(in),HANDLERS(va),HANDLERS(to),HANDLERS(da)};
-#undef HANDLERS
+
 /* Profile-specific telemetry only: Execute(MethodInfo*, StackObject*, void*).
  * All observed arguments and return storage are passed through unchanged.
  * Called only after main.c verifies the complete GameAssembly SHA-256. */
@@ -245,9 +236,10 @@ bool install_interpreter_probe(HMODULE game) {
  * Do not skip allocation, alter frame metadata, or emulate return opcodes. */
 typedef void *(*EnterFrameFn)(void *,const void *,void *);
 static EnterFrameFn enter_frame_original;
-static volatile LONG frame_targets[TARGET_COUNT];
+static volatile LONG frame_targets[TARGET_COUNT],frame_entry_calls;
 static _Thread_local int frame_callback_depth;
 static void *enter_frame_hook(void *group,const void *method,void *args) {
+ InterlockedIncrement(&frame_entry_calls);
  int id=-1;
  for(int i=0;i<TARGET_COUNT;i++)if(method&&method==targets[i].method){id=i;break;}
  if(id>=0)InterlockedIncrement(&frame_targets[id]);
@@ -256,16 +248,25 @@ static void *enter_frame_hook(void *group,const void *method,void *args) {
   unsigned char *slots=args;void *self=NULL;memcpy(&self,slots,sizeof(self));
   if(id==SET_ENERGY&&on(UNLIMITED_ENERGY)) {
    bool ok;uint64_t full;void *box=invoke(total_energy,self,NULL,&ok);
-   if(ok&&read_box(box,&full,sizeof(full)))memcpy(slots+8,&full,sizeof(full));
+   if(ok&&read_box(box,&full,sizeof(full))){memcpy(slots+8,&full,sizeof(full));InterlockedIncrement(&frame_actions[UNLIMITED_ENERGY]);}
   }
-  if(id==TOUGHNESS&&on(INSTANT_BREAK)) {
-   void *from=NULL;int64_t damage,current;
-   memcpy(&from,slots+8,sizeof(from));memcpy(&damage,slots+16,sizeof(damage));
-   if(damage>0&&is_player(from)) {
-    bool ok;void *box=invoke(toughness_value,self,NULL,&ok);
-    if(ok&&read_box(box,&current,sizeof(current))&&current>damage)memcpy(slots+16,&current,sizeof(current));
+  if(id==REAL_DAMAGE) {
+   int64_t damage;memcpy(&damage,slots+8,sizeof(damage));
+   if(damage>0&&on(GOD_MODE)&&is_player(self)) {
+    int64_t zero=0;memcpy(slots+8,&zero,sizeof(zero));InterlockedIncrement(&frame_actions[GOD_MODE]);
+   } else if(damage>0&&on(MULTI_HIT)&&is_monster(self)) {
+    LONG factor=read_atomic(&multi_count);
+    if(factor>=2&&factor<=50) {
+     int64_t scaled=damage>INT64_MAX/factor?INT64_MAX:damage*factor;
+     memcpy(slots+8,&scaled,sizeof(scaled));InterlockedIncrement(&frame_actions[MULTI_HIT]);
+    }
    }
   }
+  if(id==UPDATE_CD&&on(NO_COOLDOWN)) {
+   bool ok;invoke(reset_all_cd,self,NULL,&ok);
+   if(ok)InterlockedIncrement(&frame_actions[NO_COOLDOWN]);
+  }
+  if(id==DRIVE&&on(MOB_VACUUM))vacuum_update(self);
   frame_callback_depth--;
  }
  return enter_frame_original(group,method,args);
@@ -278,12 +279,16 @@ bool install_frame_backend(HMODULE game) {
  if(status!=MH_OK){log_line("FRAME hook create failed: %s",MH_StatusToString(status));return false;}
  memcpy(&enter_frame_original,&original,sizeof(original));
  status=MH_EnableHook(entry);
- log_line("FRAME backend: %s; energy setter and toughness arguments only; gameplay unverified",MH_StatusToString(status));
+ log_line("FRAME backend: %s; energy, damage, cooldown reset and vacuum; new effects unverified",MH_StatusToString(status));
  if(status!=MH_OK)return false;
  /* Existing native bridge coverage was unsuccessful in the supplied runtime logs. */
  for(int i=0;i<FEATURE_COUNT;i++)InterlockedExchange(&capabilities[i],0);
  InterlockedExchange(&capabilities[UNLIMITED_ENERGY],targets[SET_ENERGY].method&&total_energy);
- InterlockedExchange(&capabilities[INSTANT_BREAK],targets[TOUGHNESS].method&&toughness_value);
+ InterlockedExchange(&capabilities[GOD_MODE],targets[REAL_DAMAGE].method!=NULL);
+ InterlockedExchange(&capabilities[MULTI_HIT],targets[REAL_DAMAGE].method!=NULL);
+ InterlockedExchange(&capabilities[NO_COOLDOWN],targets[UPDATE_CD].method&&reset_all_cd);
+ InterlockedExchange(&capabilities[MOB_VACUUM],targets[DRIVE].method&&frame_vacuum_ready);
+ for(int i=0;i<FEATURE_COUNT;i++)log_line("FRAME capability %d: %s",i,read_atomic(&capabilities[i])?"enabled for testing":"disabled");
  return true;
 }
 static bool executable(void *entry) {
@@ -299,7 +304,8 @@ bool initialize_backend(void) {
  toughness_value=method0(tough,"get_toughness","System.Int64");
  weapon_attack_id=method0(find_class("","AdventureWeapon"),"get_uniqueAttackId","System.Int32");
  from_weapon_field=find_field(find_class("","AdventureActor"),"fromWeaponTemp","AdventureWeapon",true);
- bool vacuum_supported=setup_vacuum();
+ reset_all_cd=method0(find_class("","PlayerSkillCd"),"ResetAllSkillCD","System.Void");
+ bool vacuum_supported=setup_vacuum();frame_vacuum_ready=vacuum_supported;
  for(int i=0;i<TARGET_COUNT;i++) {
   struct Target *t=&targets[i];void *klass=find_class("",t->type);
   t->method=find_method(klass,t->name,t->ret,t->count,t->params,false);
@@ -322,33 +328,17 @@ bool initialize_backend(void) {
   t->group=g;log_line("RESOLVED %s.%s: MethodInfo=%p entry=%p group=%d",t->type,t->name,t->method,entry,g);
  }
  MH_STATUS status=MH_Initialize();if(status!=MH_OK){log_line("MinHook init failed: %s",MH_StatusToString(status));return false;}
- for(int g=0;g<group_count;g++) {
-  if(groups[g].conflict){log_line("Group %d has incompatible signatures sharing one entry; refusing hook.",g);continue;}
-  status=MH_CreateHook(groups[g].entry,handlers[groups[g].abi][g],&groups[g].original);
-  if(status!=MH_OK){log_line("CreateHook group %d failed: %s",g,MH_StatusToString(status));continue;}
-  /* Publish every trampoline before any entry can be enabled. */
-  status=MH_QueueEnableHook(groups[g].entry);
-  if(status==MH_OK)groups[g].enabled=true;
-  else log_line("Queue group %d failed: %s",g,MH_StatusToString(status));
- }
- status=MH_ApplyQueued();
- if(status!=MH_OK) {
-  log_line("Apply hooks failed: %s; rollback to pass-through.",MH_StatusToString(status));
-  MH_DisableHook(MH_ALL_HOOKS);
-  for(int g=0;g<group_count;g++)groups[g].enabled=false;
-  return false;
- }
- InterlockedExchange(&capabilities[NO_COOLDOWN],ready(REDUCE)&&ready(RESET));
- InterlockedExchange(&capabilities[UNLIMITED_ENERGY],ready(CLEAR)&&ready(SET_ENERGY)&&total_energy);
- InterlockedExchange(&capabilities[GOD_MODE],ready(REAL_DAMAGE));
- InterlockedExchange(&capabilities[INSTANT_BREAK],ready(TOUGHNESS)&&toughness_value);
- bool all_hits=true;for(int i=HIT_ACTOR;i<=HIT_BULLET;i++)if(!ready((enum TargetID)i))all_hits=false;
- InterlockedExchange(&capabilities[MULTI_HIT],all_hits&&from_weapon_field&&weapon_attack_id);
- InterlockedExchange(&capabilities[MOB_VACUUM],ready(DRIVE)&&vacuum_supported);
- for(int i=0;i<FEATURE_COUNT;i++)log_line("Capability %d: %s",i,read_atomic(&capabilities[i])?"hooks/resources ready (gameplay not yet verified)":"unavailable");
+ (void)vacuum_supported;
+ log_line("Native bridge hooks omitted; gameplay uses internal frame backend.");
  return true;
 }
 void report_observed_calls(void) {
+ static ULONGLONG action_report;
+ ULONGLONG action_now=GetTickCount64();
+ if(action_now-action_report>=10000) {
+  action_report=action_now;
+  log_line("FRAME ACTIONS energy=%ld god_zero_damage=%ld damage_scaled=%ld cooldown_resets=%ld monsters_moved=%ld",(long)read_atomic(&frame_actions[UNLIMITED_ENERGY]),(long)read_atomic(&frame_actions[GOD_MODE]),(long)read_atomic(&frame_actions[MULTI_HIT]),(long)read_atomic(&frame_actions[NO_COOLDOWN]),(long)read_atomic(&frame_actions[MOB_VACUUM]));
+ }
  static bool frame_reported[TARGET_COUNT];
  for(int i=0;i<TARGET_COUNT;i++)if(!frame_reported[i]&&read_atomic(&frame_targets[i])) {
   frame_reported[i]=true;log_line("FRAME TARGET %s.%s calls=%ld",targets[i].type,targets[i].name,(long)read_atomic(&frame_targets[i]));
@@ -385,7 +375,7 @@ int observed_target_count(void) {
  return count;
 }
 LONG total_entry_calls(void) {
- LONG count=0;for(int i=0;i<group_count;i++) {
+ LONG count=read_atomic(&frame_entry_calls);for(int i=0;i<group_count;i++) {
   LONG n=read_atomic(&groups[i].entry_calls);
   if(n>0&&count<=LONG_MAX-n)count+=n;
  }

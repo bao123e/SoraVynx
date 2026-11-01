@@ -13,7 +13,7 @@ static HWND window,checks[FEATURE_COUNT],status_label;
 static FILE *log_file;
 static CRITICAL_SECTION log_lock;
 static volatile LONG init_state;
-static const wchar_t *labels[FEATURE_COUNT]={L"Instant Break",L"God Mode",L"Multi Hit",L"No Cooldown",L"Unlimited Energy",L"Mob Vacuum"};
+static const wchar_t *labels[FEATURE_COUNT]={L"Instant Break",L"God Mode",L"Damage Multiplier",L"No Cooldown",L"Unlimited Energy",L"Mob Vacuum"};
 void log_line(const char *format,...) {
  EnterCriticalSection(&log_lock);
  if(log_file) {
@@ -77,7 +77,6 @@ static DWORD WINAPI initialize(void *unused) {
  if(!hotfix_image){log_line("Hotfix image not visible after 180 seconds; retry after the game reaches the main menu.");goto failed;}
  log_line("Hotfix image found. Binding verified signatures.");
  if(!initialize_backend())goto failed;
- install_interpreter_probe(game);
  if(!install_frame_backend(game))goto failed;
  api.thread_detach(thread);InterlockedExchange(&init_state,1);PostMessageW(window,WM_APP+1,0,0);return 0;
  failed:
@@ -94,7 +93,7 @@ static void refresh_status(void) {
  if(!state){SetWindowTextW(status_label,L"Waiting for the game and Hotfix runtime...\r\nEnter the main menu. Features remain off until ready.");return;}
  int available=0;
  for(int i=0;i<FEATURE_COUNT;i++){BOOL enabled=read_atomic(&capabilities[i])!=0;EnableWindow(checks[i],enabled);if(enabled)available++;}
- wchar_t text[256];swprintf(text,256,L"Hooks: %d/6; entry calls: %ld; matching targets: %d/12.\r\nF1 shows/hides. Counts distinguish entry activity from target matches.",available,(long)total_entry_calls(),observed_target_count());
+ wchar_t text[256];swprintf(text,256,L"Hooks: %d/6; entry calls: %ld; matching targets: %d/13.\r\nF1 shows/hides. Counts distinguish entry activity from target matches.",available,(long)total_entry_calls(),observed_target_count());
  SetWindowTextW(status_label,text);report_observed_calls();
 }
 static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
@@ -139,7 +138,7 @@ static DWORD WINAPI run(void *unused) {
  WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=self_module;wc.lpszClassName=L"SSToolRuntime2";
  wc.hCursor=LoadCursorW(NULL,MAKEINTRESOURCEW(32512));wc.hbrBackground=(HBRUSH)(COLOR_WINDOW+1);
  if(!RegisterClassW(&wc))return 1;
- window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"Stella Sora Runtime 2 - frame test 1",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,570,405,NULL,NULL,self_module,NULL);
+ window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"Stella Sora Runtime 2 - frame test 2",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,570,405,NULL,NULL,self_module,NULL);
  if(!window)return 1;
  control(L"STATIC",L"All features start OFF. F1 shows / hides this window.",0,20,16,510,24,0);
  for(int i=0;i<FEATURE_COUNT;i++) {
@@ -153,7 +152,7 @@ static DWORD WINAPI run(void *unused) {
  status_label=control(L"STATIC",L"Starting...",0,24,289,510,60,0);
  SetTimer(window,1,500,NULL);ShowWindow(window,SW_SHOWNOACTIVATE);
  if(logging) {
-  log_line("=== Stella Sora Runtime 2 frame test 1 ===");
+  log_line("=== Stella Sora Runtime 2 frame test 2 ===");
   log_line("Source: TheReVeaLz/StellaSora-Tool 30f67811411dca754f1b876b4d4dbf6a001e0a20; new runtime backend.");
   log_line("No network, key handling, anti-cheat changes or game file writes. Closing the menu disables every feature.");
   HANDLE thread=CreateThread(NULL,0,initialize,NULL,0,NULL);if(thread)CloseHandle(thread);

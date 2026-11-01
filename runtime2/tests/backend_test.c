@@ -6,10 +6,11 @@ struct RuntimeAPI api;
 const void *hotfix_image;
 void *player_class=(void*)1,*monster_class=(void*)2;
 static void *player=(void*)10,*monster=(void*)20,*weapon=(void*)30;
-static const char mi_clear,mi_drive,mi_reduce,mi_reset,mi_energy,mi_tough,mi_real,mi_hit,mi_other;
+static const char mi_clear,mi_drive,mi_reduce,mi_reset,mi_energy,mi_tough,mi_real,mi_hit,mi_other,mi_update;
 static void *frame_group,*frame_argument;static const void *frame_method;
 static void *frame_original(void*g,const void*m,void*a){frame_group=g;frame_method=m;frame_argument=a;return (void*)123;}
-static unsigned calls;
+static unsigned calls,cd_resets;
+static bool cd_failure,cd_nested;
 static const void *probe_method;static void *probe_args,*probe_result;
 static void probe_original(const void*m,void*a,void*r){probe_method=m;probe_args=a;probe_result=r;}
 static int32_t last_id;
@@ -40,6 +41,9 @@ static void field_value(void*object,void*field,void*out){if(field==(void*)400){v
 void *invoke(const void *method,void*object,void**args,bool*ok){
  *ok=true;if(method==total_energy)return &energy_box;if(method==toughness_value)return &tough_box;if(method==weapon_attack_id){id_box.value=(uint32_t)++attack_sequence;return &id_box;}
  switch((uintptr_t)method){
+ case 230:
+  cd_resets++;if(cd_nested){uint64_t slots[2]={(uintptr_t)object,0};enter_frame_hook(NULL,&mi_update,slots);}
+  *ok=!cd_failure;return NULL;
  case 200:return (void*)40;
  case 201:assert(object==(void*)40);return player;
  case 202:return list_object;
@@ -75,7 +79,7 @@ static void reset(void){
  for(int i=0;i<TARGET_COUNT;i++){targets[i].group=0;targets[i].method=NULL;targets[i].observed=0;}
  targets[CLEAR].method=&mi_clear;targets[DRIVE].method=&mi_drive;targets[REDUCE].method=&mi_reduce;
  targets[RESET].method=&mi_reset;targets[SET_ENERGY].method=&mi_energy;targets[TOUGHNESS].method=&mi_tough;
- targets[REAL_DAMAGE].method=&mi_real;targets[HIT_ACTOR].method=&mi_hit;
+ targets[UPDATE_CD].method=&mi_update;targets[REAL_DAMAGE].method=&mi_real;targets[HIT_ACTOR].method=&mi_hit;
  total_energy=(void*)101;toughness_value=(void*)102;weapon_attack_id=(void*)103;from_weapon_field=(void*)104;
  calls=0;last_id=0;last_value=0;last_damage=0;box_size=8;attack_sequence=200;nest=false;hit_depth=0;multi_count=3;
  group_count=1;groups[0].entry_calls=groups[0].null_methods=0;groups[0].sample_method=NULL;
@@ -144,10 +148,32 @@ int main(void){
  feature_flags[UNLIMITED_ENERGY]=0;frame_args[1]=42;
  enter_frame_hook(NULL,&mi_energy,frame_args);assert(frame_args[1]==42);
  feature_flags[INSTANT_BREAK]=1;frame_args[0]=(uintptr_t)monster;frame_args[1]=(uintptr_t)player;frame_args[2]=10;
- enter_frame_hook(NULL,&mi_tough,frame_args);assert(frame_args[2]==tough_box.value&&frame_args[3]==9);
+ enter_frame_hook(NULL,&mi_tough,frame_args);assert(frame_args[2]==10&&frame_args[3]==9);
  frame_args[1]=(uintptr_t)monster;frame_args[2]=10;
  enter_frame_hook(NULL,&mi_tough,frame_args);assert(frame_args[2]==10);
  enter_frame_hook(NULL,NULL,NULL);assert(!frame_method&&!frame_argument&&frame_callback_depth==0);
- puts("PASS internal frame energy/toughness slots, disabled/filter behavior and allocation passthrough");
+ puts("PASS frame energy slots, disabled break and allocation passthrough");
+ reset();enter_frame_original=frame_original;feature_flags[GOD_MODE]=1;feature_flags[MULTI_HIT]=1;multi_count=3;
+ uint64_t damage_args[4]={(uintptr_t)player,123,7,8};
+ enter_frame_hook(NULL,&mi_real,damage_args);assert(damage_args[1]==0&&damage_args[2]==7&&damage_args[3]==8);
+ damage_args[0]=(uintptr_t)monster;damage_args[1]=100;
+ enter_frame_hook(NULL,&mi_real,damage_args);assert(damage_args[1]==300);
+ damage_args[1]=INT64_MAX;enter_frame_hook(NULL,&mi_real,damage_args);assert(damage_args[1]==INT64_MAX);
+ feature_flags[MULTI_HIT]=0;damage_args[1]=12;
+ enter_frame_hook(NULL,&mi_real,damage_args);assert(damage_args[1]==12);
+ damage_args[0]=(uintptr_t)player;damage_args[1]=(uint64_t)-7;
+ enter_frame_hook(NULL,&mi_real,damage_args);assert(damage_args[1]==(uint64_t)-7);
+ feature_flags[GOD_MODE]=0;damage_args[1]=12;
+ enter_frame_hook(NULL,&mi_real,damage_args);assert(damage_args[1]==12);
+ puts("PASS frame god/damage scaling filters, overflow clamp, negative values and disabled state");
+ reset_all_cd=(void*)230;feature_flags[NO_COOLDOWN]=1;cd_nested=true;
+ uint64_t cd_args[2]={(uintptr_t)player,0x12345678};
+ enter_frame_hook(NULL,&mi_update,cd_args);assert(cd_resets==1&&cd_args[1]==0x12345678&&frame_callback_depth==0);
+ feature_flags[NO_COOLDOWN]=0;enter_frame_hook(NULL,&mi_update,cd_args);assert(cd_resets==1);
+ feature_flags[NO_COOLDOWN]=1;cd_failure=true;enter_frame_hook(NULL,&mi_update,cd_args);assert(cd_resets==2&&frame_method==&mi_update);
+ puts("PASS frame cooldown reset invocation, nested recursion guard, disable and exception fallback");
+ feature_flags[MOB_VACUUM]=1;mock_ticks=2000;uint64_t drive_args[1]={80};
+ enter_frame_hook(NULL,&mi_drive,drive_args);assert(moves==2&&syncs==2&&frame_method==&mi_drive);
+ puts("PASS vacuum processing from internal frame before original allocation");
  return 0;
 }
