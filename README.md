@@ -2,12 +2,13 @@
 
 Công cụ hỗ trợ Stella Sora trên Windows x64, gồm trình mở game và bảng điều khiển tính năng. Không cần nhập key của Injector cũ.
 
-## Tải xuống
+## Tải công cụ
 
-- [SSTool.exe](https://github.com/bao123e/sstool/raw/refs/heads/runtime2-test/SSTool.exe)
-- [MG_cheat.dll](https://github.com/bao123e/sstool/raw/refs/heads/runtime2-test/MG_cheat.dll)
+### [⬇ Tải SSTool.zip](https://github.com/bao123e/sstool/raw/refs/heads/runtime2-test/SSTool.zip)
 
-Tải **cả hai file của cùng bản**, đặt cạnh nhau trong một thư mục. Nếu GitHub mở trang xem file, bấm **Download raw file**.
+Gói ZIP chứa **SSTool.exe + MG_cheat.dll + README.md**. Chỉ cần tải một file ZIP rồi giải nén vào một thư mục để sử dụng.
+
+Nếu đang mở file `SSTool.zip` trên GitHub, bấm **Download raw file** (biểu tượng tải xuống). Không cần tải riêng EXE hoặc DLL.
 
 ## Chức năng chính
 
@@ -44,7 +45,7 @@ Bản này sửa điều kiện focus khiến F1 chỉ ẩn mà không mở lạ
 
 ## Mã nguồn và giấy phép
 
-Trang chính chỉ giữ hai file chạy và README. [Mã nguồn tương ứng của bản này](https://github.com/bao123e/sstool/tree/affc7a265d4c5117dd08ba4ece09c66026ad2f46/runtime2) được giữ tại commit `affc7a265d4c5117dd08ba4ece09c66026ad2f46` trong lịch sử. [Tải mã nguồn đầy đủ](https://github.com/bao123e/sstool/archive/affc7a265d4c5117dd08ba4ece09c66026ad2f46.zip). Build bằng Python 3 và Zig 0.14.1, theo `runtime2/build.py`; kiểm thử bằng `runtime2/test.py`. Mã nguồn build sinh cả EXE và DLL.
+Trang chính chỉ giữ gói SSTool.zip và README. [Mã nguồn tương ứng của bản này](https://github.com/bao123e/sstool/tree/affc7a265d4c5117dd08ba4ece09c66026ad2f46/runtime2) được giữ tại commit `affc7a265d4c5117dd08ba4ece09c66026ad2f46` trong lịch sử. [Tải mã nguồn đầy đủ](https://github.com/bao123e/sstool/archive/affc7a265d4c5117dd08ba4ece09c66026ad2f46.zip). Build bằng Python 3 và Zig 0.14.1, theo `runtime2/build.py`; kiểm thử bằng `runtime2/test.py`. Mã nguồn build sinh cả EXE và DLL.
 
 Nguồn tham khảo: [TheReVeaLz/StellaSora-Tool](https://github.com/TheReVeaLz/StellaSora-Tool), commit `30f67811411dca754f1b876b4d4dbf6a001e0a20` (AGPL); [MinHook](https://github.com/TsudaKageyu/minhook), commit `8af6b4acae5a9388fd742b56fa79ece89d96f823` (BSD). Công cụ MetadataDecryption được dùng đối chiếu dữ liệu, không link vào DLL.
 
