@@ -1,3 +1,57 @@
+# Stella Sora — SSTool
+
+Công cụ hỗ trợ Stella Sora trên Windows x64, gồm trình mở game và bảng điều khiển tính năng. Không cần nhập key của Injector cũ.
+
+## Tải xuống
+
+- [SSTool.exe](https://github.com/bao123e/sstool/raw/refs/heads/runtime2-test/SSTool.exe)
+- [MG_cheat.dll](https://github.com/bao123e/sstool/raw/refs/heads/runtime2-test/MG_cheat.dll)
+
+Tải **cả hai file của cùng bản**, đặt cạnh nhau trong một thư mục. Nếu GitHub mở trang xem file, bấm **Download raw file**.
+
+## Chức năng chính
+
+| Chức năng | Công dụng |
+|---|---|
+| God Mode | Đặt sát thương dương nhận qua RealDamage về 0 cho nhân vật người chơi. |
+| Damage Multiplier | Nhân sát thương lên quái từ **x2 đến x50**; tăng lượng damage, không lặp đòn đánh. |
+| No Cooldown | Reset cooldown bằng hàm ResetAllSkillCD của game. |
+| Unlimited Energy | Giữ năng lượng theo giá trị totalEnergy khi game gọi setter. |
+| Mob Vacuum | Gom quái còn sống về phía trước nhân vật; khoảng cách 1–10. |
+
+Tất cả tính năng bắt đầu **tắt**. Một số cơ chế đặc biệt của game có thể đi qua đường xử lý khác và không được hỗ trợ. Instant Break đã bỏ khỏi menu theo yêu cầu.
+
+## Sử dụng
+
+1. Thoát hoàn toàn game trước khi thay file hoặc khởi chạy công cụ.
+2. Mở **SSTool.exe**, bấm **Browse** chọn `StellaSora.exe`.
+3. Bấm **Start game + tool**. Công cụ mở phiên game mới và tự nạp DLL.
+4. Đường dẫn tự lưu vào `config.ini` cạnh EXE. Có thể dùng file cũ có `[Config]` và `GamePath`.
+5. Chờ menu xuất hiện, bật từng tính năng cần dùng. Nên thử hệ số damage x2 trước.
+
+**F1** ẩn/hiện bảng, kể cả sau khi bảng mất focus hoặc đang bị ẩn. Ẩn bằng F1 giữ nguyên tính năng đang bật. **Disable all** tắt tất cả; nút **X** tắt tính năng rồi ẩn bảng. Menu là cửa sổ nổi nền tối, chưa phải overlay vẽ trực tiếp trong khung hình game.
+
+Bản này sửa điều kiện focus khiến F1 chỉ ẩn mà không mở lại được. Dùng RegisterHotKey; nếu không đăng ký được, dùng polling phím không phụ thuộc focus. Giao diện mới và F1 chưa được kiểm chứng trực tiếp trên Windows tại môi trường build; cần kiểm tra trên máy người dùng. Backend đã qua 13 nhóm mock tests với sanitizer; kiểm tra đường dẫn và adapter x64 cũng đạt.
+
+## Lỗi thường gặp
+
+- **Đang có game chạy:** đóng phiên cũ rồi bấm Start game + tool. Bản này không tự nạp vào phiên đang chạy.
+- **Không nạp được DLL:** kiểm tra hai file cùng thư mục và đúng cùng bản; xem `SSTool-launcher.log`.
+- **Menu không khởi tạo hoặc tính năng lỗi:** xem `SSTool2.log` cạnh DLL.
+- **Game cập nhật:** công cụ kiểm tra hash GameAssembly; bản khác có thể không được hỗ trợ. Không có bảo đảm tương thích mọi phiên bản hay mọi loại sát thương/cooldown.
+
+`config.ini` và các file log được tạo cục bộ, không cần tải từ repo và không nên đưa dữ liệu cá nhân lên repo công khai.
+
+## Mã nguồn và giấy phép
+
+Trang chính chỉ giữ hai file chạy và README. [Mã nguồn tương ứng của bản này](https://github.com/bao123e/sstool/tree/affc7a265d4c5117dd08ba4ece09c66026ad2f46/runtime2) được giữ tại commit `affc7a265d4c5117dd08ba4ece09c66026ad2f46` trong lịch sử. [Tải mã nguồn đầy đủ](https://github.com/bao123e/sstool/archive/affc7a265d4c5117dd08ba4ece09c66026ad2f46.zip). Build bằng Python 3 và Zig 0.14.1, theo `runtime2/build.py`; kiểm thử bằng `runtime2/test.py`. Mã nguồn build sinh cả EXE và DLL.
+
+Nguồn tham khảo: [TheReVeaLz/StellaSora-Tool](https://github.com/TheReVeaLz/StellaSora-Tool), commit `30f67811411dca754f1b876b4d4dbf6a001e0a20` (AGPL); [MinHook](https://github.com/TsudaKageyu/minhook), commit `8af6b4acae5a9388fd742b56fa79ece89d96f823` (BSD). Công cụ MetadataDecryption được dùng đối chiếu dữ liệu, không link vào DLL.
+
+<details>
+<summary>Giấy phép AGPL-3.0-or-later</summary>
+
+```text
                     GNU AFFERO GENERAL PUBLIC LICENSE
                        Version 3, 19 November 2007
 
@@ -659,3 +713,95 @@ specific requirements.
 if any, to sign a "copyright disclaimer" for the program, if necessary.
 For more information on this, and how to apply and follow the GNU AGPL, see
 <https://www.gnu.org/licenses/>.
+```
+
+</details>
+
+<details>
+<summary>Giấy phép MinHook (BSD)</summary>
+
+```text
+﻿MinHook - The Minimalistic API Hooking Library for x64/x86
+Copyright (C) 2009-2017 Tsuda Kageyu.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER
+OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+================================================================================
+Portions of this software are Copyright (c) 2008-2009, Vyacheslav Patkov.
+================================================================================
+Hacker Disassembler Engine 32 C
+Copyright (c) 2008-2009, Vyacheslav Patkov.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-------------------------------------------------------------------------------
+Hacker Disassembler Engine 64 C
+Copyright (c) 2008-2009, Vyacheslav Patkov.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE REGENTS OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+</details>
