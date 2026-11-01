@@ -1,0 +1,12 @@
+{
+  "sha256": "681f5c208753614d044d1701313cd407308bd5d55f54b81a78752bddf7346319",
+  "bytes": 213504,
+  "launcher_sha256": "bdec1ee5e4ce4b55d7c8491f1d85ad5c40b9cd6f3a33fa8e8d2e8c6f5e400434",
+  "launcher_runtime_tested": false,
+  "tool_upstream_commit": "30f67811411dca754f1b876b4d4dbf6a001e0a20",
+  "minhook_commit": "8af6b4acae5a9388fd742b56fa79ece89d96f823",
+  "compiler": "Zig 0.14.1 / Clang Windows x64 GNU",
+  "gameassembly_sha256": "6adc5de8d2ed85ee752be80b38aff0e5e85d21e6efb6133c262c9f2632e06dd8",
+  "windows_runtime_tested": false,
+  "gameplay_verified": false
+}
