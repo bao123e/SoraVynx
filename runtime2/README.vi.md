@@ -1,4 +1,8 @@
-# SSTool standalone 2 — chọn đường dẫn và mở game
+# SSTool standalone 3 — đường dẫn và chẩn đoán nạp DLL
+
+Trình nạp 3 bổ sung SSTool-launcher.log cạnh EXE: đường dẫn/kích thước/hash DLL, PID, module chứa LoadLibraryW, địa chỉ sau rebase và mã thoát của luồng nạp. Kiểm tra DLL phải khớp bản build để tránh nạp nhầm file cũ; không đổi giới hạn hash GameAssembly của backend. Thông báo lỗi nạp DLL không còn tự kết luận lỗi x64. Thử lại enumeration module trong tối đa một giây sau khi luồng nạp kết thúc.
+
+**Đây là cải thiện chẩn đoán, chưa xác định hoặc sửa được nguyên nhân lỗi nạp DLL trong ảnh người dùng.** Gửi SSTool-launcher.log nếu vẫn lỗi. Log có đường dẫn cục bộ; không đăng công khai file log hoặc config cá nhân.
 
 ## Dùng
 
