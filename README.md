@@ -12,6 +12,6 @@ Tool dành cho **Stella Sora** trên Windows x64.
 - **Unlimited Energy** — duy trì năng lượng kỹ năng.
 - **Mob Vacuum** — gom quái về phía nhân vật.
 
-Giải nén, đóng game rồi mở **SSTool.exe**, chọn đường dẫn game và bấm **Start game + tool**. Giữ **Mastercheat.dll** cạnh EXE. Nhấn **F1** để ẩn/hiện menu.
+Giải nén, đóng game rồi mở **SSTool.exe**: hộp chọn file xuất hiện ngay. Chọn **StellaSora.exe** và bấm **Open** để tự chạy game + tool; **Cancel** để thoát. Công cụ nhớ thư mục lần trước. Giữ **Mastercheat.dll** cạnh EXE. Nhấn **F1** để ẩn/hiện menu.
 
-[Mã nguồn tương ứng & giấy phép](https://github.com/bao123e/sstool/tree/0a3a174dc215a4170b3fc1da3694ebf996b00dbe/source) · Giấy phép kèm trong ZIP.
+[Mã nguồn tương ứng & giấy phép](https://github.com/bao123e/sstool/tree/5df947c916f16bcbff7efa03192f539ef06d5d1d/source) · Giấy phép kèm trong ZIP.
