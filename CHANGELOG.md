@@ -1,5 +1,14 @@
 # SoraVynx release notes
 
+## 1.1.0-preview.2
+
+- Fix the setup report that was filled by generated Protobuf configuration classes.
+- Detect Protobuf by method return type, retain real runtime controllers in the same namespace, and exclude generated table wrappers.
+- Scan all candidate classes before formatting; include a compact index and separate signature budgets for all six daily task groups.
+- Prioritize controllers/managers and action handlers, including handlers declared after the first 32 methods. Include parameter names, inherited singleton accessors and field names/types, never field values.
+- Rename the button to Copy setup report v2; add a portable Windows/Wine regression with 100 leading Protobuf types.
+- Auto Daily execution is still NOT implemented. Close the game and use both updated EXE/DLL before copying the new report; tasks do not need to be repeated.
+
 ## 1.1.0-preview.1
 
 - Rename SSTool to SoraVynx; matching SoraVynx.exe / SoraVynx.Runtime.dll.
