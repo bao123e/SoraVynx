@@ -11,11 +11,8 @@
 #include "ui_background.h"
 #include "ui_fonts.h"
 
-/* Dark scrims keep text readable independently of the custom image. */
+/* Only text and small state indicators sit above the custom image. */
 #define UI_BG RGB(9,17,30)
-#define UI_RAIL RGB(12,22,37)
-#define UI_CARD RGB(18,30,47)
-#define UI_BUTTON RGB(30,46,65)
 #define UI_TEXT RGB(238,245,255)
 #define UI_MUTED RGB(179,197,219)
 #define UI_ACCENT RGB(94,234,212)
@@ -26,7 +23,7 @@ static HWND multiplier_hint,event_hint,section_title,section_caption,footer;
 static HWND background_name,background_mode;
 static HWND page_controls[2][16];static int page_count[2],active_page;
 static bool global_hotkey;
-static HBRUSH background_brush,card_brush,background_pattern;
+static HBRUSH background_brush,background_pattern;
 static HFONT body_font,button_font,title_font,section_font;
 static HDC background_dc;static HBITMAP background_bitmap;
 static HGDIOBJ background_original;
@@ -128,10 +125,6 @@ static void make_background(HWND hwnd) {
   AlphaBlend(background_dc,0,0,w,h,scaled,0,0,w,h,blend);
   SelectObject(scaled,previous);DeleteObject(bitmap);DeleteDC(scaled);SelectObject(src,old);DeleteDC(src);
  }
- RECT rail={0,0,176,h},header={176,0,w,80};tint_rect(background_dc,rail,UI_RAIL,200);tint_rect(background_dc,header,UI_BG,200);
- RECT panel={192,88,568,488},appearance={584,88,976,336},settings={584,352,976,488},status={192,504,976,584};
- tint_rect(background_dc,panel,UI_CARD,200);tint_rect(background_dc,appearance,UI_CARD,200);
- tint_rect(background_dc,settings,UI_CARD,200);tint_rect(background_dc,status,UI_CARD,200);
  RECT accent={24,72,152,76};HBRUSH brush=CreateSolidBrush(UI_ACCENT);FillRect(background_dc,&accent,brush);DeleteObject(brush);
  background_pattern=CreatePatternBrush(background_bitmap);ReleaseDC(hwnd,dc);
 }
@@ -141,27 +134,43 @@ static void refresh_background(void) {
  update_text(background_mode,background_fill?L"Image fit: Fill window":L"Image fit: Full image");
  make_background(window);RedrawWindow(window,NULL,NULL,RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN);
 }
+static void shadow_text(HDC dc,const wchar_t *text,RECT rect,UINT flags,COLORREF color) {
+ SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(0,0,0));
+ const int offsets[5][2]={{-1,0},{1,0},{0,-1},{0,1},{1,2}};
+ for(int i=0;i<5;i++){RECT shadow=rect;OffsetRect(&shadow,offsets[i][0],offsets[i][1]);DrawTextW(dc,text,-1,&shadow,flags|DT_NOPREFIX);}
+ SetTextColor(dc,color);DrawTextW(dc,text,-1,&rect,flags|DT_NOPREFIX);
+}
+static void copy_control_background(DRAWITEMSTRUCT *item) {
+ POINT origin={0,0};MapWindowPoints(item->hwndItem,window,&origin,1);
+ if(background_dc)BitBlt(item->hDC,0,0,item->rcItem.right,item->rcItem.bottom,background_dc,origin.x,origin.y,SRCCOPY);
+}
+static void draw_label(DRAWITEMSTRUCT *item) {
+ copy_control_background(item);HFONT font=(HFONT)SendMessageW(item->hwndItem,WM_GETFONT,0,0);
+ if(font)SelectObject(item->hDC,font);
+ wchar_t text[512];GetWindowTextW(item->hwndItem,text,512);
+ UINT flags=DT_LEFT|DT_TOP;
+ if(GetWindowLongPtrW(item->hwndItem,GWL_STYLE)&SS_PATHELLIPSIS)flags|=DT_PATH_ELLIPSIS|DT_SINGLELINE;
+ shadow_text(item->hDC,text,item->rcItem,flags,item->CtlID==500?UI_ACCENT:UI_TEXT);
+}
 static void draw_button(DRAWITEMSTRUCT *item) {
  HDC dc=item->hDC;RECT rect=item->rcItem;int id=(int)item->CtlID;
  bool player=id>=100&&id<100+FEATURE_COUNT,event_control=id>=300&&id<303,tab=id==400||id==401;
  bool active=player?read_atomic(&feature_flags[id-100]):event_control?read_atomic(&event_flags[id-300]):tab&&active_page==id-400;
  bool available=!(item->itemState&ODS_DISABLED);
  bool pressed=(item->itemState&ODS_SELECTED)!=0;
- COLORREF fill=pressed?RGB(49,81,98):tab?(active?RGB(30,77,84):UI_CARD):UI_BUTTON;
- POINT origin={0,0};MapWindowPoints(item->hwndItem,window,&origin,1);
- if(background_dc)BitBlt(dc,0,0,rect.right,rect.bottom,background_dc,origin.x,origin.y,SRCCOPY);
- tint_rect(dc,rect,fill,190);HBRUSH brush;
+ copy_control_background(item);
+ if(pressed)tint_rect(dc,rect,UI_ACCENT,48);HBRUSH brush;
  if(active){RECT line={0,0,3,rect.bottom};brush=CreateSolidBrush(UI_ACCENT);FillRect(dc,&line,brush);DeleteObject(brush);}
  SetBkMode(dc,TRANSPARENT);SelectObject(dc,button_font);SetTextColor(dc,available?UI_TEXT:UI_MUTED);
  RECT text=rect;text.left+=16;if(player||event_control)text.right-=70;
  wchar_t label[100];GetWindowTextW(item->hwndItem,label,100);
  if(id==410||id==411)text=rect;
- DrawTextW(dc,label,-1,&text,DT_SINGLELINE|DT_VCENTER|((id==410||id==411)?DT_CENTER:DT_LEFT));
+ shadow_text(dc,label,text,DT_SINGLELINE|DT_VCENTER|((id==410||id==411)?DT_CENTER:DT_LEFT),available?UI_TEXT:UI_MUTED);
  if(player||event_control){
-  RECT badge={rect.right-59,rect.top+13,rect.right-12,rect.bottom-13};brush=CreateSolidBrush(active?RGB(74,220,191):RGB(44,59,79));FillRect(dc,&badge,brush);DeleteObject(brush);
-  SetTextColor(dc,active?RGB(7,31,30):UI_TEXT);DrawTextW(dc,!available?L"N/A":active?L"ON":L"OFF",-1,&badge,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+  RECT badge={rect.right-59,rect.top+13,rect.right-12,rect.bottom-13};
+  shadow_text(dc,!available?L"N/A":active?L"ON":L"OFF",badge,DT_CENTER|DT_SINGLELINE|DT_VCENTER,active?UI_ACCENT:UI_TEXT);
  }
- if(item->itemState&ODS_FOCUS){InflateRect(&rect,-4,-4);SetTextColor(dc,UI_TEXT);SetBkColor(dc,fill);DrawFocusRect(dc,&rect);}
+ if(item->itemState&ODS_FOCUS){InflateRect(&rect,-4,-4);SetTextColor(dc,UI_TEXT);SetBkColor(dc,UI_BG);DrawFocusRect(dc,&rect);}
 }
 static void switch_page(int page) {
  active_page=page;
@@ -210,13 +219,16 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   if(wp==1)toggle_panel(hwnd);
   else if(wp>=6&&wp<=8){int i=(int)wp-6;if(read_atomic(&event_ready[i]))InterlockedExchange(&event_flags[i],!read_atomic(&event_flags[i]));refresh_status();}
   return 0;
- case WM_DRAWITEM:if(((DRAWITEMSTRUCT*)lp)->CtlType==ODT_BUTTON){draw_button((DRAWITEMSTRUCT*)lp);return TRUE;}break;
- case WM_CTLCOLORSTATIC:{
+ case WM_DRAWITEM:{DRAWITEMSTRUCT *item=(DRAWITEMSTRUCT*)lp;
+  if(item->CtlType==ODT_BUTTON){draw_button(item);return TRUE;}
+  if(item->CtlType==ODT_STATIC){draw_label(item);return TRUE;}break;
+ }
+ case WM_CTLCOLORSTATIC:
+ case WM_CTLCOLOREDIT:{
   SetTextColor((HDC)wp,GetDlgCtrlID((HWND)lp)==500?UI_ACCENT:UI_TEXT);SetBkMode((HDC)wp,TRANSPARENT);
   POINT origin={0,0};MapWindowPoints((HWND)lp,hwnd,&origin,1);SetBrushOrgEx((HDC)wp,-origin.x,-origin.y,NULL);
   return (LRESULT)(background_pattern?background_pattern:background_brush);
  }
- case WM_CTLCOLOREDIT:SetTextColor((HDC)wp,UI_TEXT);SetBkColor((HDC)wp,UI_BUTTON);return (LRESULT)card_brush;
  case WM_ERASEBKGND:return 1;
  case WM_PAINT:{PAINTSTRUCT paint;HDC dc=BeginPaint(hwnd,&paint);if(background_dc){RECT r;GetClientRect(hwnd,&r);BitBlt(dc,0,0,r.right,r.bottom,background_dc,0,0,SRCCOPY);}EndPaint(hwnd,&paint);return 0;}
  case WM_TIMER:
@@ -229,6 +241,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  return DefWindowProcW(hwnd,message,wp,lp);
 }
 static HWND control(const wchar_t *kind,const wchar_t *text,DWORD style,int x,int y,int w,int h,int id) {
+ if(!wcscmp(kind,L"STATIC"))style|=SS_OWNERDRAW;
  HWND c=CreateWindowW(kind,text,WS_CHILD|WS_VISIBLE|style,x,y,w,h,window,(HMENU)(intptr_t)id,self_module,NULL);
  if(c)SendMessageW(c,WM_SETFONT,(WPARAM)(!wcscmp(kind,L"BUTTON")?button_font:body_font),TRUE);return c;
 }
@@ -238,7 +251,7 @@ static HWND page_control(int page,const wchar_t *kind,const wchar_t *text,DWORD 
 static DWORD WINAPI run(void *unused) {
  (void)unused;WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=self_module;wc.lpszClassName=L"SSToolRuntime2";
  wc.hCursor=LoadCursorW(NULL,MAKEINTRESOURCEW(32512));
- background_brush=CreateSolidBrush(UI_BG);card_brush=CreateSolidBrush(UI_BUTTON);wc.hbrBackground=background_brush;
+ background_brush=CreateSolidBrush(UI_BG);wc.hbrBackground=background_brush;
  load_ui_fonts(self_module);
  body_font=CreateFontW(-16,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[0]);
  button_font=CreateFontW(-16,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[1]);
