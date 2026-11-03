@@ -6,7 +6,7 @@ Menu không đánh số: **Player**, **Event**, **Custom BG**, **Auto Daily**. P
 
 ## Auto Daily: setup preview, chưa tự chạy
 
-Tám lựa chọn theo ảnh người dùng: Tier-up Trial; Ascension; nâng Disc; nâng Trekker; 5 battle stages; tiêu 100 Vigor; tương tác Trekker màn chính; nhận thưởng Tyrant’s Tower. Dự kiến dùng đội, màn, difficulty, Trekker và Disc đang chọn trong game.
+Mười hai lựa chọn theo ảnh người dùng: Tier-up Trial; Ascension; nâng Disc; nâng Trekker; 5 battle stages; tiêu 100 Vigor; tương tác Trekker màn chính; nhận thưởng Tyrant’s Tower; tặng quà Heartlink; dispatch commission; nhận quà ngẫu nhiên Shop; đăng nhập ngày. Dự kiến dùng đội, màn, difficulty, Trekker và Disc đang chọn trong game.
 
 Bản này chỉ lưu danh sách lựa chọn và tạo thông tin hàm để hoàn tất tích hợp. Không có nút Start giả, không chạy hay đánh dấu hoàn thành nhiệm vụ. Khi game đã vào màn chính và Player/Event báo READY: mở **Auto Daily → Copy setup report**, dán nội dung vào cuộc trao đổi phát triển. Báo cáo chỉ đọc metadata lớp/chữ ký phương thức Hotfix vào clipboard, giới hạn kích thước; không đọc thông tin tài khoản, không gọi hành động game và không tạo tệp. Cần đối chiếu báo cáo và kiểm tra luồng game trước khi nối các hành động daily thực tế.
 
