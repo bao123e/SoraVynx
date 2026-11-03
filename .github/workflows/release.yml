@@ -1,0 +1,60 @@
+name: Publish SoraVynx preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        default: v1.1.0-preview.1
+        required: true
+  push:
+    branches: [runtime2-test]
+    paths: [.github/workflows/release.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify the binary pair and publish ZIP
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag || 'v1.1.0-preview.1' }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib, re, subprocess, zipfile
+          root = pathlib.Path.cwd()
+          tag = os.environ['RELEASE_TAG']
+          if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.]+)?', tag):
+              raise SystemExit('Invalid release tag')
+          metadata = json.loads((root / 'source/build.json').read_text())
+          for name, field in [('SoraVynx.exe', 'launcher_sha256'), ('SoraVynx.Runtime.dll', 'sha256')]:
+              if hashlib.sha256((root / name).read_bytes()).hexdigest() != metadata[field]:
+                  raise SystemExit('Binary hash mismatch: ' + name)
+          if metadata['sha256'].encode() not in (root / 'SoraVynx.exe').read_bytes():
+              raise SystemExit('Launcher does not verify this DLL')
+          destination = pathlib.Path(os.environ['RUNNER_TEMP'])
+          archive = destination / ('SoraVynx-' + tag + '-win64.zip')
+          names = ['SoraVynx.exe', 'SoraVynx.Runtime.dll', 'README.md', 'LICENSE.txt', 'config.example.ini', 'SHA256SUMS.txt']
+          with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as package:
+              for name in names:
+                  info = zipfile.ZipInfo(name, (2026, 11, 3, 0, 0, 0))
+                  info.compress_type = zipfile.ZIP_DEFLATED
+                  info.external_attr = 0o100644 << 16
+                  package.writestr(info, (root / name).read_bytes(), compresslevel=9)
+          with zipfile.ZipFile(archive) as package:
+              if package.testzip() is not None:
+                  raise SystemExit('ZIP integrity failure')
+          checksum = destination / (archive.name + '.sha256')
+          checksum.write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + '  ' + archive.name + '\n')
+          subprocess.run(['gh', 'release', 'create', tag, str(archive), str(checksum),
+              '--repo', os.environ['GITHUB_REPOSITORY'], '--target', os.environ['GITHUB_SHA'],
+              '--title', 'SoraVynx ' + tag + ' - Stella Sora Toolkit Preview',
+              '--notes-file', str(root / 'CHANGELOG.md'), '--prerelease'], check=True)
+          PY
