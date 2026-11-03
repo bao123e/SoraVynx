@@ -11,17 +11,20 @@
 #include "ui_background.h"
 #include "ui_fonts.h"
 
-/* Only text and small state indicators sit above the custom image. */
+/* Image, panel and button opacity are independent; text stays fully visible. */
 #define UI_BG RGB(9,17,30)
+#define UI_RAIL RGB(12,22,37)
+#define UI_CARD RGB(18,30,47)
+#define UI_BUTTON RGB(30,46,65)
 #define UI_TEXT RGB(238,245,255)
 #define UI_MUTED RGB(179,197,219)
 #define UI_ACCENT RGB(94,234,212)
 
 static HMODULE self_module;
-static HWND window,checks[FEATURE_COUNT],event_checks[3],tabs[2],status_label;
+static HWND window,checks[FEATURE_COUNT],event_checks[3],tabs[3],status_label;
 static HWND multiplier_hint,event_hint,section_title,section_caption,footer;
 static HWND background_name,background_mode;
-static HWND page_controls[2][16];static int page_count[2],active_page;
+static HWND page_controls[3][16];static int page_count[3],active_page;
 static bool global_hotkey;
 static HBRUSH background_brush,background_pattern;
 static HFONT body_font,button_font,title_font,section_font;
@@ -125,6 +128,16 @@ static void make_background(HWND hwnd) {
   AlphaBlend(background_dc,0,0,w,h,scaled,0,0,w,h,blend);
   SelectObject(scaled,previous);DeleteObject(bitmap);DeleteDC(scaled);SelectObject(src,old);DeleteDC(src);
  }
+ BYTE panel_alpha=(BYTE)(panel_opacity*255/100),button_alpha=(BYTE)(button_opacity*255/100);
+ RECT rail={0,0,176,h},header={176,0,w,80},panel={192,88,568,488},settings={584,352,976,488},appearance={192,88,976,488},status={192,504,976,584};
+ tint_rect(background_dc,rail,UI_RAIL,panel_alpha);tint_rect(background_dc,header,UI_BG,panel_alpha);
+ if(active_page==2)tint_rect(background_dc,appearance,UI_CARD,panel_alpha);
+ else {tint_rect(background_dc,panel,UI_CARD,panel_alpha);tint_rect(background_dc,settings,UI_CARD,panel_alpha);}
+ tint_rect(background_dc,status,UI_CARD,panel_alpha);
+ RECT player_inputs[2]={{872,364,960,400},{872,428,960,464}};
+ RECT appearance_inputs[3]={{432,296,520,332},{856,296,944,332},{432,368,520,404}};
+ if(active_page==2){for(int i=0;i<3;i++)tint_rect(background_dc,appearance_inputs[i],UI_BUTTON,button_alpha);}
+ else {tint_rect(background_dc,player_inputs[0],UI_BUTTON,button_alpha);if(active_page==0)tint_rect(background_dc,player_inputs[1],UI_BUTTON,button_alpha);}
  RECT accent={24,72,152,76};HBRUSH brush=CreateSolidBrush(UI_ACCENT);FillRect(background_dc,&accent,brush);DeleteObject(brush);
  background_pattern=CreatePatternBrush(background_bitmap);ReleaseDC(hwnd,dc);
 }
@@ -154,11 +167,12 @@ static void draw_label(DRAWITEMSTRUCT *item) {
 }
 static void draw_button(DRAWITEMSTRUCT *item) {
  HDC dc=item->hDC;RECT rect=item->rcItem;int id=(int)item->CtlID;
- bool player=id>=100&&id<100+FEATURE_COUNT,event_control=id>=300&&id<303,tab=id==400||id==401;
+ bool player=id>=100&&id<100+FEATURE_COUNT,event_control=id>=300&&id<303,tab=id>=400&&id<=402;
  bool active=player?read_atomic(&feature_flags[id-100]):event_control?read_atomic(&event_flags[id-300]):tab&&active_page==id-400;
  bool available=!(item->itemState&ODS_DISABLED);
  bool pressed=(item->itemState&ODS_SELECTED)!=0;
  copy_control_background(item);
+ tint_rect(dc,rect,tab&&active?RGB(30,77,84):UI_BUTTON,(BYTE)(button_opacity*255/100));
  if(pressed)tint_rect(dc,rect,UI_ACCENT,48);HBRUSH brush;
  if(active){RECT line={0,0,3,rect.bottom};brush=CreateSolidBrush(UI_ACCENT);FillRect(dc,&line,brush);DeleteObject(brush);}
  SetBkMode(dc,TRANSPARENT);SelectObject(dc,button_font);SetTextColor(dc,available?UI_TEXT:UI_MUTED);
@@ -168,17 +182,20 @@ static void draw_button(DRAWITEMSTRUCT *item) {
  shadow_text(dc,label,text,DT_SINGLELINE|DT_VCENTER|((id==410||id==411)?DT_CENTER:DT_LEFT),available?UI_TEXT:UI_MUTED);
  if(player||event_control){
   RECT badge={rect.right-59,rect.top+13,rect.right-12,rect.bottom-13};
+  tint_rect(dc,badge,active?RGB(74,220,191):RGB(44,59,79),(BYTE)(button_opacity*255/100));
   shadow_text(dc,!available?L"N/A":active?L"ON":L"OFF",badge,DT_CENTER|DT_SINGLELINE|DT_VCENTER,active?UI_ACCENT:UI_TEXT);
  }
  if(item->itemState&ODS_FOCUS){InflateRect(&rect,-4,-4);SetTextColor(dc,UI_TEXT);SetBkColor(dc,UI_BG);DrawFocusRect(dc,&rect);}
 }
 static void switch_page(int page) {
+ if(page<0||page>=3)return;
  active_page=page;
- for(int p=0;p<2;p++)for(int i=0;i<page_count[p];i++)ShowWindow(page_controls[p][i],p==page?SW_SHOW:SW_HIDE);
- update_text(section_title,page?L"Bouncing Bumper Bash":L"Player");
- update_text(section_caption,page?L"Independent skill and score controls":L"Your core combat toolkit");
- update_text(footer,page?L"F6 cooldown   /   F7 energy   /   F8 score":L"Hide the panel with F1. Your toggles stay active.");
- InvalidateRect(window,NULL,TRUE);InvalidateRect(tabs[0],NULL,TRUE);InvalidateRect(tabs[1],NULL,TRUE);
+ for(int p=0;p<3;p++)for(int i=0;i<page_count[p];i++)ShowWindow(page_controls[p][i],p==page?SW_SHOW:SW_HIDE);
+ const wchar_t *titles[]={L"Player",L"Bouncing Bumper Bash",L"Custom Background"};
+ const wchar_t *captions[]={L"Your core combat toolkit",L"Independent skill and score controls",L"Image, panel and button appearance"};
+ const wchar_t *footers[]={L"Hide the panel with F1. Your toggles stay active.",L"F6 cooldown   /   F7 energy   /   F8 score",L"Appearance is saved automatically. Gameplay settings stay active."};
+ update_text(section_title,titles[page]);update_text(section_caption,captions[page]);update_text(footer,footers[page]);
+ make_background(window);InvalidateRect(window,NULL,TRUE);for(int i=0;i<3;i++)InvalidateRect(tabs[i],NULL,TRUE);
 }
 static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  switch(message){
@@ -190,7 +207,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  case WM_COMMAND:{
   int id=LOWORD(wp),notice=HIWORD(wp);
   if(notice==BN_CLICKED){
-   if(id==400||id==401){switch_page(id-400);return 0;}
+   if(id>=400&&id<=402){switch_page(id-400);return 0;}
    if(id==410){ShowWindow(hwnd,SW_HIDE);return 0;}
    if(id==411){SendMessageW(hwnd,WM_CLOSE,0,0);return 0;}
    if(id==420){if(choose_background(hwnd))refresh_background();return 0;}
@@ -200,10 +217,11 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
    else if(id>=300&&id<303){int i=id-300;if(read_atomic(&event_ready[i]))InterlockedExchange(&event_flags[i],!read_atomic(&event_flags[i]));InvalidateRect(event_checks[i],NULL,TRUE);}
    else if(id==200)disable_all();
   }
-  if(id==204&&(notice==EN_CHANGE||notice==EN_KILLFOCUS)){
+  if(id>=204&&id<=206&&(notice==EN_CHANGE||notice==EN_KILLFOCUS)){
+   int *setting=id==204?&background_opacity:id==205?&panel_opacity:&button_opacity;
    BOOL valid;UINT value=GetDlgItemInt(hwnd,id,&valid,FALSE);
-   if(notice==EN_KILLFOCUS){if(!valid)value=(UINT)background_opacity;if(value>100)value=100;SetDlgItemInt(hwnd,id,value,FALSE);valid=TRUE;}
-   if(valid&&value<=100&&(int)value!=background_opacity){background_opacity=(int)value;refresh_background();}
+   if(notice==EN_KILLFOCUS){if(!valid)value=(UINT)*setting;if(value>100)value=100;SetDlgItemInt(hwnd,id,value,FALSE);valid=TRUE;}
+   if(valid&&value<=100&&(int)value!=*setting){*setting=(int)value;refresh_background();}
    if(notice==EN_KILLFOCUS)save_background_settings(hwnd);
   }
   if((id==201||id==202||id==203)&&(notice==EN_CHANGE||notice==EN_KILLFOCUS)){
@@ -270,19 +288,24 @@ static DWORD WINAPI run(void *unused) {
  control(L"BUTTON",L"Hide",BS_OWNERDRAW|WS_TABSTOP,888,24,56,40,410);
  control(L"BUTTON",L"X",BS_OWNERDRAW|WS_TABSTOP,952,24,32,40,411);
  control(L"STATIC",L"WORKSPACE",0,24,104,145,24,0);
- tabs[0]=control(L"BUTTON",L"01  Player",BS_OWNERDRAW|WS_TABSTOP,16,140,146,48,400);
- tabs[1]=control(L"BUTTON",L"02  Event",BS_OWNERDRAW|WS_TABSTOP,16,200,146,48,401);
+ tabs[0]=control(L"BUTTON",L"Player",BS_OWNERDRAW|WS_TABSTOP,16,140,146,48,400);
+ tabs[1]=control(L"BUTTON",L"Event",BS_OWNERDRAW|WS_TABSTOP,16,200,146,48,401);
+ tabs[2]=control(L"BUTTON",L"Custom BG",BS_OWNERDRAW|WS_TABSTOP,16,260,146,48,402);
  section_title=control(L"STATIC",L"Player",0,208,104,344,32,0);SendMessageW(section_title,WM_SETFONT,(WPARAM)section_font,TRUE);
  section_caption=control(L"STATIC",L"Your core combat toolkit",0,208,140,344,24,0);
  const int visible[]={GOD_MODE,MULTI_HIT,NO_COOLDOWN,UNLIMITED_ENERGY,MOB_VACUUM};
  for(int row=0;row<5;row++){int i=visible[row];checks[i]=page_control(0,L"BUTTON",labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+58*row,344,48,100+i);EnableWindow(checks[i],FALSE);}
- control(L"STATIC",L"CUSTOM BACKGROUND",0,600,104,360,24,0);
- control(L"BUTTON",L"Choose image...",BS_OWNERDRAW|WS_TABSTOP,600,140,216,44,420);
- control(L"BUTTON",L"Remove",BS_OWNERDRAW|WS_TABSTOP,832,140,128,44,421);
- background_name=control(L"STATIC",L"No background selected",SS_PATHELLIPSIS,600,200,360,24,0);
- control(L"STATIC",L"Image opacity  /  0 - 100%",0,600,240,258,24,0);
- control(L"EDIT",L"35",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,232,88,36,204);SetDlgItemInt(window,204,(UINT)background_opacity,FALSE);
- background_mode=control(L"BUTTON",L"Image fit: Full image",BS_OWNERDRAW|WS_TABSTOP,600,284,360,36,422);
+ page_control(2,L"BUTTON",L"Choose image...",BS_OWNERDRAW|WS_TABSTOP,208,180,248,44,420);
+ page_control(2,L"BUTTON",L"Remove",BS_OWNERDRAW|WS_TABSTOP,472,180,144,44,421);
+ background_name=page_control(2,L"STATIC",L"No background selected",SS_PATHELLIPSIS,208,240,752,24,0);
+ page_control(2,L"STATIC",L"Image opacity (%)",0,208,304,216,24,0);
+ page_control(2,L"EDIT",L"35",WS_BORDER|ES_NUMBER|WS_TABSTOP,432,296,88,36,204);SetDlgItemInt(window,204,(UINT)background_opacity,FALSE);
+ page_control(2,L"STATIC",L"Panel opacity (%)",0,568,304,272,24,0);
+ page_control(2,L"EDIT",L"35",WS_BORDER|ES_NUMBER|WS_TABSTOP,856,296,88,36,205);SetDlgItemInt(window,205,(UINT)panel_opacity,FALSE);
+ page_control(2,L"STATIC",L"Button opacity (%)",0,208,376,216,24,0);
+ page_control(2,L"EDIT",L"55",WS_BORDER|ES_NUMBER|WS_TABSTOP,432,368,88,36,206);SetDlgItemInt(window,206,(UINT)button_opacity,FALSE);
+ background_mode=page_control(2,L"BUTTON",L"Image fit: Full image",BS_OWNERDRAW|WS_TABSTOP,568,368,392,40,422);
+ page_control(2,L"STATIC",L"0% = transparent    /    100% = solid. Text stays visible.",0,208,440,752,24,0);
  multiplier_hint=page_control(0,L"STATIC",L"Damage  x2  /  2 - 50",0,600,368,258,24,0);
  page_control(0,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,364,88,36,201);
  page_control(0,L"STATIC",L"Vacuum distance  /  1 - 10",0,600,432,258,24,0);

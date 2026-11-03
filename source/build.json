@@ -1,7 +1,7 @@
 {
-  "sha256": "457974b41074123ed525545ffdee64850298e7cd7b143126ca247a649a56dc9d",
-  "bytes": 1260544,
-  "launcher_sha256": "f75c61b5d9893d6e083e92237c5c5dfcbd5939cab26f610c0cb8c972cd840dae",
+  "sha256": "85d45527e0c67f73c22a0b6252b826e6cd2e9f38bbb8f0f037ac9af041aab41a",
+  "bytes": 1261568,
+  "launcher_sha256": "1be96fee3903d4de4728de3ea37a311bd27f5b163184f8cf0dfdd3ad4cdb12b1",
   "launcher_runtime_tested": false,
   "tool_upstream_commit": "30f67811411dca754f1b876b4d4dbf6a001e0a20",
   "minhook_commit": "8af6b4acae5a9388fd742b56fa79ece89d96f823",

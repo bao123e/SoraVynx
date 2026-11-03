@@ -8,6 +8,7 @@ static ULONG_PTR image_decoder;
 static HBITMAP custom_image;
 static wchar_t background_path[32768],ui_config_path[32768];
 static int background_opacity=35;
+static int panel_opacity=35,button_opacity=55;
 static bool background_fill=true;
 
 static HBITMAP decode_background(const wchar_t *path) {
@@ -30,14 +31,19 @@ static void load_background_settings(HMODULE module) {
  GetPrivateProfileStringW(L"Appearance",L"Background",L"",background_path,32768,ui_config_path);
  UINT opacity=GetPrivateProfileIntW(L"Appearance",L"Opacity",35,ui_config_path);
  background_opacity=opacity<=100?(int)opacity:35;
+ opacity=GetPrivateProfileIntW(L"Appearance",L"PanelOpacity",35,ui_config_path);panel_opacity=opacity<=100?(int)opacity:35;
+ opacity=GetPrivateProfileIntW(L"Appearance",L"ButtonOpacity",55,ui_config_path);button_opacity=opacity<=100?(int)opacity:55;
  background_fill=GetPrivateProfileIntW(L"Appearance",L"Fill",1,ui_config_path)!=0;
  custom_image=decode_background(background_path);
 }
 static void save_background_settings(HWND owner) {
- wchar_t value[16];swprintf(value,16,L"%d",background_opacity);
+ wchar_t value[16],panel[16],button[16];swprintf(value,16,L"%d",background_opacity);
+ swprintf(panel,16,L"%d",panel_opacity);swprintf(button,16,L"%d",button_opacity);
  if(!ui_config_path[0]||
     !WritePrivateProfileStringW(L"Appearance",L"Background",background_path,ui_config_path)||
     !WritePrivateProfileStringW(L"Appearance",L"Opacity",value,ui_config_path)||
+    !WritePrivateProfileStringW(L"Appearance",L"PanelOpacity",panel,ui_config_path)||
+    !WritePrivateProfileStringW(L"Appearance",L"ButtonOpacity",button,ui_config_path)||
     !WritePrivateProfileStringW(L"Appearance",L"Fill",background_fill?L"1":L"0",ui_config_path))
   MessageBoxW(owner,L"Appearance changed for this session, but config.ini could not be saved. Move SSTool to a writable folder.",L"SSTool",MB_OK|MB_ICONWARNING);
 }
