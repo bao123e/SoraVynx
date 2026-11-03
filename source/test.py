@@ -19,3 +19,8 @@ if __name__=='__main__':
   subprocess.run(['gcc','-O1','-std=c11','-Wall','-Wextra','-Werror',str(ROOT/'tests/launcher_capture_test.c'),'-o',str(capture_binary)],check=True)
   subprocess.run([str(capture_binary)],check=True)
   print('PASS loader capture x64 ABI, full-width module and immediate error capture with mock API calls')
+
+  layout_binary=Path(temporary)/'ui-layout-test'
+  subprocess.run(['gcc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(ROOT/'tests/ui_layout_test.c'),'-o',str(layout_binary)],check=True)
+  subprocess.run([str(layout_binary)],check=True)
+  print('PASS artwork contain layout: original aspect ratio, full bounds, portrait/wide and invalid source')

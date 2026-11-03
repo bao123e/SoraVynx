@@ -7,6 +7,16 @@
 #include <wchar.h>
 #include <string.h>
 #include <stdlib.h>
+#include "ui_layout.h"
+
+/* Opaque surfaces keep text readable independently of the illustration. */
+#define UI_BG RGB(9,17,30)
+#define UI_RAIL RGB(12,22,37)
+#define UI_CARD RGB(18,30,47)
+#define UI_BUTTON RGB(30,46,65)
+#define UI_TEXT RGB(238,245,255)
+#define UI_MUTED RGB(179,197,219)
+#define UI_ACCENT RGB(94,234,212)
 
 static HMODULE self_module;
 static HWND window,checks[FEATURE_COUNT],event_checks[3],tabs[2],status_label;
@@ -103,17 +113,16 @@ static void make_background(HWND hwnd) {
  HBITMAP image=LoadImageW(self_module,MAKEINTRESOURCEW(301),IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION);
  if(image){
   BITMAP info;GetObjectW(image,sizeof(info),&info);HDC src=CreateCompatibleDC(dc);HGDIOBJ old=SelectObject(src,image);
-  int sw=info.bmWidth,sh=info.bmHeight;
-  if((int64_t)sw*h>(int64_t)sh*w)sw=sh*w/h;else sh=sw*h/w;
+  /* Fit the entire source into its own artwork area: no crop, no text overlay. */
+  struct ImageFit fit=fit_image(info.bmWidth,info.bmHeight,584,104,392,232);
   SetStretchBltMode(background_dc,HALFTONE);SetBrushOrgEx(background_dc,0,0,NULL);
-  StretchBlt(background_dc,0,0,w,h,src,(info.bmWidth-sw)/2,(info.bmHeight-sh)/2,sw,sh,SRCCOPY);
+  if(fit.width>0&&fit.height>0)StretchBlt(background_dc,fit.x,fit.y,fit.width,fit.height,src,0,0,info.bmWidth,info.bmHeight,SRCCOPY);
   SelectObject(src,old);DeleteDC(src);DeleteObject(image);
-  HDC tint=CreateCompatibleDC(dc);HBITMAP pixel=CreateCompatibleBitmap(dc,1,1);HGDIOBJ previous=SelectObject(tint,pixel);
-  SetPixel(tint,0,0,RGB(6,13,27));BLENDFUNCTION blend={AC_SRC_OVER,0,105,0};
-  AlphaBlend(background_dc,0,0,w,h,tint,0,0,1,1,blend);
-  SelectObject(tint,previous);DeleteObject(pixel);DeleteDC(tint);
  }
- RECT rail={0,0,178,h};HBRUSH brush=CreateSolidBrush(RGB(12,19,32));FillRect(background_dc,&rail,brush);DeleteObject(brush);
+ RECT rail={0,0,176,h};HBRUSH brush=CreateSolidBrush(UI_RAIL);FillRect(background_dc,&rail,brush);DeleteObject(brush);
+ RECT panel={192,88,568,488},settings={584,352,976,488},status={192,504,976,584};
+ brush=CreateSolidBrush(UI_CARD);FillRect(background_dc,&panel,brush);FillRect(background_dc,&settings,brush);FillRect(background_dc,&status,brush);DeleteObject(brush);
+ RECT accent={24,72,152,76};brush=CreateSolidBrush(UI_ACCENT);FillRect(background_dc,&accent,brush);DeleteObject(brush);
  background_pattern=CreatePatternBrush(background_bitmap);ReleaseDC(hwnd,dc);
 }
 static void draw_button(DRAWITEMSTRUCT *item) {
@@ -121,17 +130,18 @@ static void draw_button(DRAWITEMSTRUCT *item) {
  bool player=id>=100&&id<100+FEATURE_COUNT,event_control=id>=300&&id<303,tab=id==400||id==401;
  bool active=player?read_atomic(&feature_flags[id-100]):event_control?read_atomic(&event_flags[id-300]):tab&&active_page==id-400;
  bool available=!(item->itemState&ODS_DISABLED);
- COLORREF fill=tab?(active?RGB(32,68,81):RGB(18,28,44)):RGB(21,32,49);
+ bool pressed=(item->itemState&ODS_SELECTED)!=0;
+ COLORREF fill=pressed?RGB(49,81,98):tab?(active?RGB(30,77,84):UI_CARD):UI_BUTTON;
  HBRUSH brush=CreateSolidBrush(fill);FillRect(dc,&rect,brush);DeleteObject(brush);
- if(active){RECT line={0,0,3,rect.bottom};brush=CreateSolidBrush(RGB(80,226,201));FillRect(dc,&line,brush);DeleteObject(brush);}
- SetBkMode(dc,TRANSPARENT);SelectObject(dc,body_font);SetTextColor(dc,available?RGB(232,240,252):RGB(111,127,148));
+ if(active){RECT line={0,0,3,rect.bottom};brush=CreateSolidBrush(UI_ACCENT);FillRect(dc,&line,brush);DeleteObject(brush);}
+ SetBkMode(dc,TRANSPARENT);SelectObject(dc,body_font);SetTextColor(dc,available?UI_TEXT:UI_MUTED);
  RECT text=rect;text.left+=16;if(player||event_control)text.right-=70;
  wchar_t label[100];GetWindowTextW(item->hwndItem,label,100);DrawTextW(dc,label,-1,&text,DT_SINGLELINE|DT_VCENTER|DT_LEFT);
  if(player||event_control){
   RECT badge={rect.right-59,rect.top+13,rect.right-12,rect.bottom-13};brush=CreateSolidBrush(active?RGB(74,220,191):RGB(44,59,79));FillRect(dc,&badge,brush);DeleteObject(brush);
-  SetTextColor(dc,active?RGB(7,31,30):RGB(175,191,213));DrawTextW(dc,active?L"ON":L"OFF",-1,&badge,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+  SetTextColor(dc,active?RGB(7,31,30):UI_TEXT);DrawTextW(dc,!available?L"N/A":active?L"ON":L"OFF",-1,&badge,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
  }
- if(item->itemState&ODS_FOCUS)DrawFocusRect(dc,&rect);
+ if(item->itemState&ODS_FOCUS){InflateRect(&rect,-4,-4);SetTextColor(dc,UI_TEXT);SetBkColor(dc,fill);DrawFocusRect(dc,&rect);}
 }
 static void switch_page(int page) {
  active_page=page;
@@ -166,11 +176,11 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   return 0;
  case WM_DRAWITEM:if(((DRAWITEMSTRUCT*)lp)->CtlType==ODT_BUTTON){draw_button((DRAWITEMSTRUCT*)lp);return TRUE;}break;
  case WM_CTLCOLORSTATIC:{
-  SetTextColor((HDC)wp,RGB(214,228,246));SetBkMode((HDC)wp,TRANSPARENT);
+  SetTextColor((HDC)wp,GetDlgCtrlID((HWND)lp)==500?UI_ACCENT:UI_TEXT);SetBkMode((HDC)wp,TRANSPARENT);
   POINT origin={0,0};MapWindowPoints((HWND)lp,hwnd,&origin,1);SetBrushOrgEx((HDC)wp,-origin.x,-origin.y,NULL);
   return (LRESULT)(background_pattern?background_pattern:background_brush);
  }
- case WM_CTLCOLOREDIT:SetTextColor((HDC)wp,RGB(240,248,255));SetBkColor((HDC)wp,RGB(21,32,49));return (LRESULT)card_brush;
+ case WM_CTLCOLOREDIT:SetTextColor((HDC)wp,UI_TEXT);SetBkColor((HDC)wp,UI_BUTTON);return (LRESULT)card_brush;
  case WM_ERASEBKGND:return 1;
  case WM_PAINT:{PAINTSTRUCT paint;HDC dc=BeginPaint(hwnd,&paint);if(background_dc){RECT r;GetClientRect(hwnd,&r);BitBlt(dc,0,0,r.right,r.bottom,background_dc,0,0,SRCCOPY);}EndPaint(hwnd,&paint);return 0;}
  case WM_TIMER:
@@ -192,44 +202,45 @@ static HWND page_control(int page,const wchar_t *kind,const wchar_t *text,DWORD 
 static DWORD WINAPI run(void *unused) {
  (void)unused;WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=self_module;wc.lpszClassName=L"SSToolRuntime2";
  wc.hCursor=LoadCursorW(NULL,MAKEINTRESOURCEW(32512));
- background_brush=CreateSolidBrush(RGB(9,17,30));card_brush=CreateSolidBrush(RGB(21,32,49));wc.hbrBackground=background_brush;
+ background_brush=CreateSolidBrush(UI_BG);card_brush=CreateSolidBrush(UI_BUTTON);wc.hbrBackground=background_brush;
  body_font=CreateFontW(-16,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
- title_font=CreateFontW(-29,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
+ title_font=CreateFontW(-34,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
  section_font=CreateFontW(-23,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
  if(!RegisterClassW(&wc))return 1;
- window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"SSTool v1.0 | Stella Sora",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,820,620,NULL,NULL,self_module,NULL);
+ DWORD style=WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX;
+ RECT bounds={0,0,1000,600};AdjustWindowRectEx(&bounds,style,FALSE,WS_EX_TOPMOST|WS_EX_TOOLWINDOW);
+ window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"SSTool v1.0 | Stella Sora",style,CW_USEDEFAULT,CW_USEDEFAULT,bounds.right-bounds.left,bounds.bottom-bounds.top,NULL,NULL,self_module,NULL);
  if(!window)return 1;
  HMODULE dwm=LoadLibraryExW(L"dwmapi.dll",NULL,LOAD_LIBRARY_SEARCH_SYSTEM32);
  if(dwm){typedef HRESULT (WINAPI *SetAttribute)(HWND,DWORD,LPCVOID,DWORD);FARPROC proc=GetProcAddress(dwm,"DwmSetWindowAttribute");SetAttribute set=NULL;memcpy(&set,&proc,sizeof(set));BOOL dark=TRUE;if(set)set(window,20,&dark,sizeof(dark));FreeLibrary(dwm);}
  make_background(window);
- HWND h=control(L"STATIC",L"SSTOOL",0,24,25,145,40,0);SendMessageW(h,WM_SETFONT,(WPARAM)title_font,TRUE);
- control(L"STATIC",L"STELLA SORA",0,200,32,280,28,0);control(L"STATIC",L"F1  SHOW / HIDE",0,640,32,160,24,0);
- control(L"STATIC",L"WORKSPACE",0,24,100,145,24,0);
+ HWND h=control(L"STATIC",L"SSTool",0,24,24,145,44,500);SendMessageW(h,WM_SETFONT,(WPARAM)title_font,TRUE);
+ control(L"STATIC",L"STELLA SORA  /  CONTROL PANEL",0,208,34,480,24,0);control(L"STATIC",L"F1  SHOW / HIDE",0,816,34,160,24,0);
+ control(L"STATIC",L"WORKSPACE",0,24,104,145,24,0);
  tabs[0]=control(L"BUTTON",L"01  Player",BS_OWNERDRAW|WS_TABSTOP,16,140,146,48,400);
  tabs[1]=control(L"BUTTON",L"02  Event",BS_OWNERDRAW|WS_TABSTOP,16,200,146,48,401);
- section_title=control(L"STATIC",L"Player",0,200,96,560,32,0);SendMessageW(section_title,WM_SETFONT,(WPARAM)section_font,TRUE);
- section_caption=control(L"STATIC",L"Your core combat toolkit",0,200,132,560,24,0);
+ section_title=control(L"STATIC",L"Player",0,208,104,344,32,0);SendMessageW(section_title,WM_SETFONT,(WPARAM)section_font,TRUE);
+ section_caption=control(L"STATIC",L"Your core combat toolkit",0,208,140,344,24,0);
  const int visible[]={GOD_MODE,MULTI_HIT,NO_COOLDOWN,UNLIMITED_ENERGY,MOB_VACUUM};
- for(int row=0;row<5;row++){int i=visible[row];checks[i]=page_control(0,L"BUTTON",labels[i],BS_OWNERDRAW|WS_TABSTOP,200,176+54*row,350,46,100+i);EnableWindow(checks[i],FALSE);}
- multiplier_hint=page_control(0,L"STATIC",L"Damage  x2  /  2 - 50",0,578,181,198,26,0);
- page_control(0,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,578,216,192,34,201);
- page_control(0,L"STATIC",L"Vacuum distance  /  1 - 10",0,578,292,200,26,0);
- page_control(0,L"EDIT",L"3",WS_BORDER|ES_NUMBER|WS_TABSTOP,578,326,192,34,202);
+ for(int row=0;row<5;row++){int i=visible[row];checks[i]=page_control(0,L"BUTTON",labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+58*row,344,48,100+i);EnableWindow(checks[i],FALSE);}
+ multiplier_hint=page_control(0,L"STATIC",L"Damage  x2  /  2 - 50",0,600,368,258,24,0);
+ page_control(0,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,364,88,36,201);
+ page_control(0,L"STATIC",L"Vacuum distance  /  1 - 10",0,600,432,258,24,0);
+ page_control(0,L"EDIT",L"3",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,428,88,36,202);
  const wchar_t *event_labels[]={L"No Cooldown (R)",L"Unlimited Energy (R)",L"Score Multiplier"};
- for(int i=0;i<3;i++){event_checks[i]=page_control(1,L"BUTTON",event_labels[i],BS_OWNERDRAW|WS_TABSTOP,200,176+54*i,350,46,300+i);EnableWindow(event_checks[i],FALSE);}
- event_hint=page_control(1,L"STATIC",L"Score  x2  /  2 - 100",0,578,181,198,26,0);
- page_control(1,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,578,216,192,34,203);
- page_control(1,L"STATIC",L"Higher factors reach the\r\ntarget score sooner.\r\nStart low and increase.",0,578,280,196,80,0);
- page_control(1,L"STATIC",L"Event settings are separate from Player.",0,200,360,560,26,0);
- control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,42,200);
- control(L"STATIC",L"good luck\r\nhave fun!",0,24,502,140,52,0);
- status_label=control(L"STATIC",L"Connecting to game...",0,200,478,570,28,0);
- footer=control(L"STATIC",L"",0,200,518,570,28,0);
+ for(int i=0;i<3;i++){event_checks[i]=page_control(1,L"BUTTON",event_labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+58*i,344,48,300+i);EnableWindow(event_checks[i],FALSE);}
+ event_hint=page_control(1,L"STATIC",L"Score  x2  /  2 - 100",0,600,368,258,24,0);
+ page_control(1,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,364,88,36,203);
+ page_control(1,L"STATIC",L"Higher factors reach the target sooner.\r\nStart low and increase.",0,600,416,360,52,0);
+ page_control(1,L"STATIC",L"Event settings are separate\r\nfrom Player.",0,208,384,344,56,0);
+ control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,48,200);
+ status_label=control(L"STATIC",L"Connecting to game...",0,208,516,752,24,0);
+ footer=control(L"STATIC",L"",0,208,552,752,24,0);
  for(int i=6;i<=8;i++)RegisterHotKey(window,i,MOD_NOREPEAT,VK_F6+i-6);
  global_hotkey=RegisterHotKey(window,1,MOD_NOREPEAT,VK_F1)!=0;
  switch_page(0);SetTimer(window,1,global_hotkey?500:50,NULL);ShowWindow(window,SW_SHOWNOACTIVATE);
  HANDLE thread=CreateThread(NULL,0,initialize,NULL,0,NULL);if(thread)CloseHandle(thread);else InterlockedExchange(&init_state,-1);
- MSG msg;while(GetMessageW(&msg,NULL,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}
+ MSG msg;while(GetMessageW(&msg,NULL,0,0)>0){if(!IsDialogMessageW(window,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}
  return 0;
 }
 BOOL WINAPI DllMain(HINSTANCE module,DWORD reason,LPVOID reserved) {
