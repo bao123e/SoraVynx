@@ -330,7 +330,7 @@ static DWORD WINAPI run(void *unused) {
  const wchar_t *daily_labels[]={L"Tier-up Trial: 1 battle",L"Ascension: 1 run",L"Upgrade Disc once",L"Upgrade Trekker once",L"Battle stages: 5 clears",L"Spend 100 Vigor",L"Interact with home Trekker",L"Claim Tyrant's Tower rewards",L"Send 1 Heartlink gift",L"Dispatch 1 commission",L"Claim Shop random reward",L"Daily login"};
  for(int i=0;i<12;i++)page_control(3,L"BUTTON",daily_labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+25*i,416,24,600+i);
  page_control(3,L"STATIC",L"SETUP REQUIRED\r\n\r\nDaily actions are not bound yet.\r\nNo missions run from this page.\r\n\r\nCopy the runtime setup report\r\nto finish the game integration.",0,648,180,312,170,0);
- daily_report=page_control(3,L"BUTTON",L"Copy setup report v2",BS_OWNERDRAW|WS_TABSTOP,648,368,312,44,430);
+ daily_report=page_control(3,L"BUTTON",L"Copy setup report v3",BS_OWNERDRAW|WS_TABSTOP,648,368,312,44,430);
  page_control(3,L"STATIC",L"Clipboard only. No log files.\r\nTrekker, Disc, team and stage:\r\nkeep current selections.",0,648,416,312,72,0);
  control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,48,200);
  status_label=control(L"STATIC",L"Connecting to game...",0,208,516,752,24,0);

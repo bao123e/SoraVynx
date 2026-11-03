@@ -2,13 +2,14 @@
 #pragma once
 #include "daily_report_policy.h"
 
-struct DailyReportType {void *klass;const char *name,*ns;int group,rank;};
+struct DailyReportType {void *klass;const char *name,*ns,*image;int group,rank;};
 static const char *(*daily_report_param_name)(const void*,uint32_t);
 static int daily_report_compare(const void *left,const void *right) {
  const struct DailyReportType *a=left,*b=right;
- if(a->group!=b->group)return a->group-b->group;
+ int ag=a->group==DAILY_BRIDGE_GROUP?-1:a->group,bg=b->group==DAILY_BRIDGE_GROUP?-1:b->group;
+ if(ag!=bg)return ag-bg;
  if(a->rank!=b->rank)return a->rank-b->rank;
- int order=strcmp(a->ns,b->ns);return order?order:strcmp(a->name,b->name);
+ int order=strcmp(a->image,b->image);if(order)return order;order=strcmp(a->ns,b->ns);return order?order:strcmp(a->name,b->name);
 }
 static bool daily_report_is_protocol(void *klass) {
  void *iterator=NULL;const void *method;unsigned scanned=0;
@@ -30,8 +31,8 @@ static void daily_report_signature(char *text,size_t limit,size_t *used,const vo
  daily_append(text,limit,used,")\r\n");
 }
 static void daily_report_members(char *text,size_t limit,size_t *used,void *klass,
- void *(*get_fields)(void*,void**),const char *(*field_name)(void*)) {
- size_t fields_limit=*used+1024;if(fields_limit>limit)fields_limit=limit;
+ void *(*get_fields)(void*,void**),const char *(*field_name)(void*),size_t field_budget) {
+ size_t fields_limit=*used+field_budget;if(fields_limit>limit)fields_limit=limit;
  if(get_fields&&field_name)for(int pass=0;pass<2;pass++) {
   void *iterator=NULL,*field;unsigned scanned=0;
   while(scanned++<512&&*used+192<fields_limit&&(field=get_fields(klass,&iterator))!=NULL) {
@@ -51,7 +52,7 @@ static void daily_report_members(char *text,size_t limit,size_t *used,void *klas
 
 /* Metadata only. Never calls a game action or writes a diagnostic file. */
 static void daily_copy_setup(HWND owner) {
- if(!api.domain_get||!hotfix_image){MessageBoxW(owner,L"Wait until Player/Event report READY and the game reaches its main menu.",L"SoraVynx",MB_OK|MB_ICONINFORMATION);return;}
+ if(!api.domain_get||!api.domain_get_assemblies||!api.assembly_get_image||!api.image_get_name||!hotfix_image){MessageBoxW(owner,L"Wait until Player/Event report READY and the game reaches its main menu.",L"SoraVynx",MB_OK|MB_ICONINFORMATION);return;}
  HMODULE game=GetModuleHandleW(L"GameAssembly.dll");
  size_t (*class_count)(const void*)=NULL;void *(*get_class)(const void*,size_t)=NULL;
  const char *(*class_name)(void*)=NULL;const char *(*class_namespace)(void*)=NULL;
@@ -62,26 +63,44 @@ static void daily_copy_setup(HWND owner) {
  if(!class_count||!get_class||!class_name||!class_namespace){MessageBoxW(owner,L"The runtime does not expose the metadata APIs needed for Auto Daily setup.",L"SoraVynx",MB_OK|MB_ICONERROR);return;}
  void *domain=api.domain_get();void *thread=domain?api.thread_attach(domain):NULL;
  if(!thread){MessageBoxW(owner,L"The game runtime is not ready for the setup report.",L"SoraVynx",MB_OK|MB_ICONERROR);return;}
- const size_t capacity=262144;char *text=calloc(capacity,1);size_t used=0,total=class_count(hotfix_image);
+ const size_t capacity=524288;char *text=calloc(capacity,1);size_t used=0;
  if(!text){api.thread_detach(thread);return;}
- daily_append(text,capacity,&used,"SoraVynx Auto Daily setup - report v2\r\nMode: keep current game selections\r\nStatus: task actions not bound; no game actions executed\r\nHotfix classes: %zu\r\n",total);
- if(total>100000){daily_append(text,capacity,&used,"Unexpected metadata count; enumeration stopped.\r\n");total=0;}
- struct DailyReportType *types=calloc(total?total:1,sizeof(*types));size_t found=0,protocol=0,excluded=0,groups[DAILY_REPORT_GROUPS]={0};
- if(!types){free(text);api.thread_detach(thread);return;}
- for(size_t i=0;i<total;i++) {
-  void *klass=get_class(hotfix_image,i);const char *name=klass?class_name(klass):NULL;int group=daily_report_group(name);
-  if(group<0){excluded++;continue;}
-  if(daily_report_is_protocol(klass)){protocol++;continue;}
-  const char *ns=class_namespace(klass);
-  types[found++]=(struct DailyReportType){klass,name,ns?ns:"",group,daily_report_type_rank(name)};groups[group]++;
+ daily_append(text,capacity,&used,"SoraVynx Auto Daily setup - report v3\r\nMode: keep current game selections\r\nStatus: task actions not bound; no game actions executed\r\nHotfix classes: %zu\r\n",class_count(hotfix_image));
+ size_t assembly_count=0;const void **assemblies=api.domain_get_assemblies(domain,&assembly_count);
+ if(!assemblies||assembly_count>4096){free(text);api.thread_detach(thread);MessageBoxW(owner,L"Unexpected assembly list; report stopped.",L"SoraVynx",MB_OK|MB_ICONERROR);return;}
+ struct ReportImage {const void *image;const char *name;size_t count;bool scan;};
+ struct ReportImage *images=calloc(assembly_count?assembly_count:1,sizeof(*images));size_t total=0;
+ if(!images){free(text);api.thread_detach(thread);return;}
+ daily_append(text,capacity,&used,"\r\nASSEMBLIES (%zu loaded)\r\n",assembly_count);
+ for(size_t i=0;i<assembly_count;i++) {
+  const void *image=api.assembly_get_image(assemblies[i]);const char *name=image?api.image_get_name(image):NULL;
+  size_t count=image?class_count(image):0;bool wanted=image&&daily_report_scan_image(name),scan=wanted&&count<=100000&&total<=100000-count;
+  images[i]=(struct ReportImage){image,name?name:"?",count,scan};if(scan)total+=count;
+  daily_append(text,capacity,&used,"ASSEMBLY %.160s classes=%zu scan=%s%s\r\n",name?name:"?",count,scan?"yes":"no",wanted&&!scan?" (class-count budget)":"");
  }
+ struct DailyReportType *types=calloc(total?total:1,sizeof(*types));size_t found=0,protocol=0,excluded=0,groups[DAILY_REPORT_GROUPS]={0};
+ if(!types){free(images);free(text);api.thread_detach(thread);return;}
+ for(size_t image_index=0;image_index<assembly_count;image_index++)if(images[image_index].scan) {
+  struct ReportImage *entry=&images[image_index];
+  for(size_t i=0;i<entry->count;i++) {
+   void *klass=get_class(entry->image,i);const char *name=klass?class_name(klass):NULL,*ns=klass?class_namespace(klass):NULL;
+   if(!name||!name[0]||name[0]=='<'||!strncmp(name,"table_",6)||daily_name_matches(ns,"csobjectwrap")){excluded++;continue;}
+   int group=daily_report_group(name);
+   if(group<0&&daily_name_matches(ns,"xlua"))group=DAILY_BRIDGE_GROUP;
+   if(group<0){excluded++;continue;}
+   if(daily_report_is_protocol(klass)){protocol++;continue;}
+   types[found++]=(struct DailyReportType){klass,name,ns?ns:"",entry->name,group,daily_report_type_rank(name)};groups[group]++;
+  }
+ }
+ free(images);
+ daily_append(text,capacity,&used,"Scanned application classes: %zu\r\n",total);
  qsort(types,found,sizeof(*types),daily_report_compare);
  daily_append(text,capacity,&used,"Candidate runtime types: %zu\r\nSkipped generated protocol types: %zu\r\nOther/table/generated names: %zu\r\n",found,protocol,excluded);
  /* Preserve a broad type inventory independently of the per-group signature budgets. */
- size_t indexed=0,index_limit=98304;
+ size_t indexed=0,index_limit=196608;
  daily_append(text,index_limit,&used,"\r\nCLASS INDEX (runtime candidates only)\r\n");
- for(size_t i=0;i<found&&used+384<index_limit;i++) {
-  daily_append(text,index_limit,&used,"TYPE [%d] %.160s.%.160s\r\n",types[i].group+1,types[i].ns,types[i].name);indexed++;
+ for(size_t i=0;i<found&&used+512<index_limit;i++) {
+  daily_append(text,index_limit,&used,"TYPE [%d] %.120s:%.160s.%.160s\r\n",types[i].group+1,types[i].image,types[i].ns,types[i].name);indexed++;
  }
  daily_append(text,capacity,&used,"\r\nIndex coverage: %zu/%zu (omitted %zu)\r\n",indexed,found,found-indexed);
  void *(*get_fields)(void*,void**)=NULL;const char *(*field_name)(void*)=NULL;
@@ -90,12 +109,13 @@ static void daily_copy_setup(HWND owner) {
  proc=GetProcAddress(game,"il2cpp_method_get_param_name");memcpy(&daily_report_param_name,&proc,sizeof(daily_report_param_name));
  daily_append(text,capacity,&used,"Field metadata APIs: %s\r\n",get_fields&&field_name?"available":"unavailable (method signatures only)");
  daily_append(text,capacity,&used,"Parameter names API: %s\r\n",daily_report_param_name?"available":"unavailable (types only)");
- for(int group=0;group<DAILY_REPORT_GROUPS;group++) {
-  size_t limit=used+24576;if(limit>capacity-2048)limit=capacity-2048;size_t emitted=0;
+ for(int pass=0;pass<DAILY_REPORT_GROUPS;pass++) {
+  int group=pass==0?DAILY_BRIDGE_GROUP:pass-1;size_t group_budget=group==DAILY_BRIDGE_GROUP?65536:24576,class_budget=group==DAILY_BRIDGE_GROUP?16384:4096;
+  size_t limit=used+group_budget;if(limit>capacity-2048)limit=capacity-2048;size_t emitted=0;
   daily_append(text,limit,&used,"\r\nGROUP %s (%zu candidates)\r\n",daily_group_labels[group],groups[group]);
   for(size_t i=0;i<found&&used+768<limit;i++)if(types[i].group==group) {
-   size_t class_limit=used+4096;if(class_limit>limit)class_limit=limit;
-   daily_append(text,class_limit,&used,"\r\nAPI %.160s.%.160s\r\n",types[i].ns,types[i].name);emitted++;
+   size_t class_limit=used+class_budget;if(class_limit>limit)class_limit=limit;
+   daily_append(text,class_limit,&used,"\r\nAPI %.120s:%.160s.%.160s\r\n",types[i].image,types[i].ns,types[i].name);emitted++;
    /* Inherited singleton accessors matter even if absent from the derived type. */
    void *parent=api.class_get_parent?api.class_get_parent(types[i].klass):NULL;
    for(int depth=0;parent&&depth<4&&used+512<class_limit;depth++) {
@@ -115,11 +135,11 @@ static void daily_copy_setup(HWND owner) {
     }
     parent=api.class_get_parent(parent);
    }
-   daily_report_members(text,class_limit,&used,types[i].klass,get_fields,field_name);
+   daily_report_members(text,class_limit,&used,types[i].klass,get_fields,field_name,group==DAILY_BRIDGE_GROUP?4096:1024);
   }
-  daily_append(text,capacity,&used,"\r\nGroup coverage: %zu/%zu types detailed. Budgets: 24 KiB/group, 4 KiB/type; long member lists may be shortened.\r\n",emitted,groups[group]);
+  daily_append(text,capacity,&used,"\r\nGroup coverage: %zu/%zu types detailed. Budgets: %zu KiB/group, %zu KiB/type; long member lists may be shortened.\r\n",emitted,groups[group],group_budget/1024,class_budget/1024);
  }
- daily_append(text,capacity,&used,"\r\nReport v2 complete. Index: %zu/%zu. Metadata names/signatures only; no field values, account data, keys, network requests or game actions.\r\n",indexed,found);
+ daily_append(text,capacity,&used,"\r\nReport v3 complete. Index: %zu/%zu. Metadata names/signatures only; no field values, account data, keys, network requests or game actions.\r\n",indexed,found);
  free(types);
  api.thread_detach(thread);
  int length=MultiByteToWideChar(CP_UTF8,0,text,-1,NULL,0);HGLOBAL memory=length>0?GlobalAlloc(GMEM_MOVEABLE,(SIZE_T)length*sizeof(wchar_t)):NULL;

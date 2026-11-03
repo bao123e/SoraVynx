@@ -8,7 +8,11 @@ Menu không đánh số: **Player**, **Event**, **Custom BG**, **Auto Daily**. P
 
 Mười hai lựa chọn theo ảnh người dùng: Tier-up Trial; Ascension; nâng Disc; nâng Trekker; 5 battle stages; tiêu 100 Vigor; tương tác Trekker màn chính; nhận thưởng Tyrant’s Tower; tặng quà Heartlink; dispatch commission; nhận quà ngẫu nhiên Shop; đăng nhập ngày. Dự kiến dùng đội, màn, difficulty, Trekker và Disc đang chọn trong game.
 
-Bản này chỉ lưu danh sách lựa chọn và tạo thông tin hàm để hoàn tất tích hợp. Không có nút Start giả, không chạy hay đánh dấu hoàn thành nhiệm vụ. Khi game đã vào màn chính và Player/Event báo READY: mở **Auto Daily → Copy setup report v2**, dán nội dung vào cuộc trao đổi phát triển. Report v2 quét toàn bộ danh sách lớp trước, loại lớp Protobuf bằng chữ ký get_Parser (không loại cả namespace), ưu tiên controller/manager và UI, giữ chỉ mục lớp rồi chia dung lượng riêng cho sáu nhóm nhiệm vụ. Kèm tên tham số, tên field và hàm truy cập singleton kế thừa, không đọc giá trị field. Báo cáo chỉ đọc metadata Hotfix vào clipboard, giới hạn 256 KiB, 24 KiB mỗi nhóm và 4 KiB mỗi lớp; các danh sách dài có ghi giới hạn và mức bao phủ. Báo cáo không đọc thông tin tài khoản, không gọi hành động game và không tạo tệp. Cần đối chiếu báo cáo và kiểm tra luồng game trước khi nối các hành động daily thực tế.
+Bản này chỉ lưu danh sách lựa chọn và tạo thông tin hàm để hoàn tất tích hợp. Không có nút Start giả, không chạy hay đánh dấu hoàn thành nhiệm vụ. Khi game đã vào màn chính và Player/Event báo READY: mở **Auto Daily → Copy setup report v3**, dán nội dung vào cuộc trao đổi phát triển. Không cần làm lại nhiệm vụ để tạo report.
+
+Report v3 liệt kê các assembly đang nạp, quét các assembly ứng dụng gồm Game và Hotfix, bỏ qua thư viện nền tảng. Ưu tiên metadata Lua/UI trước sáu nhóm nhiệm vụ, loại schema Protobuf bằng chữ ký get_Parser và bỏ wrapper được sinh tự động. Kèm tên tham số, field và hàm truy cập singleton kế thừa; không đọc giá trị field. Giới hạn 512 KiB tổng, 192 KiB chỉ mục; nhóm Lua/UI 64 KiB với 16 KiB mỗi lớp, các nhóm nhiệm vụ 24 KiB với 4 KiB mỗi lớp. Có ghi mức bao phủ và giới hạn các danh sách dài.
+
+Báo cáo chỉ đọc metadata vào clipboard, không chạy Lua, không đọc thông tin tài khoản, không gọi hành động game và không tạo tệp. Cần đối chiếu báo cáo và kiểm tra luồng game trước khi nối các hành động daily thực tế.
 
 ## Build / kiểm thử
 
@@ -30,3 +34,7 @@ Thiết kế theo UI/UX Pro Max; mã AGPL-3.0-or-later, MinHook BSD, Be Vietnam 
 ## Sửa report v1 trong preview.2
 
 Report thực tế đầu tiên có 90 lớp, trong đó 85 lớp là schema Protobuf; bộ lọc cũ hết dung lượng trước khi đến các controller. Report v2 bỏ phần này, xuất chỉ mục trước các chữ ký, ưu tiên handler kể cả nằm sau phương thức thứ 32 và bổ sung thông tin lớp cha. Test Windows mock đặt 100 schema trước các lớp thật, kiểm tra đủ sáu nhóm, field/singleton kế thừa và clipboard, đồng thời xác nhận không có lệnh game được gọi. Trên Linux dùng --wine hoặc --build-only --out để biên dịch riêng.
+
+## Mở rộng report v3 trong preview.3
+
+Report v2 thực tế đã liệt kê đủ 637 ứng viên Hotfix nhưng không có luồng daily/UI cần dùng: dispatch chỉ là animation dispatcher, shop chủ yếu enum. Phân tích GameAssembly tìm thấy tham chiếu Game:XLua.LuaEnv/GCAction, nên report v3 mở rộng sang assembly Game và metadata cầu nối Lua/UI. Đây là bước tìm API, chưa xác nhận module Lua thực hiện nhiệm vụ. Test Windows/Wine mô phỏng ba assembly, kiểm tra thu được LuaEnv/LuaTable/LuaManager trong Game, bỏ qua framework và không gọi runtime_invoke hay hành động game.

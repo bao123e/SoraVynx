@@ -31,5 +31,17 @@ int main(void) {
  assert(daily_report_method_rank("get_Parser")==-1);
  assert(daily_report_method_rank("OnClickClaim")==0);
  assert(daily_report_method_rank("get_CurrentMission")==1);
+ assert(daily_report_scan_image("Game.dll"));
+ assert(daily_report_scan_image("Hotfix.dll"));
+ assert(daily_report_scan_image("Assembly-CSharp.dll"));
+ assert(!daily_report_scan_image("System.Net.Http.dll"));
+ assert(!daily_report_scan_image("UnityEngine.CoreModule.dll"));
+ assert(daily_report_group("LuaEnv")==DAILY_BRIDGE_GROUP);
+ assert(daily_report_group("LuaManager")==DAILY_BRIDGE_GROUP);
+ assert(daily_report_group("UIDailyMissionPanel")==DAILY_BRIDGE_GROUP);
+ assert(daily_report_type_rank("LuaEnv")<daily_report_type_rank("Lua2CSharpInfo_DiscInfo"));
+ assert(daily_report_method_rank("get_Global")==0);
+ assert(daily_report_method_rank("DoString")==0);
+ assert(daily_report_group("ObjectTranslator")==-1);
  return 0;
 }

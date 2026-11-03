@@ -4,12 +4,12 @@
 
 SoraVynx is a native Windows x64 toolkit for Stella Sora with Player/Event controls and customizable backgrounds.
 
-**[Download v1.1.0 preview.2](https://github.com/bao123e/SoraVynx/releases/tag/v1.1.0-preview.2)** · [Source & build](source/README.vi.md)
+**[Download v1.1.0 preview.3](https://github.com/bao123e/SoraVynx/releases/tag/v1.1.0-preview.3)** · [Source & build](source/README.vi.md)
 
 - **Player:** God Mode, Damage x2–x50, No Cooldown, Unlimited Energy, Mob Vacuum.
 - **Event:** cooldown/energy riêng và Score x2–x100.
 - **Custom BG:** PNG/JPG/BMP, Fit/Fill, opacity ảnh/bảng/nút riêng.
-- **Auto Daily — chưa tự chạy:** danh sách 12 nhiệm vụ, giữ lựa chọn hiện tại trong game. **Copy setup report v2** lấy thông tin hàm vào clipboard để hoàn tất tích hợp; chưa có backend làm nhiệm vụ.
+- **Auto Daily — chưa tự chạy:** danh sách 12 nhiệm vụ, giữ lựa chọn hiện tại trong game. **Copy setup report v3** lấy thông tin hàm vào clipboard để hoàn tất tích hợp; chưa có backend làm nhiệm vụ.
 
 Giao diện bo góc, logo SoraVynx và font **Be Vietnam Pro** nhúng sẵn. Không đánh số menu; không tạo log.
 
