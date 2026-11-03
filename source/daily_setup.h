@@ -20,7 +20,7 @@ static void daily_copy_setup(HWND owner) {
  daily_append(text,capacity,&used,"SoraVynx Auto Daily setup\r\nMode: keep current game selections\r\nStatus: task actions not bound; no game actions executed\r\nHotfix classes: %zu\r\n",total);
  if(total>100000){daily_append(text,capacity,&used,"Unexpected metadata count; enumeration stopped.\r\n");total=0;}
  const char *primary[]={"daily","mission","quest"};
- const char *secondary[]={"trial","ascension","tower","trekker","disc","vigor","stage","reward"};
+ const char *secondary[]={"trial","ascension","tower","trekker","disc","vigor","stage","reward","heartlink","dispatch","commission","shop","login"};
  for(int pass=0;pass<2;pass++)for(size_t i=0;i<total&&listed<160&&used<capacity-2048;i++) {
   void *klass=get_class(hotfix_image,i);const char *name=klass?class_name(klass):NULL;
   if(!name||name[0]=='<')continue;

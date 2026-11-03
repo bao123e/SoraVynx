@@ -8,8 +8,7 @@ on:
         default: v1.1.0-preview.1
         required: true
   push:
-    branches: [runtime2-test]
-    paths: [.github/workflows/release.yml]
+    tags: ['v*']
 
 permissions:
   contents: write
@@ -25,7 +24,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag || 'v1.1.0-preview.1' }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           python - <<'PY'
           import hashlib, json, os, pathlib, re, subprocess, zipfile
@@ -34,6 +33,8 @@ jobs:
           if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.]+)?', tag):
               raise SystemExit('Invalid release tag')
           metadata = json.loads((root / 'source/build.json').read_text())
+          if metadata['version'] != tag.removeprefix('v'):
+              raise SystemExit('Release tag does not match the build version')
           for name, field in [('SoraVynx.exe', 'launcher_sha256'), ('SoraVynx.Runtime.dll', 'sha256')]:
               if hashlib.sha256((root / name).read_bytes()).hexdigest() != metadata[field]:
                   raise SystemExit('Binary hash mismatch: ' + name)
