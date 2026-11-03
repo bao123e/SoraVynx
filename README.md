@@ -4,7 +4,7 @@
 
 SoraVynx is a native Windows x64 toolkit for Stella Sora with Player/Event controls and customizable backgrounds.
 
-**[Download v1.1.0 preview](https://github.com/bao123e/sstool/releases/tag/v1.1.0-preview.1)** · [Source & build](source/README.vi.md)
+**[Download v1.1.0 preview](https://github.com/bao123e/SoraVynx/releases/tag/v1.1.0-preview.1)** · [Source & build](source/README.vi.md)
 
 - **Player:** God Mode, Damage x2–x50, No Cooldown, Unlimited Energy, Mob Vacuum.
 - **Event:** cooldown/energy riêng và Score x2–x100.
@@ -15,6 +15,6 @@ Giao diện bo góc, logo SoraVynx và font **Be Vietnam Pro** nhúng sẵn. Kh�
 
 Đóng game, chạy **SoraVynx.exe** và chọn **StellaSora.exe**. Giữ **SoraVynx.Runtime.dll** cạnh EXE; không trộn với bản cũ. **F1/Hide** ẩn, giữ tính năng; mở lại EXE để hiện bảng. **X/Alt+F4** tắt tính năng rồi ẩn. **F6/F7/F8** điều khiển event.
 
-Repo chứa đầy đủ EXE, DLL, giấy phép và thư mục source; ZIP chỉ ở Releases. Chưa đổi tên hoặc chuyển repo; có thể chuyển sang repo **soravynx** khi chủ sở hữu yêu cầu.
+Repo chính thức: **[bao123e/SoraVynx](https://github.com/bao123e/SoraVynx)**. Repo chứa đầy đủ EXE, DLL, giấy phép và thư mục source; ZIP chỉ ở Releases.
 
 Build Windows x64; 20 nhóm native và 13 nhóm UI qua Wine đạt. Player/Event giữ backend đã được kiểm tra trước đó; Auto Daily còn chờ nối hàm game thật. [AGPL-3.0-or-later, MinHook BSD, font SIL OFL](LICENSE.txt).
