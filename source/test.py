@@ -28,3 +28,5 @@ if __name__=='__main__':
   subprocess.run(['gcc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(ROOT/'tests/daily_text_test.c'),'-o',str(daily_binary)],check=True)
   subprocess.run([str(daily_binary)],check=True)
   print('PASS daily metadata name filtering and bounded formatting including truncation and zero-size buffers')
+
+  subprocess.run(['python', str(ROOT/'test_lua_inventory.py')],check=True)

@@ -8,24 +8,28 @@ Menu không đánh số: **Player**, **Event**, **Custom BG**, **Auto Daily**. P
 
 Mười hai lựa chọn theo ảnh người dùng: Tier-up Trial; Ascension; nâng Disc; nâng Trekker; 5 battle stages; tiêu 100 Vigor; tương tác Trekker màn chính; nhận thưởng Tyrant’s Tower; tặng quà Heartlink; dispatch commission; nhận quà ngẫu nhiên Shop; đăng nhập ngày. Dự kiến dùng đội, màn, difficulty, Trekker và Disc đang chọn trong game.
 
-Bản này chỉ lưu danh sách lựa chọn và tạo thông tin hàm để hoàn tất tích hợp. Không có nút Start giả, không chạy hay đánh dấu hoàn thành nhiệm vụ. Khi game đã vào màn chính và Player/Event báo READY: mở **Auto Daily → Copy setup report v3**, dán nội dung vào cuộc trao đổi phát triển. Không cần làm lại nhiệm vụ để tạo report.
+Bản này lưu danh sách lựa chọn và cung cấp hai báo cáo để hoàn tất tích hợp. Không có nút Start giả, không chạy hay đánh dấu hoàn thành nhiệm vụ. Dự kiến giữ Trekker, Disc, đội và màn đang chọn trong game.
 
-Report v3 liệt kê các assembly đang nạp, quét các assembly ứng dụng gồm Game và Hotfix, bỏ qua thư viện nền tảng. Ưu tiên metadata Lua/UI trước sáu nhóm nhiệm vụ, loại schema Protobuf bằng chữ ký get_Parser và bỏ wrapper được sinh tự động. Kèm tên tham số, field và hàm truy cập singleton kế thừa; không đọc giá trị field. Giới hạn 512 KiB tổng, 192 KiB chỉ mục; nhóm Lua/UI 64 KiB với 16 KiB mỗi lớp, các nhóm nhiệm vụ 24 KiB với 4 KiB mỗi lớp. Có ghi mức bao phủ và giới hạn các danh sách dài.
+Đóng game và cập nhật cả EXE/DLL cùng bản. Vào màn chính, đợi Player/Event READY, chọn **Auto Daily → Copy Lua name report**, chờ thông báo đã sao chép rồi dán nội dung vào cuộc trao đổi phát triển. Không cần làm lại nhiệm vụ. Nếu không có callback Update sau 15 giây, yêu cầu bị hủy; trở lại màn chính rồi thử lại. Nếu cầu nối không khả dụng, tool báo rõ và Player/Event vẫn hoạt động.
 
-Báo cáo chỉ đọc metadata vào clipboard, không chạy Lua, không đọc thông tin tài khoản, không gọi hành động game và không tạo tệp. Cần đối chiếu báo cáo và kiểm tra luồng game trước khi nối các hành động daily thực tế.
+**Lua report v4:** dùng đúng chữ ký LuaManager/LuaEnv từ report v3; chỉ đọc singleton hiện có, không tạo LuaManager hay môi trường Lua mới. Một hook riêng gọi Update gốc trước, kiểm tra Unity đang ở main thread, rồi chạy script kiểm tra cố định được nhúng trong resource. Không nhận script tùy ý, không require module mới, không gọi hàm nhiệm vụ tìm được. Script dùng duyệt bảng raw, chỉ xuất tên module, bảng và hàm; không xuất scalar, địa chỉ, thân hàm, giá trị tài khoản hay lỗi Lua chi tiết. Giới hạn 30000 entry, 512 bảng, sâu 4 tầng, 2400 dòng và 192 KiB nội dung; báo rõ mức bao phủ. Module chưa nạp và phương thức chỉ có qua metatable chưa được kiểm tra. Script có cấp phát tạm trong Lua; kiểm thử mô phỏng không thay thế xác minh trong game thật.
+
+**Copy API metadata:** giữ report v3 để chẩn đoán C#/IL2CPP: danh sách assembly, quét Game/Hotfix và assembly ứng dụng, ưu tiên Lua/UI cùng sáu nhóm nhiệm vụ. Giới hạn 512 KiB tổng, 192 KiB chỉ mục; nhóm Lua/UI 64 KiB với 16 KiB/lớp, nhóm nhiệm vụ 24 KiB với 4 KiB/lớp. Chỉ metadata, không đọc giá trị field hay gọi hành động game.
+
+Cả hai báo cáo chỉ sao chép vào clipboard, không tạo tệp log. Auto Daily vẫn chưa thực hiện nhiệm vụ; cần xác minh module/hàm và luồng game trước khi nối hành động thực tế.
 
 ## Build / kiểm thử
 
 ```sh
 python source/build.py --zig /path/to/zig-0.14.1
-python source/test.py
+python source/test.py  # GCC + liblua5.4 (or liblua5.3)
 # Optional Windows/Wine mock report regression:
 python source/test_report_windows.py --zig /path/to/zig-0.14.1
 ```
 
 Build xuất EXE, DLL và build.json vào source/dist. SHA-256 DLL nhúng trong EXE; source/build.json ghi hash của cặp phát hành. Bitmap nền không nhúng sẵn; resource chỉ có logo/icon và font. Các tệp EXE/DLL phát hành nằm ngay gốc repo; ZIP nằm ở GitHub Releases.
 
-20 nhóm kiểm thử native gồm backend mô phỏng, tiện ích launcher, hình học Fit/Fill và bộ định dạng báo cáo có giới hạn. Đã kiểm tra 13 nhóm UI qua Wine, gồm font/logo, trang Auto Daily và sao chép metadata qua clipboard với API giả; không thay thế kiểm tra game thật. Auto Daily chưa có backend thực hiện nhiệm vụ.
+21 nhóm kiểm thử native/Lua gồm backend mô phỏng, tiện ích launcher, hình học Fit/Fill và bộ định dạng báo cáo có giới hạn và script inventory chạy trên Lua VM thật. Bộ test Windows/Wine mới kiểm tra callback Update gốc, idle/shared/off-main guards, hàng đợi một yêu cầu, reentrancy, GC handle, exception, clipboard và timeout. Đã kiểm tra 13 nhóm UI qua Wine, gồm font/logo, trang Auto Daily và sao chép metadata qua clipboard với API giả; không thay thế kiểm tra game thật. Auto Daily chưa có backend thực hiện nhiệm vụ.
 
 Giữ F1/Hide để ẩn mà không tắt tính năng; X/Alt+F4 tắt tính năng rồi ẩn. F6/F7/F8 điều khiển event. Chỉnh giao diện và danh sách daily không đổi trạng thái Player/Event.
 
@@ -38,3 +42,7 @@ Report thực tế đầu tiên có 90 lớp, trong đó 85 lớp là schema Pro
 ## Mở rộng report v3 trong preview.3
 
 Report v2 thực tế đã liệt kê đủ 637 ứng viên Hotfix nhưng không có luồng daily/UI cần dùng: dispatch chỉ là animation dispatcher, shop chủ yếu enum. Phân tích GameAssembly tìm thấy tham chiếu Game:XLua.LuaEnv/GCAction, nên report v3 mở rộng sang assembly Game và metadata cầu nối Lua/UI. Đây là bước tìm API, chưa xác nhận module Lua thực hiện nhiệm vụ. Test Windows/Wine mô phỏng ba assembly, kiểm tra thu được LuaEnv/LuaTable/LuaManager trong Game, bỏ qua framework và không gọi runtime_invoke hay hành động game.
+
+## Lua report v4 trong preview.4
+
+Report v3 thực tế liệt kê đủ 1005 ứng viên, trong đó có Game.LuaManager, LuaUIController và XLua.LuaEnv/LuaTable. Đây là cầu nối C#, chưa phải tên module nghiệp vụ Lua. Bản preview.4 bổ sung inventory tên module/hàm đã nạp thay vì tiếp tục tăng dung lượng metadata. Test trên Lua VM thật kiểm tra thứ tự ổn định, chu trình, độ sâu, dung lượng và không gọi các hàm game/metamethod trong fixture hoặc xuất scalar bí mật. Không cam kết mọi hàm daily đã xuất hiện hoặc Auto Daily sẽ hoạt động chỉ từ tên hàm.

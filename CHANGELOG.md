@@ -1,5 +1,14 @@
 # SoraVynx release notes
 
+## 1.1.0-preview.4
+
+- Use report v3's confirmed Game/XLua signatures to add a separate, optional Lua name inspection bridge.
+- Queue one inspection for LuaManager.Update, run the original Update first and verify Unity's main thread before touching the existing VM. Idle callbacks do not invoke the VM. Keep Player/Event backend unchanged.
+- Execute only the bundled fixed inspection script: list loaded module/function/table names through raw traversal, with no require, discovered function calls, scalar values, function bodies or account values in the report.
+- Bound traversal and clipboard output; guard duplicate requests, reentrancy, exceptions, managed lifetimes and missing Update timeout. Preserve Copy API metadata as a diagnostic fallback.
+- Add real Lua VM tests and a Windows/Wine queue/clipboard regression. In-game validation remains required.
+- Auto Daily execution is still NOT implemented. Close the game and replace both EXE/DLL before using Copy Lua name report; no need to repeat tasks.
+
 ## 1.1.0-preview.3
 
 - Expand setup report discovery beyond Hotfix: inventory loaded assemblies and scan application assemblies including Game, while excluding framework libraries.

@@ -2,3 +2,4 @@
 401 RCDATA "fonts/BeVietnamPro-Regular.ttf"
 402 RCDATA "fonts/BeVietnamPro-SemiBold.ttf"
 403 RCDATA "fonts/BeVietnamPro-Bold.ttf"
+404 RCDATA "daily_inventory.lua"

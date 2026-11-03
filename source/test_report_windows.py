@@ -17,11 +17,15 @@ def run(args, output):
     executable = output / 'daily-report-test.exe'
     subprocess.run(common + [str(ROOT / 'tests/daily_report_windows_test.c'),
                             '-luser32', '-lkernel32', '-o', str(executable)], check=True)
-    if args.build_only:
-        print('Built mock report regression:', executable)
-    else:
-        command = [str(executable)] if os.name == 'nt' else [args.wine, str(executable)]
-        subprocess.run(command, check=True, cwd=output)
+    lua_executable = output / 'daily-lua-test.exe'
+    subprocess.run(common + ['-Wno-unused-function', str(ROOT / 'tests/daily_lua_windows_test.c'),
+                            '-luser32', '-lkernel32', '-o', str(lua_executable)], check=True)
+    for binary in (executable, lua_executable):
+        if args.build_only:
+            print('Built mock report regression:', binary)
+        else:
+            command = [str(binary)] if os.name == 'nt' else [args.wine, str(binary)]
+            subprocess.run(command, check=True, cwd=output)
 
 
 if __name__ == '__main__':

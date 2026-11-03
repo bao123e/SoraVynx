@@ -11,6 +11,7 @@
 #include "ui_background.h"
 #include "ui_fonts.h"
 #include "daily_setup.h"
+#include "daily_lua_probe.h"
 
 /* Image, panel and button opacity are independent; text stays fully visible. */
 #define UI_BG RGB(9,17,30)
@@ -84,6 +85,7 @@ static DWORD WINAPI initialize(void *unused) {
  log_line("Hotfix image found. Binding verified signatures.");
  if(!initialize_backend())goto failed;
  if(!install_frame_backend(game))goto failed;
+ (void)daily_lua_install(game,self_module);
  api.thread_detach(thread);InterlockedExchange(&init_state,1);PostMessageW(window,WM_APP+1,0,0);return 0;
  failed:
  if(thread)api.thread_detach(thread);
@@ -106,7 +108,7 @@ static void refresh_status(void) {
  else if(!state)wcscpy(text,L"Connecting to the game... enter the main menu.");
  else swprintf(text,256,L"READY   /   Player %d of 5   /   Event %d of 3",player,events);
  update_text(status_label,text);
- if(daily_report)EnableWindow(daily_report,state==1);
+ if(daily_report){LONG pending=InterlockedCompareExchange(&daily_lua_state,0,0);EnableWindow(daily_report,state==1&&!pending);update_text(daily_report,pending?L"Inspecting Lua names...":L"Copy Lua name report");}
  swprintf(text,256,L"Damage Multiplier  (x%ld / 2 - 50)",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
  swprintf(text,256,L"Score Multiplier  (x%ld / 2 - 100)",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
  swprintf(text,256,L"Mob Vacuum  (distance %ld / 1 - 10)",(long)read_atomic(&vacuum_distance));update_text(checks[MOB_VACUUM],text);
@@ -213,7 +215,8 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   int id=LOWORD(wp),notice=HIWORD(wp);
   if(notice==BN_CLICKED){
    if(id>=400&&id<=403){switch_page(id-400);return 0;}
-   if(id==430){daily_copy_setup(hwnd);return 0;}
+   if(id==430){daily_lua_request(hwnd);return 0;}
+   if(id==431){daily_copy_setup(hwnd);return 0;}
    if(id>=600&&id<612){daily_selection^=1u<<(id-600);wchar_t value[16];swprintf(value,16,L"%u",daily_selection);if(!WritePrivateProfileStringW(L"AutoDaily",L"Tasks",value,ui_config_path)||!WritePrivateProfileStringW(L"AutoDaily",L"TaskCount",L"12",ui_config_path))MessageBoxW(hwnd,L"Daily task selection could not be saved.",L"SoraVynx",MB_OK|MB_ICONWARNING);InvalidateRect(GetDlgItem(hwnd,id),NULL,TRUE);return 0;}
    if(id==410){ShowWindow(hwnd,SW_HIDE);return 0;}
    if(id==411){SendMessageW(hwnd,WM_CLOSE,0,0);return 0;}
@@ -257,6 +260,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  case WM_ERASEBKGND:return 1;
  case WM_PAINT:{PAINTSTRUCT paint;HDC dc=BeginPaint(hwnd,&paint);if(background_dc){RECT r;GetClientRect(hwnd,&r);BitBlt(dc,0,0,r.right,r.bottom,background_dc,0,0,SRCCOPY);}EndPaint(hwnd,&paint);return 0;}
  case WM_TIMER:
+  daily_lua_poll(hwnd);
   if(!global_hotkey){static bool previous;bool down=(GetAsyncKeyState(VK_F1)&0x8000)!=0;if(down&&!previous)toggle_panel(hwnd);previous=down;}
   refresh_status();return 0;
  case WM_APP+1:refresh_status();return 0;
@@ -329,9 +333,10 @@ static DWORD WINAPI run(void *unused) {
  page_control(1,L"STATIC",L"Event settings are independent from Player.",0,208,384,752,24,0);
  const wchar_t *daily_labels[]={L"Tier-up Trial: 1 battle",L"Ascension: 1 run",L"Upgrade Disc once",L"Upgrade Trekker once",L"Battle stages: 5 clears",L"Spend 100 Vigor",L"Interact with home Trekker",L"Claim Tyrant's Tower rewards",L"Send 1 Heartlink gift",L"Dispatch 1 commission",L"Claim Shop random reward",L"Daily login"};
  for(int i=0;i<12;i++)page_control(3,L"BUTTON",daily_labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+25*i,416,24,600+i);
- page_control(3,L"STATIC",L"SETUP REQUIRED\r\n\r\nDaily actions are not bound yet.\r\nNo missions run from this page.\r\n\r\nCopy the runtime setup report\r\nto finish the game integration.",0,648,180,312,170,0);
- daily_report=page_control(3,L"BUTTON",L"Copy setup report v3",BS_OWNERDRAW|WS_TABSTOP,648,368,312,44,430);
- page_control(3,L"STATIC",L"Clipboard only. No log files.\r\nTrekker, Disc, team and stage:\r\nkeep current selections.",0,648,416,312,72,0);
+ page_control(3,L"STATIC",L"SETUP REQUIRED\r\n\r\nDaily actions are not bound yet.\r\nNo missions run from this page.\r\n\r\nInspect loaded Lua names\r\non the game main thread.",0,648,180,312,170,0);
+ daily_report=page_control(3,L"BUTTON",L"Copy Lua name report",BS_OWNERDRAW|WS_TABSTOP,648,368,312,44,430);
+ page_control(3,L"BUTTON",L"Copy API metadata",BS_OWNERDRAW|WS_TABSTOP,648,420,312,32,431);
+ page_control(3,L"STATIC",L"Clipboard only. No daily tasks run.",0,648,460,312,28,0);
  control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,48,200);
  status_label=control(L"STATIC",L"Connecting to game...",0,208,516,752,24,0);
  footer=control(L"STATIC",L"",0,208,552,752,24,0);
