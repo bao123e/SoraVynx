@@ -2,13 +2,13 @@
 
 [Tải SSTool v1.0.zip](https://github.com/bao123e/sstool/raw/refs/heads/runtime2-test/SSTool%20v1.0.zip)
 
-- **Player:** God Mode, Damage x2–x50, No Cooldown, Unlimited Energy, Mob Vacuum (khoảng cách 1–10).
-- **Event — Bouncing Bumper Bash:** No Cooldown, Unlimited Energy và Score x2–x100 (mặc định x2), độc lập với Player.
+- **Player:** God Mode, Damage x2–x50, No Cooldown, Unlimited Energy, Mob Vacuum.
+- **Event:** No Cooldown, Unlimited Energy, Score x2–x100; độc lập với Player.
 
-Giải nén, đóng game rồi mở **SSTool.exe** → chọn **StellaSora.exe**. Giữ **Mastercheat.dll** cạnh EXE và dùng cùng một gói. **F1** ẩn/hiện; mở lại EXE để hiện bảng đang chạy. **F6/F7/F8** bật/tắt hồi chiêu, năng lượng, nhân điểm event. **Disable all** tắt cả hai nhóm.
+Cửa sổ bo góc, bỏ thanh tiêu đề Windows, font **Inter** nhúng sẵn. Không còn ảnh/banner mặc định. **Custom background → Choose image** chọn PNG/JPG/BMP phủ toàn bộ giao diện; **Image opacity** chỉnh 0–100%, **Image fit** đổi phủ kín/giữ trọn ảnh, **Remove** bỏ nền. Lựa chọn lưu trong config.ini; không tạo file log.
 
-Ảnh nhúng hiển thị đầy đủ, đúng tỷ lệ, không bị chữ/nút che; logo SSTool nổi bật, chữ dễ đọc trên nền tối. Không tạo file log.
+Giải nén, đóng game, mở **SSTool.exe** → chọn **StellaSora.exe**. Giữ DLL cạnh EXE. Kéo vùng đầu để di chuyển. **Hide/F1** ẩn/hiện và giữ tính năng; mở lại EXE để hiện bảng. **X/Alt+F4** tắt tính năng rồi ẩn. **F6/F7/F8** điều khiển event; **Disable all** tắt hai nhóm.
 
-Đã build Windows x64 và đạt 19 nhóm kiểm thử mô phỏng/tiện ích. Backend giữ nguyên; event x2 đã được người dùng xác nhận trước đó. Giao diện mới và mức điểm trên x2 chưa được kiểm tra trực tiếp trong Windows/game.
+Build Windows x64; đạt 19 nhóm kiểm thử native và 7 nhóm UI qua Wine. Backend giữ nguyên các chức năng người dùng đã xác nhận; UI mới chưa kiểm tra trực tiếp trong Windows/game.
 
-[Mã nguồn & hướng dẫn build](https://github.com/bao123e/sstool/tree/1a7d213bd0387044c0f164021e6d08cf473d7a27/source) · AGPL-3.0-or-later, giấy phép kèm ZIP. Ảnh Stella Sora thuộc chủ sở hữu tương ứng.
+[Mã nguồn & build](https://github.com/bao123e/sstool/tree/3b6363aa572d2285cfeaee6b1a445774b9c9cf16/source) · AGPL-3.0-or-later; MinHook BSD, Inter SIL OFL 1.1; giấy phép kèm ZIP.
