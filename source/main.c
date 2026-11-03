@@ -103,8 +103,9 @@ static void refresh_status(void) {
  else if(!state)wcscpy(text,L"Connecting to the game... enter the main menu.");
  else swprintf(text,256,L"READY   /   Player %d of 5   /   Event %d of 3",player,events);
  update_text(status_label,text);
- swprintf(text,256,L"Damage  x%ld  /  2 - 50",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
- swprintf(text,256,L"Score  x%ld  /  2 - 100",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
+ swprintf(text,256,L"Damage Multiplier  (x%ld / 2 - 50)",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
+ swprintf(text,256,L"Score Multiplier  (x%ld / 2 - 100)",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
+ swprintf(text,256,L"Mob Vacuum  (distance %ld / 1 - 10)",(long)read_atomic(&vacuum_distance));update_text(checks[MOB_VACUUM],text);
 }
 static void toggle_panel(HWND hwnd) {
  if(IsWindowVisible(hwnd)&&!IsIconic(hwnd))ShowWindow(hwnd,SW_HIDE);
@@ -129,15 +130,13 @@ static void make_background(HWND hwnd) {
   SelectObject(scaled,previous);DeleteObject(bitmap);DeleteDC(scaled);SelectObject(src,old);DeleteDC(src);
  }
  BYTE panel_alpha=(BYTE)(panel_opacity*255/100),button_alpha=(BYTE)(button_opacity*255/100);
- RECT rail={0,0,176,h},header={176,0,w,80},panel={192,88,568,488},settings={584,352,976,488},appearance={192,88,976,488},status={192,504,976,584};
+ RECT rail={0,0,176,h},header={176,0,w,80},panel={192,88,976,488},status={192,504,976,584};
  tint_rect(background_dc,rail,UI_RAIL,panel_alpha);tint_rect(background_dc,header,UI_BG,panel_alpha);
- if(active_page==2)tint_rect(background_dc,appearance,UI_CARD,panel_alpha);
- else {tint_rect(background_dc,panel,UI_CARD,panel_alpha);tint_rect(background_dc,settings,UI_CARD,panel_alpha);}
+ tint_rect(background_dc,panel,UI_CARD,panel_alpha);
  tint_rect(background_dc,status,UI_CARD,panel_alpha);
- RECT player_inputs[2]={{872,364,960,400},{872,428,960,464}};
  RECT appearance_inputs[3]={{432,296,520,332},{856,296,944,332},{432,368,520,404}};
  if(active_page==2){for(int i=0;i<3;i++)tint_rect(background_dc,appearance_inputs[i],UI_BUTTON,button_alpha);}
- else {tint_rect(background_dc,player_inputs[0],UI_BUTTON,button_alpha);if(active_page==0)tint_rect(background_dc,player_inputs[1],UI_BUTTON,button_alpha);}
+ else {for(int i=0;i<(active_page==0?5:3);i++){RECT row={208,180+58*i,960,228+58*i};tint_rect(background_dc,row,UI_BUTTON,button_alpha);}}
  RECT accent={24,72,152,76};HBRUSH brush=CreateSolidBrush(UI_ACCENT);FillRect(background_dc,&accent,brush);DeleteObject(brush);
  background_pattern=CreatePatternBrush(background_bitmap);ReleaseDC(hwnd,dc);
 }
@@ -172,7 +171,7 @@ static void draw_button(DRAWITEMSTRUCT *item) {
  bool available=!(item->itemState&ODS_DISABLED);
  bool pressed=(item->itemState&ODS_SELECTED)!=0;
  copy_control_background(item);
- tint_rect(dc,rect,tab&&active?RGB(30,77,84):UI_BUTTON,(BYTE)(button_opacity*255/100));
+ if(!player&&!event_control)tint_rect(dc,rect,tab&&active?RGB(30,77,84):UI_BUTTON,(BYTE)(button_opacity*255/100));
  if(pressed)tint_rect(dc,rect,UI_ACCENT,48);HBRUSH brush;
  if(active){RECT line={0,0,3,rect.bottom};brush=CreateSolidBrush(UI_ACCENT);FillRect(dc,&line,brush);DeleteObject(brush);}
  SetBkMode(dc,TRANSPARENT);SelectObject(dc,button_font);SetTextColor(dc,available?UI_TEXT:UI_MUTED);
@@ -294,7 +293,7 @@ static DWORD WINAPI run(void *unused) {
  section_title=control(L"STATIC",L"Player",0,208,104,344,32,0);SendMessageW(section_title,WM_SETFONT,(WPARAM)section_font,TRUE);
  section_caption=control(L"STATIC",L"Your core combat toolkit",0,208,140,344,24,0);
  const int visible[]={GOD_MODE,MULTI_HIT,NO_COOLDOWN,UNLIMITED_ENERGY,MOB_VACUUM};
- for(int row=0;row<5;row++){int i=visible[row];checks[i]=page_control(0,L"BUTTON",labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+58*row,344,48,100+i);EnableWindow(checks[i],FALSE);}
+ for(int row=0;row<5;row++){int i=visible[row];int width=i==MULTI_HIT||i==MOB_VACUUM?656:752;checks[i]=page_control(0,L"BUTTON",labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+58*row,width,48,100+i);EnableWindow(checks[i],FALSE);}
  page_control(2,L"BUTTON",L"Choose image...",BS_OWNERDRAW|WS_TABSTOP,208,180,248,44,420);
  page_control(2,L"BUTTON",L"Remove",BS_OWNERDRAW|WS_TABSTOP,472,180,144,44,421);
  background_name=page_control(2,L"STATIC",L"No background selected",SS_PATHELLIPSIS,208,240,752,24,0);
@@ -306,16 +305,15 @@ static DWORD WINAPI run(void *unused) {
  page_control(2,L"EDIT",L"55",WS_BORDER|ES_NUMBER|WS_TABSTOP,432,368,88,36,206);SetDlgItemInt(window,206,(UINT)button_opacity,FALSE);
  background_mode=page_control(2,L"BUTTON",L"Image fit: Full image",BS_OWNERDRAW|WS_TABSTOP,568,368,392,40,422);
  page_control(2,L"STATIC",L"0% = transparent    /    100% = solid. Text stays visible.",0,208,440,752,24,0);
- multiplier_hint=page_control(0,L"STATIC",L"Damage  x2  /  2 - 50",0,600,368,258,24,0);
- page_control(0,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,364,88,36,201);
- page_control(0,L"STATIC",L"Vacuum distance  /  1 - 10",0,600,432,258,24,0);
- page_control(0,L"EDIT",L"3",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,428,88,36,202);
+ multiplier_hint=checks[MULTI_HIT];
+ page_control(0,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,244,88,36,201);
+ page_control(0,L"EDIT",L"3",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,418,88,36,202);
  const wchar_t *event_labels[]={L"No Cooldown (R)",L"Unlimited Energy (R)",L"Score Multiplier"};
- for(int i=0;i<3;i++){event_checks[i]=page_control(1,L"BUTTON",event_labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+58*i,344,48,300+i);EnableWindow(event_checks[i],FALSE);}
- event_hint=page_control(1,L"STATIC",L"Score  x2  /  2 - 100",0,600,368,258,24,0);
- page_control(1,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,364,88,36,203);
- page_control(1,L"STATIC",L"Higher factors reach the target sooner.\r\nStart low and increase.",0,600,416,360,52,0);
- page_control(1,L"STATIC",L"Event settings are separate\r\nfrom Player.",0,208,384,344,56,0);
+ for(int i=0;i<3;i++){event_checks[i]=page_control(1,L"BUTTON",event_labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+58*i,i==2?656:752,48,300+i);EnableWindow(event_checks[i],FALSE);}
+ event_hint=event_checks[2];
+ page_control(1,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,302,88,36,203);
+ page_control(1,L"STATIC",L"Higher score factors reach the target sooner. Start low and increase.",0,208,424,752,24,0);
+ page_control(1,L"STATIC",L"Event settings are independent from Player.",0,208,384,752,24,0);
  control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,48,200);
  status_label=control(L"STATIC",L"Connecting to game...",0,208,516,752,24,0);
  footer=control(L"STATIC",L"",0,208,552,752,24,0);
