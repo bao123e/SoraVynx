@@ -6,9 +6,9 @@ if __name__=='__main__':
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--zig',default='zig');a=p.parse_args()
  out=ROOT/'dist';out.mkdir(exist_ok=True)
  vendor=ROOT/'vendor/minhook'
- subprocess.run([a.zig,'rc','/fo',str(out/'background.res'),'--',str(ROOT/'assets/background.rc')],check=True)
+ subprocess.run([a.zig,'rc','/fo',str(out/'ui.res'),'--',str(ROOT/'assets/ui.rc')],check=True)
  sources=[ROOT/'main.c',ROOT/'api.c',ROOT/'backend.c']+[vendor/'src'/n for n in ['hook.c','buffer.c','trampoline.c','hde/hde64.c']]
- cmd=[a.zig,'cc','-target','x86_64-windows-gnu','-O2','-g0','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-shared','-Wl,--dynamicbase','-Wl,--nxcompat','-I'+str(vendor/'include')]+list(map(str,sources))+[str(out/'background.res'),'-lmsimg32','-luser32','-lgdi32','-lkernel32','-lbcrypt','-o',str(out/'Mastercheat.dll')]
+ cmd=[a.zig,'cc','-target','x86_64-windows-gnu','-O2','-g0','-std=c11','-Wall','-Wextra','-Werror','-Wno-unused-function','-shared','-Wl,--dynamicbase','-Wl,--nxcompat','-I'+str(vendor/'include')]+list(map(str,sources))+[str(out/'ui.res'),'-lgdiplus','-lcomdlg32','-lmsimg32','-luser32','-lgdi32','-lkernel32','-lbcrypt','-o',str(out/'Mastercheat.dll')]
  subprocess.run(cmd,check=True)
  subprocess.run([a.zig,'cc','-target','x86_64-windows-gnu','-O2','-std=c11','-Wall','-Wextra','-Werror',str(ROOT/'launcher.c'),'-DEXPECTED_DLL_SHA256="'+hashlib.sha256((out/'Mastercheat.dll').read_bytes()).hexdigest()+'"','-lbcrypt','-municode','-Wl,--subsystem,windows','-lcomdlg32','-luser32','-lkernel32','-o',str(out/'SSTool.exe')],check=True)
  data=(out/'Mastercheat.dll').read_bytes()

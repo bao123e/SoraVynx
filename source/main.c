@@ -8,8 +8,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include "ui_layout.h"
+#include "ui_background.h"
+#include "ui_fonts.h"
 
-/* Opaque surfaces keep text readable independently of the illustration. */
+/* Dark scrims keep text readable independently of the custom image. */
 #define UI_BG RGB(9,17,30)
 #define UI_RAIL RGB(12,22,37)
 #define UI_CARD RGB(18,30,47)
@@ -21,11 +23,13 @@
 static HMODULE self_module;
 static HWND window,checks[FEATURE_COUNT],event_checks[3],tabs[2],status_label;
 static HWND multiplier_hint,event_hint,section_title,section_caption,footer;
+static HWND background_name,background_mode;
 static HWND page_controls[2][16];static int page_count[2],active_page;
 static bool global_hotkey;
 static HBRUSH background_brush,card_brush,background_pattern;
-static HFONT body_font,title_font,section_font;
+static HFONT body_font,button_font,title_font,section_font;
 static HDC background_dc;static HBITMAP background_bitmap;
+static HGDIOBJ background_original;
 static volatile LONG init_state;
 static const wchar_t *labels[FEATURE_COUNT]={L"Instant Break",L"God Mode",L"Damage Multiplier",L"No Cooldown",L"Unlimited Energy",L"Mob Vacuum"};
 /* Release build: diagnostics do not create files. */
@@ -107,23 +111,35 @@ static void toggle_panel(HWND hwnd) {
  else {ShowWindow(hwnd,SW_RESTORE);SetWindowPos(hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW);SetForegroundWindow(hwnd);}
 }
 static void make_background(HWND hwnd) {
+ if(background_pattern){DeleteObject(background_pattern);background_pattern=NULL;}
+ if(background_dc){SelectObject(background_dc,background_original);DeleteObject(background_bitmap);DeleteDC(background_dc);background_dc=NULL;}
  RECT rect;GetClientRect(hwnd,&rect);int w=rect.right,h=rect.bottom;HDC dc=GetDC(hwnd);
- background_dc=CreateCompatibleDC(dc);background_bitmap=CreateCompatibleBitmap(dc,w,h);SelectObject(background_dc,background_bitmap);
+ background_dc=CreateCompatibleDC(dc);background_bitmap=CreateCompatibleBitmap(dc,w,h);background_original=SelectObject(background_dc,background_bitmap);
  FillRect(background_dc,&rect,background_brush);
- HBITMAP image=LoadImageW(self_module,MAKEINTRESOURCEW(301),IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION);
+ HBITMAP image=custom_image;
  if(image){
   BITMAP info;GetObjectW(image,sizeof(info),&info);HDC src=CreateCompatibleDC(dc);HGDIOBJ old=SelectObject(src,image);
-  /* Fit the entire source into its own artwork area: no crop, no text overlay. */
-  struct ImageFit fit=fit_image(info.bmWidth,info.bmHeight,584,104,392,232);
-  SetStretchBltMode(background_dc,HALFTONE);SetBrushOrgEx(background_dc,0,0,NULL);
-  if(fit.width>0&&fit.height>0)StretchBlt(background_dc,fit.x,fit.y,fit.width,fit.height,src,0,0,info.bmWidth,info.bmHeight,SRCCOPY);
-  SelectObject(src,old);DeleteDC(src);DeleteObject(image);
+  HDC scaled=CreateCompatibleDC(dc);HBITMAP bitmap=CreateCompatibleBitmap(dc,w,h);HGDIOBJ previous=SelectObject(scaled,bitmap);
+  FillRect(scaled,&rect,background_brush);
+  struct ImageFit fit=background_fill?cover_image(info.bmWidth,info.bmHeight,0,0,w,h):fit_image(info.bmWidth,info.bmHeight,0,0,w,h);
+  SetStretchBltMode(scaled,HALFTONE);SetBrushOrgEx(scaled,0,0,NULL);
+  if(fit.width>0&&fit.height>0)StretchBlt(scaled,fit.x,fit.y,fit.width,fit.height,src,0,0,info.bmWidth,info.bmHeight,SRCCOPY);
+  BLENDFUNCTION blend={AC_SRC_OVER,0,(BYTE)(background_opacity*255/100),0};
+  AlphaBlend(background_dc,0,0,w,h,scaled,0,0,w,h,blend);
+  SelectObject(scaled,previous);DeleteObject(bitmap);DeleteDC(scaled);SelectObject(src,old);DeleteDC(src);
  }
- RECT rail={0,0,176,h};HBRUSH brush=CreateSolidBrush(UI_RAIL);FillRect(background_dc,&rail,brush);DeleteObject(brush);
- RECT panel={192,88,568,488},settings={584,352,976,488},status={192,504,976,584};
- brush=CreateSolidBrush(UI_CARD);FillRect(background_dc,&panel,brush);FillRect(background_dc,&settings,brush);FillRect(background_dc,&status,brush);DeleteObject(brush);
- RECT accent={24,72,152,76};brush=CreateSolidBrush(UI_ACCENT);FillRect(background_dc,&accent,brush);DeleteObject(brush);
+ RECT rail={0,0,176,h},header={176,0,w,80};tint_rect(background_dc,rail,UI_RAIL,200);tint_rect(background_dc,header,UI_BG,200);
+ RECT panel={192,88,568,488},appearance={584,88,976,336},settings={584,352,976,488},status={192,504,976,584};
+ tint_rect(background_dc,panel,UI_CARD,200);tint_rect(background_dc,appearance,UI_CARD,200);
+ tint_rect(background_dc,settings,UI_CARD,200);tint_rect(background_dc,status,UI_CARD,200);
+ RECT accent={24,72,152,76};HBRUSH brush=CreateSolidBrush(UI_ACCENT);FillRect(background_dc,&accent,brush);DeleteObject(brush);
  background_pattern=CreatePatternBrush(background_bitmap);ReleaseDC(hwnd,dc);
+}
+static void refresh_background(void) {
+ const wchar_t *name=wcsrchr(background_path,L'\\');name=name?name+1:background_path;
+ update_text(background_name,custom_image?name:background_path[0]?L"Image unavailable - choose another":L"No background selected");
+ update_text(background_mode,background_fill?L"Image fit: Fill window":L"Image fit: Full image");
+ make_background(window);RedrawWindow(window,NULL,NULL,RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN);
 }
 static void draw_button(DRAWITEMSTRUCT *item) {
  HDC dc=item->hDC;RECT rect=item->rcItem;int id=(int)item->CtlID;
@@ -132,11 +148,15 @@ static void draw_button(DRAWITEMSTRUCT *item) {
  bool available=!(item->itemState&ODS_DISABLED);
  bool pressed=(item->itemState&ODS_SELECTED)!=0;
  COLORREF fill=pressed?RGB(49,81,98):tab?(active?RGB(30,77,84):UI_CARD):UI_BUTTON;
- HBRUSH brush=CreateSolidBrush(fill);FillRect(dc,&rect,brush);DeleteObject(brush);
+ POINT origin={0,0};MapWindowPoints(item->hwndItem,window,&origin,1);
+ if(background_dc)BitBlt(dc,0,0,rect.right,rect.bottom,background_dc,origin.x,origin.y,SRCCOPY);
+ tint_rect(dc,rect,fill,190);HBRUSH brush;
  if(active){RECT line={0,0,3,rect.bottom};brush=CreateSolidBrush(UI_ACCENT);FillRect(dc,&line,brush);DeleteObject(brush);}
- SetBkMode(dc,TRANSPARENT);SelectObject(dc,body_font);SetTextColor(dc,available?UI_TEXT:UI_MUTED);
+ SetBkMode(dc,TRANSPARENT);SelectObject(dc,button_font);SetTextColor(dc,available?UI_TEXT:UI_MUTED);
  RECT text=rect;text.left+=16;if(player||event_control)text.right-=70;
- wchar_t label[100];GetWindowTextW(item->hwndItem,label,100);DrawTextW(dc,label,-1,&text,DT_SINGLELINE|DT_VCENTER|DT_LEFT);
+ wchar_t label[100];GetWindowTextW(item->hwndItem,label,100);
+ if(id==410||id==411)text=rect;
+ DrawTextW(dc,label,-1,&text,DT_SINGLELINE|DT_VCENTER|((id==410||id==411)?DT_CENTER:DT_LEFT));
  if(player||event_control){
   RECT badge={rect.right-59,rect.top+13,rect.right-12,rect.bottom-13};brush=CreateSolidBrush(active?RGB(74,220,191):RGB(44,59,79));FillRect(dc,&badge,brush);DeleteObject(brush);
   SetTextColor(dc,active?RGB(7,31,30):UI_TEXT);DrawTextW(dc,!available?L"N/A":active?L"ON":L"OFF",-1,&badge,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
@@ -153,13 +173,29 @@ static void switch_page(int page) {
 }
 static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  switch(message){
+ case WM_NCHITTEST:{
+  POINT point={(short)LOWORD(lp),(short)HIWORD(lp)};ScreenToClient(hwnd,&point);
+  if(point.y>=0&&point.y<80&&point.x>=0&&point.x<880)return HTCAPTION;
+  return HTCLIENT;
+ }
  case WM_COMMAND:{
   int id=LOWORD(wp),notice=HIWORD(wp);
   if(notice==BN_CLICKED){
    if(id==400||id==401){switch_page(id-400);return 0;}
+   if(id==410){ShowWindow(hwnd,SW_HIDE);return 0;}
+   if(id==411){SendMessageW(hwnd,WM_CLOSE,0,0);return 0;}
+   if(id==420){if(choose_background(hwnd))refresh_background();return 0;}
+   if(id==421){if(custom_image)DeleteObject(custom_image);custom_image=NULL;background_path[0]=0;save_background_settings(hwnd);refresh_background();return 0;}
+   if(id==422){background_fill=!background_fill;save_background_settings(hwnd);refresh_background();return 0;}
    if(id>=100&&id<100+FEATURE_COUNT){int i=id-100;if(read_atomic(&capabilities[i]))InterlockedExchange(&feature_flags[i],!read_atomic(&feature_flags[i]));InvalidateRect(checks[i],NULL,TRUE);}
    else if(id>=300&&id<303){int i=id-300;if(read_atomic(&event_ready[i]))InterlockedExchange(&event_flags[i],!read_atomic(&event_flags[i]));InvalidateRect(event_checks[i],NULL,TRUE);}
    else if(id==200)disable_all();
+  }
+  if(id==204&&(notice==EN_CHANGE||notice==EN_KILLFOCUS)){
+   BOOL valid;UINT value=GetDlgItemInt(hwnd,id,&valid,FALSE);
+   if(notice==EN_KILLFOCUS){if(!valid)value=(UINT)background_opacity;if(value>100)value=100;SetDlgItemInt(hwnd,id,value,FALSE);valid=TRUE;}
+   if(valid&&value<=100&&(int)value!=background_opacity){background_opacity=(int)value;refresh_background();}
+   if(notice==EN_KILLFOCUS)save_background_settings(hwnd);
   }
   if((id==201||id==202||id==203)&&(notice==EN_CHANGE||notice==EN_KILLFOCUS)){
    BOOL valid;UINT value=GetDlgItemInt(hwnd,id,&valid,FALSE);UINT minimum=id==202?1:2,maximum=id==202?10:id==203?100:50;
@@ -194,7 +230,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
 }
 static HWND control(const wchar_t *kind,const wchar_t *text,DWORD style,int x,int y,int w,int h,int id) {
  HWND c=CreateWindowW(kind,text,WS_CHILD|WS_VISIBLE|style,x,y,w,h,window,(HMENU)(intptr_t)id,self_module,NULL);
- if(c)SendMessageW(c,WM_SETFONT,(WPARAM)body_font,TRUE);return c;
+ if(c)SendMessageW(c,WM_SETFONT,(WPARAM)(!wcscmp(kind,L"BUTTON")?button_font:body_font),TRUE);return c;
 }
 static HWND page_control(int page,const wchar_t *kind,const wchar_t *text,DWORD style,int x,int y,int w,int h,int id){
  HWND c=control(kind,text,style,x,y,w,h,id);if(c&&page_count[page]<16)page_controls[page][page_count[page]++]=c;return c;
@@ -203,19 +239,23 @@ static DWORD WINAPI run(void *unused) {
  (void)unused;WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=self_module;wc.lpszClassName=L"SSToolRuntime2";
  wc.hCursor=LoadCursorW(NULL,MAKEINTRESOURCEW(32512));
  background_brush=CreateSolidBrush(UI_BG);card_brush=CreateSolidBrush(UI_BUTTON);wc.hbrBackground=background_brush;
- body_font=CreateFontW(-16,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
- title_font=CreateFontW(-34,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
- section_font=CreateFontW(-23,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
+ load_ui_fonts(self_module);
+ body_font=CreateFontW(-16,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[0]);
+ button_font=CreateFontW(-16,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[1]);
+ title_font=CreateFontW(-34,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[2]);
+ section_font=CreateFontW(-24,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[1]);
  if(!RegisterClassW(&wc))return 1;
- DWORD style=WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX;
- RECT bounds={0,0,1000,600};AdjustWindowRectEx(&bounds,style,FALSE,WS_EX_TOPMOST|WS_EX_TOOLWINDOW);
- window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"SSTool v1.0 | Stella Sora",style,CW_USEDEFAULT,CW_USEDEFAULT,bounds.right-bounds.left,bounds.bottom-bounds.top,NULL,NULL,self_module,NULL);
+ DWORD style=WS_POPUP|WS_SYSMENU;
+ window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"SSTool v1.0 | Stella Sora",style,CW_USEDEFAULT,CW_USEDEFAULT,1000,600,NULL,NULL,self_module,NULL);
  if(!window)return 1;
+ HRGN corners=CreateRoundRectRgn(0,0,1001,601,24,24);if(corners&&!SetWindowRgn(window,corners,FALSE))DeleteObject(corners);
  HMODULE dwm=LoadLibraryExW(L"dwmapi.dll",NULL,LOAD_LIBRARY_SEARCH_SYSTEM32);
  if(dwm){typedef HRESULT (WINAPI *SetAttribute)(HWND,DWORD,LPCVOID,DWORD);FARPROC proc=GetProcAddress(dwm,"DwmSetWindowAttribute");SetAttribute set=NULL;memcpy(&set,&proc,sizeof(set));BOOL dark=TRUE;if(set)set(window,20,&dark,sizeof(dark));FreeLibrary(dwm);}
- make_background(window);
+ load_background_settings(self_module);make_background(window);
  HWND h=control(L"STATIC",L"SSTool",0,24,24,145,44,500);SendMessageW(h,WM_SETFONT,(WPARAM)title_font,TRUE);
- control(L"STATIC",L"STELLA SORA  /  CONTROL PANEL",0,208,34,480,24,0);control(L"STATIC",L"F1  SHOW / HIDE",0,816,34,160,24,0);
+ control(L"STATIC",L"STELLA SORA  /  CONTROL PANEL",0,208,34,480,24,0);control(L"STATIC",L"F1 SHOW / HIDE",0,720,34,152,24,0);
+ control(L"BUTTON",L"Hide",BS_OWNERDRAW|WS_TABSTOP,888,24,56,40,410);
+ control(L"BUTTON",L"X",BS_OWNERDRAW|WS_TABSTOP,952,24,32,40,411);
  control(L"STATIC",L"WORKSPACE",0,24,104,145,24,0);
  tabs[0]=control(L"BUTTON",L"01  Player",BS_OWNERDRAW|WS_TABSTOP,16,140,146,48,400);
  tabs[1]=control(L"BUTTON",L"02  Event",BS_OWNERDRAW|WS_TABSTOP,16,200,146,48,401);
@@ -223,6 +263,13 @@ static DWORD WINAPI run(void *unused) {
  section_caption=control(L"STATIC",L"Your core combat toolkit",0,208,140,344,24,0);
  const int visible[]={GOD_MODE,MULTI_HIT,NO_COOLDOWN,UNLIMITED_ENERGY,MOB_VACUUM};
  for(int row=0;row<5;row++){int i=visible[row];checks[i]=page_control(0,L"BUTTON",labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+58*row,344,48,100+i);EnableWindow(checks[i],FALSE);}
+ control(L"STATIC",L"CUSTOM BACKGROUND",0,600,104,360,24,0);
+ control(L"BUTTON",L"Choose image...",BS_OWNERDRAW|WS_TABSTOP,600,140,216,44,420);
+ control(L"BUTTON",L"Remove",BS_OWNERDRAW|WS_TABSTOP,832,140,128,44,421);
+ background_name=control(L"STATIC",L"No background selected",SS_PATHELLIPSIS,600,200,360,24,0);
+ control(L"STATIC",L"Image opacity  /  0 - 100%",0,600,240,258,24,0);
+ control(L"EDIT",L"35",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,232,88,36,204);SetDlgItemInt(window,204,(UINT)background_opacity,FALSE);
+ background_mode=control(L"BUTTON",L"Image fit: Full image",BS_OWNERDRAW|WS_TABSTOP,600,284,360,36,422);
  multiplier_hint=page_control(0,L"STATIC",L"Damage  x2  /  2 - 50",0,600,368,258,24,0);
  page_control(0,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,364,88,36,201);
  page_control(0,L"STATIC",L"Vacuum distance  /  1 - 10",0,600,432,258,24,0);
@@ -238,7 +285,7 @@ static DWORD WINAPI run(void *unused) {
  footer=control(L"STATIC",L"",0,208,552,752,24,0);
  for(int i=6;i<=8;i++)RegisterHotKey(window,i,MOD_NOREPEAT,VK_F6+i-6);
  global_hotkey=RegisterHotKey(window,1,MOD_NOREPEAT,VK_F1)!=0;
- switch_page(0);SetTimer(window,1,global_hotkey?500:50,NULL);ShowWindow(window,SW_SHOWNOACTIVATE);
+ switch_page(0);refresh_background();SetTimer(window,1,global_hotkey?500:50,NULL);ShowWindow(window,SW_SHOWNOACTIVATE);
  HANDLE thread=CreateThread(NULL,0,initialize,NULL,0,NULL);if(thread)CloseHandle(thread);else InterlockedExchange(&init_state,-1);
  MSG msg;while(GetMessageW(&msg,NULL,0,0)>0){if(!IsDialogMessageW(window,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}
  return 0;

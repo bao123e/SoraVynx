@@ -23,4 +23,4 @@ if __name__=='__main__':
   layout_binary=Path(temporary)/'ui-layout-test'
   subprocess.run(['gcc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(ROOT/'tests/ui_layout_test.c'),'-o',str(layout_binary)],check=True)
   subprocess.run([str(layout_binary)],check=True)
-  print('PASS artwork contain layout: original aspect ratio, full bounds, portrait/wide and invalid source')
+  print('PASS full-window background fit/fill: original aspect ratio, coverage, portrait/wide and invalid source')
