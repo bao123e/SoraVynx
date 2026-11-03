@@ -222,5 +222,13 @@ int main(void){
  scores[1]=9;event_frame(&mi_other,scores);assert(scores[1]==9);
  event_flags[EV_SCORE]=0;event_frame(&evscore_method,scores);assert(scores[1]==9);
  puts("PASS event controller-only score delta x2, negative/disabled filtering, overflow ceiling and unchanged neighboring slots");
+ event_flags[EV_SCORE]=1;event_multiplier=100;evscore=0;scores[1]=30;
+ event_frame(&evscore_method,scores);assert(scores[1]==3000);
+ event_multiplier=101;scores[1]=30;event_frame(&evscore_method,scores);assert(scores[1]==30);
+ event_multiplier=1;event_frame(&evscore_method,scores);assert(scores[1]==30);
+ event_multiplier=100;feature_flags[MULTI_HIT]=1;multi_count=3;
+ uint64_t independent_damage[4]={(uintptr_t)monster,100,0,0};enter_frame_hook(NULL,&mi_real,independent_damage);
+ assert(independent_damage[1]==300&&multi_count==3&&event_multiplier==100);
+ puts("PASS configurable event factor x100, invalid range rejection and independent Player multiplier");
  return 0;
 }

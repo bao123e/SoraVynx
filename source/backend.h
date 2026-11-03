@@ -12,3 +12,4 @@ LONG read_atomic(volatile LONG *value);
 bool install_interpreter_probe(HMODULE game);
 bool install_frame_backend(HMODULE game);
 extern volatile LONG event_flags[3],event_ready[3],event_hits[3];
+extern volatile LONG event_multiplier;

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 enum {EV_CD,EV_ENERGY,EV_SCORE,EV_COUNT};
 volatile LONG event_flags[3],event_ready[3],event_hits[3];
+volatile LONG event_multiplier=2;
 static struct {
  void *skill_class,*current_energy,*maximum_energy,*cooldown,*dictionary,*score;
  const void *full,*sync,*update,*add_score,*zero;
@@ -70,11 +71,12 @@ static void event_frame(const void *method,void *arguments) {
   else if(method==event.sync){void *skill;memcpy(&skill,slots+8,sizeof(skill));event_fill(skill);}
   else if(method==event.update)event_tick(self);
  }
- /* Scale only the controller delta, not the forwarding manager. Test factor x2. */
+ /* Scale only the controller delta, not the forwarding manager. Configurable factor, independent of Player damage. */
  if(method==event.add_score&&event_on(EV_SCORE)) {
   int32_t delta,current;memcpy(&delta,slots+8,sizeof(delta));api.field_get_value(self,event.score,&current);
-  if(delta>0&&current>=0) {
-   int64_t scaled=(int64_t)delta*2,room=(int64_t)INT32_MAX-current;
+  LONG factor=read_atomic(&event_multiplier);
+  if(delta>0&&current>=0&&factor>=2&&factor<=100) {
+   int64_t scaled=(int64_t)delta*factor,room=(int64_t)INT32_MAX-current;
    if(scaled>room)scaled=room;
    if(scaled!=delta){delta=(int32_t)scaled;memcpy(slots+8,&delta,sizeof(delta));InterlockedIncrement(&event_hits[EV_SCORE]);}
   }

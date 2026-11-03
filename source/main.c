@@ -9,10 +9,13 @@
 #include <stdlib.h>
 
 static HMODULE self_module;
-static HWND window,checks[FEATURE_COUNT],status_label,multiplier_hint;
+static HWND window,checks[FEATURE_COUNT],event_checks[3],tabs[2],status_label;
+static HWND multiplier_hint,event_hint,section_title,section_caption,footer;
+static HWND page_controls[2][16];static int page_count[2],active_page;
 static bool global_hotkey;
-static HBRUSH background_brush,card_brush;
-static HFONT body_font,title_font;
+static HBRUSH background_brush,card_brush,background_pattern;
+static HFONT body_font,title_font,section_font;
+static HDC background_dc;static HBITMAP background_bitmap;
 static volatile LONG init_state;
 static const wchar_t *labels[FEATURE_COUNT]={L"Instant Break",L"God Mode",L"Damage Multiplier",L"No Cooldown",L"Unlimited Energy",L"Mob Vacuum"};
 /* Release build: diagnostics do not create files. */
@@ -69,128 +72,166 @@ static DWORD WINAPI initialize(void *unused) {
  if(thread)api.thread_detach(thread);
  InterlockedExchange(&init_state,-1);PostMessageW(window,WM_APP+1,0,0);return 1;
 }
+
+static void update_text(HWND hwnd,const wchar_t *text) {
+ if(!hwnd)return;wchar_t old[512]={0};GetWindowTextW(hwnd,old,512);if(wcscmp(old,text))SetWindowTextW(hwnd,text);
+}
 static void disable_all(void) {
- for(int i=0;i<3;i++)InterlockedExchange(&event_flags[i],0);
- for(int i=0;i<FEATURE_COUNT;i++){InterlockedExchange(&feature_flags[i],0);if(checks[i]){SendMessageW(checks[i],BM_SETCHECK,BST_UNCHECKED,0);InvalidateRect(checks[i],NULL,TRUE);}}
- log_line("All features disabled; installed hooks are pass-through.");
+ for(int i=0;i<3;i++){InterlockedExchange(&event_flags[i],0);if(event_checks[i])InvalidateRect(event_checks[i],NULL,TRUE);}
+ for(int i=0;i<FEATURE_COUNT;i++){InterlockedExchange(&feature_flags[i],0);if(checks[i])InvalidateRect(checks[i],NULL,TRUE);}
 }
 static void refresh_status(void) {
- LONG state=read_atomic(&init_state);
- if(state<0){SetWindowTextW(status_label,L"Startup stopped: game version unsupported or runtime unavailable.\r\nFeatures remain OFF. Restart the game before trying again.");return;}
- if(!state){SetWindowTextW(status_label,L"Waiting for the game and Hotfix runtime...\r\nEnter the main menu. Features remain off until ready.");return;}
- int available=0;
- for(int i=0;i<FEATURE_COUNT;i++){BOOL enabled=read_atomic(&capabilities[i])!=0;EnableWindow(checks[i],enabled);if(enabled)available++;}
- wchar_t text[256];swprintf(text,256,L"Ready  |  %d features available  |  F1 show / hide",available);
- size_t used=wcslen(text);
- const wchar_t *states[3];for(int i=0;i<3;i++)states[i]=read_atomic(&event_ready[i])?(read_atomic(&event_flags[i])?L"ON":L"OFF"):L"N/A";
- swprintf(text+used,256-used,L"\r\nEvent TEST F6 CD:%ls F7 Energy:%ls F8 Score x2:%ls\r\nApplied: %ld / %ld / %ld",states[0],states[1],states[2],(long)read_atomic(&event_hits[0]),(long)read_atomic(&event_hits[1]),(long)read_atomic(&event_hits[2]));
- SetWindowTextW(status_label,text);
- wchar_t hint[64];swprintf(hint,64,L"Multiplier 2-50: x%ld",(long)read_atomic(&multi_count));SetWindowTextW(multiplier_hint,hint);
- report_observed_calls();
+ LONG state=read_atomic(&init_state);int player=0,events=0;
+ for(int i=0;i<FEATURE_COUNT;i++)if(checks[i]){BOOL on=state==1&&read_atomic(&capabilities[i]);EnableWindow(checks[i],on);if(on)player++;}
+ for(int i=0;i<3;i++){BOOL on=state==1&&read_atomic(&event_ready[i]);if(event_checks[i]){EnableWindow(event_checks[i],on);InvalidateRect(event_checks[i],NULL,FALSE);}if(on)events++;}
+ wchar_t text[256];
+ if(state<0)wcscpy(text,L"Startup stopped. Game version unsupported or runtime unavailable.");
+ else if(!state)wcscpy(text,L"Connecting to the game... enter the main menu.");
+ else swprintf(text,256,L"READY   /   Player %d of 5   /   Event %d of 3",player,events);
+ update_text(status_label,text);
+ swprintf(text,256,L"Damage  x%ld  /  2 - 50",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
+ swprintf(text,256,L"Score  x%ld  /  2 - 100",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
 }
 static void toggle_panel(HWND hwnd) {
  if(IsWindowVisible(hwnd)&&!IsIconic(hwnd))ShowWindow(hwnd,SW_HIDE);
  else {ShowWindow(hwnd,SW_RESTORE);SetWindowPos(hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW);SetForegroundWindow(hwnd);}
 }
+static void make_background(HWND hwnd) {
+ RECT rect;GetClientRect(hwnd,&rect);int w=rect.right,h=rect.bottom;HDC dc=GetDC(hwnd);
+ background_dc=CreateCompatibleDC(dc);background_bitmap=CreateCompatibleBitmap(dc,w,h);SelectObject(background_dc,background_bitmap);
+ FillRect(background_dc,&rect,background_brush);
+ HBITMAP image=LoadImageW(self_module,MAKEINTRESOURCEW(301),IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION);
+ if(image){
+  BITMAP info;GetObjectW(image,sizeof(info),&info);HDC src=CreateCompatibleDC(dc);HGDIOBJ old=SelectObject(src,image);
+  int sw=info.bmWidth,sh=info.bmHeight;
+  if((int64_t)sw*h>(int64_t)sh*w)sw=sh*w/h;else sh=sw*h/w;
+  SetStretchBltMode(background_dc,HALFTONE);SetBrushOrgEx(background_dc,0,0,NULL);
+  StretchBlt(background_dc,0,0,w,h,src,(info.bmWidth-sw)/2,(info.bmHeight-sh)/2,sw,sh,SRCCOPY);
+  SelectObject(src,old);DeleteDC(src);DeleteObject(image);
+  HDC tint=CreateCompatibleDC(dc);HBITMAP pixel=CreateCompatibleBitmap(dc,1,1);HGDIOBJ previous=SelectObject(tint,pixel);
+  SetPixel(tint,0,0,RGB(6,13,27));BLENDFUNCTION blend={AC_SRC_OVER,0,105,0};
+  AlphaBlend(background_dc,0,0,w,h,tint,0,0,1,1,blend);
+  SelectObject(tint,previous);DeleteObject(pixel);DeleteDC(tint);
+ }
+ RECT rail={0,0,178,h};HBRUSH brush=CreateSolidBrush(RGB(12,19,32));FillRect(background_dc,&rail,brush);DeleteObject(brush);
+ background_pattern=CreatePatternBrush(background_bitmap);ReleaseDC(hwnd,dc);
+}
 static void draw_button(DRAWITEMSTRUCT *item) {
- HDC dc=item->hDC;RECT rect=item->rcItem;
- FillRect(dc,&rect,card_brush);SetBkMode(dc,TRANSPARENT);SelectObject(dc,body_font);
- int id=(int)item->CtlID;bool feature=id>=100&&id<100+FEATURE_COUNT;
- bool available=!(item->itemState&ODS_DISABLED),active=feature&&read_atomic(&feature_flags[id-100]);
- SetTextColor(dc,available?RGB(229,234,245):RGB(103,114,135));
- RECT text=rect;text.left+=14;text.right-=feature?70:0;
+ HDC dc=item->hDC;RECT rect=item->rcItem;int id=(int)item->CtlID;
+ bool player=id>=100&&id<100+FEATURE_COUNT,event_control=id>=300&&id<303,tab=id==400||id==401;
+ bool active=player?read_atomic(&feature_flags[id-100]):event_control?read_atomic(&event_flags[id-300]):tab&&active_page==id-400;
+ bool available=!(item->itemState&ODS_DISABLED);
+ COLORREF fill=tab?(active?RGB(32,68,81):RGB(18,28,44)):RGB(21,32,49);
+ HBRUSH brush=CreateSolidBrush(fill);FillRect(dc,&rect,brush);DeleteObject(brush);
+ if(active){RECT line={0,0,3,rect.bottom};brush=CreateSolidBrush(RGB(80,226,201));FillRect(dc,&line,brush);DeleteObject(brush);}
+ SetBkMode(dc,TRANSPARENT);SelectObject(dc,body_font);SetTextColor(dc,available?RGB(232,240,252):RGB(111,127,148));
+ RECT text=rect;text.left+=16;if(player||event_control)text.right-=70;
  wchar_t label[100];GetWindowTextW(item->hwndItem,label,100);DrawTextW(dc,label,-1,&text,DT_SINGLELINE|DT_VCENTER|DT_LEFT);
- if(feature) {
-  RECT badge={rect.right-61,rect.top+10,rect.right-10,rect.bottom-10};
-  HBRUSH brush=CreateSolidBrush(active?RGB(51,196,159):RGB(57,67,87));FillRect(dc,&badge,brush);DeleteObject(brush);
-  SetTextColor(dc,active?RGB(10,30,30):RGB(172,183,204));DrawTextW(dc,active?L"ON":L"OFF",-1,&badge,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
+ if(player||event_control){
+  RECT badge={rect.right-59,rect.top+13,rect.right-12,rect.bottom-13};brush=CreateSolidBrush(active?RGB(74,220,191):RGB(44,59,79));FillRect(dc,&badge,brush);DeleteObject(brush);
+  SetTextColor(dc,active?RGB(7,31,30):RGB(175,191,213));DrawTextW(dc,active?L"ON":L"OFF",-1,&badge,DT_CENTER|DT_SINGLELINE|DT_VCENTER);
  }
  if(item->itemState&ODS_FOCUS)DrawFocusRect(dc,&rect);
 }
+static void switch_page(int page) {
+ active_page=page;
+ for(int p=0;p<2;p++)for(int i=0;i<page_count[p];i++)ShowWindow(page_controls[p][i],p==page?SW_SHOW:SW_HIDE);
+ update_text(section_title,page?L"Bouncing Bumper Bash":L"Player");
+ update_text(section_caption,page?L"Independent skill and score controls":L"Your core combat toolkit");
+ update_text(footer,page?L"F6 cooldown   /   F7 energy   /   F8 score":L"Hide the panel with F1. Your toggles stay active.");
+ InvalidateRect(window,NULL,TRUE);InvalidateRect(tabs[0],NULL,TRUE);InvalidateRect(tabs[1],NULL,TRUE);
+}
 static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
- switch(message) {
- case WM_COMMAND: {
-  int id=LOWORD(wp);
-  if(id>=100&&id<100+FEATURE_COUNT&&HIWORD(wp)==BN_CLICKED) {
-   int f=id-100;
-   if(!read_atomic(&capabilities[f])){SendMessageW(checks[f],BM_SETCHECK,BST_UNCHECKED,0);break;}
-   LONG value=!read_atomic(&feature_flags[f]);
-   InvalidateRect(checks[f],NULL,TRUE);
-   InterlockedExchange(&feature_flags[f],value);log_line("Feature %d -> %s",f,value?"ON":"OFF");
-  } else if(id==200)disable_all();
-  else if((id==201||id==202)&&(HIWORD(wp)==EN_CHANGE||HIWORD(wp)==EN_KILLFOCUS)) {
-   BOOL valid=FALSE;UINT value=GetDlgItemInt(hwnd,id,&valid,FALSE);
-   UINT minimum=id==201?2:1,maximum=id==201?50:10;
-   volatile LONG *setting=id==201?&multi_count:&vacuum_distance;
-   if(HIWORD(wp)==EN_KILLFOCUS) {
-    if(!valid)value=(UINT)read_atomic(setting);
-    if(value<minimum)value=minimum;if(value>maximum)value=maximum;
-    SetDlgItemInt(hwnd,id,value,FALSE);
-   }
-   if(value>=minimum&&value<=maximum&&(valid||HIWORD(wp)==EN_KILLFOCUS)) {
-    LONG previous=InterlockedExchange(setting,(LONG)value);
-    if(previous!=(LONG)value)log_line("SETTING %s=%u",id==201?"damage_multiplier":"vacuum_distance",value);
-   }
+ switch(message){
+ case WM_COMMAND:{
+  int id=LOWORD(wp),notice=HIWORD(wp);
+  if(notice==BN_CLICKED){
+   if(id==400||id==401){switch_page(id-400);return 0;}
+   if(id>=100&&id<100+FEATURE_COUNT){int i=id-100;if(read_atomic(&capabilities[i]))InterlockedExchange(&feature_flags[i],!read_atomic(&feature_flags[i]));InvalidateRect(checks[i],NULL,TRUE);}
+   else if(id>=300&&id<303){int i=id-300;if(read_atomic(&event_ready[i]))InterlockedExchange(&event_flags[i],!read_atomic(&event_flags[i]));InvalidateRect(event_checks[i],NULL,TRUE);}
+   else if(id==200)disable_all();
   }
-  break;
+  if((id==201||id==202||id==203)&&(notice==EN_CHANGE||notice==EN_KILLFOCUS)){
+   BOOL valid;UINT value=GetDlgItemInt(hwnd,id,&valid,FALSE);UINT minimum=id==202?1:2,maximum=id==202?10:id==203?100:50;
+   volatile LONG *setting=id==201?&multi_count:id==202?&vacuum_distance:&event_multiplier;
+   if(notice==EN_KILLFOCUS){if(!valid)value=(UINT)read_atomic(setting);if(value<minimum)value=minimum;if(value>maximum)value=maximum;SetDlgItemInt(hwnd,id,value,FALSE);valid=TRUE;}
+   if(valid&&value>=minimum&&value<=maximum)InterlockedExchange(setting,(LONG)value);
+   refresh_status();
+  }
+  return 0;
  }
- case WM_HOTKEY:if(wp>=6&&wp<=8){int i=(int)wp-6;if(read_atomic(&event_ready[i]))InterlockedExchange(&event_flags[i],!read_atomic(&event_flags[i]));refresh_status();return 0;}if(wp==1){toggle_panel(hwnd);return 0;}break;
+ case WM_HOTKEY:
+  if(wp==1)toggle_panel(hwnd);
+  else if(wp>=6&&wp<=8){int i=(int)wp-6;if(read_atomic(&event_ready[i]))InterlockedExchange(&event_flags[i],!read_atomic(&event_flags[i]));refresh_status();}
+  return 0;
  case WM_DRAWITEM:if(((DRAWITEMSTRUCT*)lp)->CtlType==ODT_BUTTON){draw_button((DRAWITEMSTRUCT*)lp);return TRUE;}break;
- case WM_CTLCOLORSTATIC:
-  SetTextColor((HDC)wp,RGB(181,193,215));SetBkColor((HDC)wp,RGB(18,24,36));return (LRESULT)background_brush;
- case WM_CTLCOLOREDIT:
-  SetTextColor((HDC)wp,RGB(237,243,253));SetBkColor((HDC)wp,RGB(30,39,56));return (LRESULT)card_brush;
- case WM_TIMER: {
-  if(!global_hotkey){static bool was_down;bool down=(GetAsyncKeyState(VK_F1)&0x8000)!=0;if(down&&!was_down)toggle_panel(hwnd);was_down=down;}
-  refresh_status();break;
+ case WM_CTLCOLORSTATIC:{
+  SetTextColor((HDC)wp,RGB(214,228,246));SetBkMode((HDC)wp,TRANSPARENT);
+  POINT origin={0,0};MapWindowPoints((HWND)lp,hwnd,&origin,1);SetBrushOrgEx((HDC)wp,-origin.x,-origin.y,NULL);
+  return (LRESULT)(background_pattern?background_pattern:background_brush);
  }
- case WM_APP+1:refresh_status();break;
+ case WM_CTLCOLOREDIT:SetTextColor((HDC)wp,RGB(240,248,255));SetBkColor((HDC)wp,RGB(21,32,49));return (LRESULT)card_brush;
+ case WM_ERASEBKGND:return 1;
+ case WM_PAINT:{PAINTSTRUCT paint;HDC dc=BeginPaint(hwnd,&paint);if(background_dc){RECT r;GetClientRect(hwnd,&r);BitBlt(dc,0,0,r.right,r.bottom,background_dc,0,0,SRCCOPY);}EndPaint(hwnd,&paint);return 0;}
+ case WM_TIMER:
+  if(!global_hotkey){static bool previous;bool down=(GetAsyncKeyState(VK_F1)&0x8000)!=0;if(down&&!previous)toggle_panel(hwnd);previous=down;}
+  refresh_status();return 0;
+ case WM_APP+1:refresh_status();return 0;
  case WM_CLOSE:disable_all();ShowWindow(hwnd,SW_HIDE);return 0;
  default:return DefWindowProcW(hwnd,message,wp,lp);
  }
- return 0;
+ return DefWindowProcW(hwnd,message,wp,lp);
 }
 static HWND control(const wchar_t *kind,const wchar_t *text,DWORD style,int x,int y,int w,int h,int id) {
  HWND c=CreateWindowW(kind,text,WS_CHILD|WS_VISIBLE|style,x,y,w,h,window,(HMENU)(intptr_t)id,self_module,NULL);
- if(c)SendMessageW(c,WM_SETFONT,(WPARAM)body_font,TRUE);
- return c;
+ if(c)SendMessageW(c,WM_SETFONT,(WPARAM)body_font,TRUE);return c;
+}
+static HWND page_control(int page,const wchar_t *kind,const wchar_t *text,DWORD style,int x,int y,int w,int h,int id){
+ HWND c=control(kind,text,style,x,y,w,h,id);if(c&&page_count[page]<16)page_controls[page][page_count[page]++]=c;return c;
 }
 static DWORD WINAPI run(void *unused) {
- (void)unused;
- WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=self_module;wc.lpszClassName=L"SSToolRuntime2";
- wc.hCursor=LoadCursorW(NULL,MAKEINTRESOURCEW(32512));background_brush=CreateSolidBrush(RGB(18,24,36));card_brush=CreateSolidBrush(RGB(30,39,56));
+ (void)unused;WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=self_module;wc.lpszClassName=L"SSToolRuntime2";
+ wc.hCursor=LoadCursorW(NULL,MAKEINTRESOURCEW(32512));
+ background_brush=CreateSolidBrush(RGB(9,17,30));card_brush=CreateSolidBrush(RGB(21,32,49));wc.hbrBackground=background_brush;
  body_font=CreateFontW(-16,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
- title_font=CreateFontW(-25,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
- wc.hbrBackground=background_brush;
+ title_font=CreateFontW(-29,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
+ section_font=CreateFontW(-23,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
  if(!RegisterClassW(&wc))return 1;
- window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"SSTool - EVENT TEST (experimental)",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,600,550,NULL,NULL,self_module,NULL);
+ window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"SSTool v1.0 | Stella Sora",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,820,620,NULL,NULL,self_module,NULL);
  if(!window)return 1;
- HWND heading=control(L"STATIC",L"STELLA SORA",0,24,18,300,34,0);SendMessageW(heading,WM_SETFONT,(WPARAM)title_font,TRUE);
- control(L"STATIC",L"SSTOOL v1.0  /  COMBAT CONTROLS",0,24,55,400,24,0);
- control(L"STATIC",L"F1  Show / Hide",0,390,28,170,24,0);
+ HMODULE dwm=LoadLibraryExW(L"dwmapi.dll",NULL,LOAD_LIBRARY_SEARCH_SYSTEM32);
+ if(dwm){typedef HRESULT (WINAPI *SetAttribute)(HWND,DWORD,LPCVOID,DWORD);FARPROC proc=GetProcAddress(dwm,"DwmSetWindowAttribute");SetAttribute set=NULL;memcpy(&set,&proc,sizeof(set));BOOL dark=TRUE;if(set)set(window,20,&dark,sizeof(dark));FreeLibrary(dwm);}
+ make_background(window);
+ HWND h=control(L"STATIC",L"SSTOOL",0,24,25,145,40,0);SendMessageW(h,WM_SETFONT,(WPARAM)title_font,TRUE);
+ control(L"STATIC",L"STELLA SORA",0,200,32,280,28,0);control(L"STATIC",L"F1  SHOW / HIDE",0,640,32,160,24,0);
+ control(L"STATIC",L"WORKSPACE",0,24,100,145,24,0);
+ tabs[0]=control(L"BUTTON",L"01  Player",BS_OWNERDRAW|WS_TABSTOP,16,140,146,48,400);
+ tabs[1]=control(L"BUTTON",L"02  Event",BS_OWNERDRAW|WS_TABSTOP,16,200,146,48,401);
+ section_title=control(L"STATIC",L"Player",0,200,96,560,32,0);SendMessageW(section_title,WM_SETFONT,(WPARAM)section_font,TRUE);
+ section_caption=control(L"STATIC",L"Your core combat toolkit",0,200,132,560,24,0);
  const int visible[]={GOD_MODE,MULTI_HIT,NO_COOLDOWN,UNLIMITED_ENERGY,MOB_VACUUM};
- for(int row=0;row<5;row++) {int i=visible[row];checks[i]=control(L"BUTTON",labels[i],BS_OWNERDRAW|WS_TABSTOP,24,94+48*row,280,40,100+i);EnableWindow(checks[i],FALSE);}
- multiplier_hint=control(L"STATIC",L"Multiplier 2-50: x2",0,330,103,220,24,0);
- control(L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,330,136,214,32,201);
- control(L"STATIC",L"Vacuum distance (1-10)",0,330,207,220,24,0);
- control(L"EDIT",L"3",WS_BORDER|ES_NUMBER|WS_TABSTOP,330,240,214,32,202);
- control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,24,350,280,38,200);
- control(L"STATIC",L"Features start OFF.\r\nF1 works while this panel is hidden.",0,330,335,220,50,0);
- status_label=control(L"STATIC",L"Starting...",0,24,410,550,85,0);
- for(int i=6;i<=8;i++)if(!RegisterHotKey(window,i,MOD_NOREPEAT,VK_F6+i-6))MessageBoxW(window,L"An event test hotkey could not be registered.",L"Event test",MB_OK);
+ for(int row=0;row<5;row++){int i=visible[row];checks[i]=page_control(0,L"BUTTON",labels[i],BS_OWNERDRAW|WS_TABSTOP,200,176+54*row,350,46,100+i);EnableWindow(checks[i],FALSE);}
+ multiplier_hint=page_control(0,L"STATIC",L"Damage  x2  /  2 - 50",0,578,181,198,26,0);
+ page_control(0,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,578,216,192,34,201);
+ page_control(0,L"STATIC",L"Vacuum distance  /  1 - 10",0,578,292,200,26,0);
+ page_control(0,L"EDIT",L"3",WS_BORDER|ES_NUMBER|WS_TABSTOP,578,326,192,34,202);
+ const wchar_t *event_labels[]={L"No Cooldown (R)",L"Unlimited Energy (R)",L"Score Multiplier"};
+ for(int i=0;i<3;i++){event_checks[i]=page_control(1,L"BUTTON",event_labels[i],BS_OWNERDRAW|WS_TABSTOP,200,176+54*i,350,46,300+i);EnableWindow(event_checks[i],FALSE);}
+ event_hint=page_control(1,L"STATIC",L"Score  x2  /  2 - 100",0,578,181,198,26,0);
+ page_control(1,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,578,216,192,34,203);
+ page_control(1,L"STATIC",L"Higher factors reach the\r\ntarget score sooner.\r\nStart low and increase.",0,578,280,196,80,0);
+ page_control(1,L"STATIC",L"Event settings are separate from Player.",0,200,360,560,26,0);
+ control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,42,200);
+ control(L"STATIC",L"good luck\r\nhave fun!",0,24,502,140,52,0);
+ status_label=control(L"STATIC",L"Connecting to game...",0,200,478,570,28,0);
+ footer=control(L"STATIC",L"",0,200,518,570,28,0);
+ for(int i=6;i<=8;i++)RegisterHotKey(window,i,MOD_NOREPEAT,VK_F6+i-6);
  global_hotkey=RegisterHotKey(window,1,MOD_NOREPEAT,VK_F1)!=0;
- SetTimer(window,1,global_hotkey?500:50,NULL);ShowWindow(window,SW_SHOWNOACTIVATE);
- HANDLE thread=CreateThread(NULL,0,initialize,NULL,0,NULL);if(thread)CloseHandle(thread);
- else {InterlockedExchange(&init_state,-1);SetWindowTextW(status_label,L"Cannot start the tool initialization thread.");}
+ switch_page(0);SetTimer(window,1,global_hotkey?500:50,NULL);ShowWindow(window,SW_SHOWNOACTIVATE);
+ HANDLE thread=CreateThread(NULL,0,initialize,NULL,0,NULL);if(thread)CloseHandle(thread);else InterlockedExchange(&init_state,-1);
  MSG msg;while(GetMessageW(&msg,NULL,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}
  return 0;
 }
 BOOL WINAPI DllMain(HINSTANCE module,DWORD reason,LPVOID reserved) {
- (void)reserved;
- if(reason==DLL_PROCESS_ATTACH) {
-  self_module=module;
-  /* Static TLS is used by the reentrancy guard, so keep thread notifications. */
-  HANDLE thread=CreateThread(NULL,0,run,NULL,0,NULL);if(thread)CloseHandle(thread);
- }
- return TRUE;
+ (void)reserved;if(reason==DLL_PROCESS_ATTACH){self_module=module;HANDLE thread=CreateThread(NULL,0,run,NULL,0,NULL);if(thread)CloseHandle(thread);}return TRUE;
 }
