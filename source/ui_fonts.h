@@ -12,5 +12,5 @@ static void load_ui_fonts(HMODULE module) {
   if(bytes)ui_font_resources[i]=AddFontMemResourceEx(bytes,SizeofResource(module,resource),NULL,&count);
   if(!ui_font_resources[i]||!count)loaded=false;
  }
- if(loaded){ui_font_faces[0]=L"SSTool UI";ui_font_faces[1]=L"SSTool UI SemiBold";ui_font_faces[2]=L"SSTool UI Bold";}
+ if(loaded){ui_font_faces[0]=L"SoraVynx UI";ui_font_faces[1]=L"SoraVynx UI SemiBold";ui_font_faces[2]=L"SoraVynx UI Bold";}
 }

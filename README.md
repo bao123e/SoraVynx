@@ -1,17 +1,20 @@
-# SSTool v1.0
+<p align="center"><img src="source/assets/brand.png" width="112" alt="SoraVynx logo"></p>
 
-[Tải SSTool v1.0.zip](https://github.com/bao123e/sstool/raw/refs/heads/runtime2-test/SSTool%20v1.0.zip)
+# SoraVynx — Stella Sora Toolkit for Windows
 
-Menu không đánh số:
+SoraVynx is a native Windows x64 toolkit for Stella Sora with Player/Event controls and customizable backgrounds.
+
+**[Download v1.1.0 preview](https://github.com/bao123e/sstool/releases/tag/v1.1.0-preview.1)** · [Source & build](source/README.vi.md)
 
 - **Player:** God Mode, Damage x2–x50, No Cooldown, Unlimited Energy, Mob Vacuum.
-- **Event:** No Cooldown, Unlimited Energy, Score x2–x100; độc lập với Player.
-- **Custom BG:** chọn/xóa ảnh PNG/JPG/BMP, Fit/Fill và chỉnh riêng **Image opacity**, **Panel opacity**, **Button opacity** từ 0–100%. Nền bảng/nút được giữ lại; 0% trong suốt, 100% nền đặc. Chữ giữ nguyên độ rõ. Tùy chọn lưu tự động trong config.ini; không tạo log.
+- **Event:** cooldown/energy riêng và Score x2–x100.
+- **Custom BG:** PNG/JPG/BMP, Fit/Fill, opacity ảnh/bảng/nút riêng.
+- **Auto Daily — chưa tự chạy:** danh sách 8 nhiệm vụ, giữ lựa chọn hiện tại trong game. **Copy setup report** lấy thông tin hàm vào clipboard để hoàn tất tích hợp; chưa có backend làm nhiệm vụ.
 
-Player/Event dùng hàng chức năng đầy chiều ngang; ô Damage, Vacuum và Score nằm ngay cạnh chức năng tương ứng, không còn vùng trống của banner cũ.
+Giao diện bo góc, logo SoraVynx và font **Be Vietnam Pro** nhúng sẵn. Không đánh số menu; không tạo log.
 
-Cửa sổ bo góc, không có thanh tiêu đề Windows, font **Inter** nhúng sẵn. Giải nén, đóng game, mở **SSTool.exe** → chọn **StellaSora.exe**. Giữ DLL cạnh EXE. Kéo vùng đầu để di chuyển. **Hide/F1** ẩn/hiện và giữ tính năng; mở lại EXE để hiện bảng. **X/Alt+F4** tắt tính năng rồi ẩn. **F6/F7/F8** điều khiển event; **Disable all** tắt hai nhóm.
+Đóng game, chạy **SoraVynx.exe** và chọn **StellaSora.exe**. Giữ **SoraVynx.Runtime.dll** cạnh EXE; không trộn với bản cũ. **F1/Hide** ẩn, giữ tính năng; mở lại EXE để hiện bảng. **X/Alt+F4** tắt tính năng rồi ẩn. **F6/F7/F8** điều khiển event.
 
-Build Windows x64; đạt 19 nhóm kiểm thử native và 11 nhóm UI qua Wine. Backend giữ nguyên; UI mới chưa kiểm tra trực tiếp trong Windows/game.
+Repo chứa đầy đủ EXE, DLL, giấy phép và thư mục source; ZIP chỉ ở Releases. Chưa đổi tên hoặc chuyển repo; có thể chuyển sang repo **soravynx** khi chủ sở hữu yêu cầu.
 
-[Mã nguồn & build](https://github.com/bao123e/sstool/tree/adf17f371dcec2eef920c2b0b51e52b82190bfb3/source) · AGPL-3.0-or-later; MinHook BSD, Inter SIL OFL 1.1; giấy phép kèm ZIP.
+Build Windows x64; 20 nhóm native và 13 nhóm UI qua Wine đạt. Player/Event giữ backend đã được kiểm tra trước đó; Auto Daily còn chờ nối hàm game thật. [AGPL-3.0-or-later, MinHook BSD, font SIL OFL](LICENSE.txt).

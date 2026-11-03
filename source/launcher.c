@@ -19,11 +19,11 @@
 /* Release build: do not create launcher logs. */
 static void loader_log(const wchar_t *format,...){(void)format;}
 static int fail(const wchar_t *message) {
- MessageBoxW(NULL,message,L"SSTool v1.0",MB_OK|MB_ICONERROR);return 1;
+ MessageBoxW(NULL,message,L"SoraVynx v1.1",MB_OK|MB_ICONERROR);return 1;
 }
 static int verify_tool_file(const wchar_t *path) {
  HANDLE file=CreateFileW(path,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
- if(file==INVALID_HANDLE_VALUE){fail(L"Cannot read Mastercheat.dll beside SSTool.exe.");return 0;}
+ if(file==INVALID_HANDLE_VALUE){fail(L"Cannot read SoraVynx.Runtime.dll beside SoraVynx.exe.");return 0;}
  LARGE_INTEGER size={0};GetFileSizeEx(file,&size);loader_log(L"DLL path=%ls; bytes=%lld",path,(long long)size.QuadPart);
  BCRYPT_ALG_HANDLE algorithm=NULL;BCRYPT_HASH_HANDLE hash=NULL;unsigned char buffer[65536],digest[32];DWORD count;int ok=0;
  if(BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,NULL,0)<0)goto done;
@@ -35,7 +35,7 @@ static int verify_tool_file(const wchar_t *path) {
  ok=!strcmp(hex,EXPECTED_DLL_SHA256);
  done:
  if(hash)BCryptDestroyHash(hash);if(algorithm)BCryptCloseAlgorithmProvider(algorithm,0);CloseHandle(file);
- if(!ok)fail(L"Mastercheat.dll is not the matching SSTool build, or could not be verified. Download the DLL supplied with this launcher; do not use the original key-locked DLL.");
+ if(!ok)fail(L"SoraVynx.Runtime.dll is not the matching SoraVynx build, or could not be verified. Download the DLL supplied with this launcher; do not use the original key-locked DLL.");
  return ok;
 }
 static int startup_poll;
@@ -73,13 +73,13 @@ static int load_tool(DWORD pid) {
  DWORD length=GetModuleFileNameW(NULL,dll,32768);
  if(!length||length>=32768)return fail(L"Cannot locate launcher folder.");
  wchar_t *tail=wcsrchr(dll,L'\\');if(!tail)return fail(L"Invalid launcher path.");
- if((size_t)(tail-dll)+wcslen(L"Mastercheat.dll")+2>=32768)return fail(L"Path is too long.");
- wcscpy(tail+1,L"Mastercheat.dll");
- if(GetFileAttributesW(dll)==INVALID_FILE_ATTRIBUTES)return fail(L"Put Mastercheat.dll beside SSTool.exe.");
+ if((size_t)(tail-dll)+wcslen(L"SoraVynx.Runtime.dll")+2>=32768)return fail(L"Path is too long.");
+ wcscpy(tail+1,L"SoraVynx.Runtime.dll");
+ if(GetFileAttributesW(dll)==INVALID_FILE_ATTRIBUTES)return fail(L"Put SoraVynx.Runtime.dll beside SoraVynx.exe.");
 
  loader_log(L"Loading into pid=%lu",pid);
  if(!verify_tool_file(dll))return 1;
- if(remote_module(pid,L"Mastercheat.dll"))return fail(L"A tool DLL is already loaded. Restart the game before loading another copy.");
+ if(remote_module(pid,L"SoraVynx.Runtime.dll"))return fail(L"A tool DLL is already loaded. Restart the game before loading another copy.");
  HANDLE process=OpenProcess(PROCESS_CREATE_THREAD|PROCESS_QUERY_INFORMATION|PROCESS_VM_OPERATION|PROCESS_VM_WRITE|PROCESS_VM_READ,FALSE,pid);
  if(!process)return fail(L"Cannot open the game. Run this launcher at the same privilege level as the game.");
  BOOL wow64=FALSE;
@@ -122,7 +122,7 @@ static int load_tool(DWORD pid) {
   wchar_t reason[512];swprintf(reason,512,L"LoadLibraryW failed with Windows error %lu. Check the DLL placement and restart the game before retrying.",result.error);SetLastError(result.error);return fail(reason);
  }
  uintptr_t loaded=(read_ok&&received==sizeof(result)&&result.stage==2)?(uintptr_t)result.module:0;
- for(unsigned attempt=0;attempt<10&&!loaded;attempt++){loaded=remote_module(pid,L"Mastercheat.dll");if(!loaded)Sleep(100);}
+ for(unsigned attempt=0;attempt<10&&!loaded;attempt++){loaded=remote_module(pid,L"SoraVynx.Runtime.dll");if(!loaded)Sleep(100);}
  if(!loaded) {
   wchar_t reason[512];swprintf(reason,512,L"Windows loader did not leave the DLL loaded (thread exit 0x%08lx). Restart the game before retrying.",exit_code);
   return fail(reason);
@@ -140,7 +140,7 @@ struct PanelSearch {DWORD pid;HWND panel;};
 static BOOL CALLBACK find_panel(HWND hwnd,LPARAM argument) {
  struct PanelSearch *search=(struct PanelSearch*)argument;DWORD pid=0;wchar_t name[64];
  GetWindowThreadProcessId(hwnd,&pid);
- if(pid==search->pid&&GetClassNameW(hwnd,name,64)&&!wcscmp(name,L"SSToolRuntime2")) {search->panel=hwnd;return FALSE;}
+ if(pid==search->pid&&GetClassNameW(hwnd,name,64)&&!wcscmp(name,L"SoraVynxRuntime")) {search->panel=hwnd;return FALSE;}
  return TRUE;
 }
 static int restore_panel(DWORD pid) {
@@ -155,7 +155,7 @@ static int restore_panel(DWORD pid) {
 }
 static DWORD WINAPI start_worker(void *unused) {
  (void)unused;DWORD pid=find_game();int result=1;
- if(pid){if(restore_panel(pid)){result=0;goto done;}loader_log(L"Fresh-start request refused: existing pid=%lu",pid);fail(L"The game is running but its tool panel is not available yet. If startup has not finished, wait. Otherwise close the game and start it through SSTool.exe.");goto done;}
+ if(pid){if(restore_panel(pid)){result=0;goto done;}loader_log(L"Fresh-start request refused: existing pid=%lu",pid);fail(L"The game is running but its tool panel is not available yet. If startup has not finished, wait. Otherwise close the game and start it through SoraVynx.exe.");goto done;}
  HANDLE launched=NULL;
  if(!pid) {
   if(!selected_path[0]||GetFileAttributesW(selected_path)==INVALID_FILE_ATTRIBUTES){fail(L"Choose the game's StellaSora.exe first.");goto done;}
@@ -189,7 +189,7 @@ static LRESULT CALLBACK launcher_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
   wchar_t path[32768]=L"";
   if(GetFileAttributesW(selected_path)!=INVALID_FILE_ATTRIBUTES)wcscpy(path,selected_path);
   OPENFILENAMEW ofn={0};ofn.lStructSize=sizeof(ofn);ofn.hwndOwner=hwnd;
-  ofn.lpstrTitle=L"SSTool v1.0 - Select StellaSora.exe";
+  ofn.lpstrTitle=L"SoraVynx v1.1 - Select StellaSora.exe";
   ofn.lpstrFilter=L"StellaSora.exe\0StellaSora.exe\0Executable files\0*.exe\0\0";
   ofn.lpstrFile=path;ofn.nMaxFile=32768;
   ofn.Flags=OFN_EXPLORER|OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_NOCHANGEDIR;
@@ -227,10 +227,10 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,LPWSTR command,int sho
  wchar_t *tail=wcsrchr(ini_path,L'\\');if(!tail||(size_t)(tail-ini_path)+24>=32768)return 1;
  wcscpy(tail+1,L"config.ini");
  GetPrivateProfileStringW(L"Config",L"GamePath",L"",selected_path,32768,ini_path);normalize_path(selected_path);
- WNDCLASSW cls={0};cls.lpfnWndProc=launcher_proc;cls.hInstance=instance;cls.lpszClassName=L"SSToolLauncher";
+ WNDCLASSW cls={0};cls.lpfnWndProc=launcher_proc;cls.hInstance=instance;cls.lpszClassName=L"SoraVynxLauncher";
  cls.hCursor=LoadCursorW(NULL,IDC_ARROW);cls.hbrBackground=(HBRUSH)(COLOR_WINDOW+1);
  if(!RegisterClassW(&cls))return 1;
- launcher_window=CreateWindowW(cls.lpszClassName,L"SSTool v1.0",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,680,190,NULL,NULL,instance,NULL);
+ launcher_window=CreateWindowW(cls.lpszClassName,L"SoraVynx v1.1",WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX,CW_USEDEFAULT,CW_USEDEFAULT,680,190,NULL,NULL,instance,NULL);
  if(!launcher_window)return 1;
  /* Hidden owner for the modal picker and worker completion messages.
   * Open launches immediately; Cancel exits without starting the game. */

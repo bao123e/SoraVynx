@@ -10,6 +10,7 @@
 #include "ui_layout.h"
 #include "ui_background.h"
 #include "ui_fonts.h"
+#include "daily_setup.h"
 
 /* Image, panel and button opacity are independent; text stays fully visible. */
 #define UI_BG RGB(9,17,30)
@@ -21,10 +22,12 @@
 #define UI_ACCENT RGB(94,234,212)
 
 static HMODULE self_module;
-static HWND window,checks[FEATURE_COUNT],event_checks[3],tabs[3],status_label;
+static HWND window,checks[FEATURE_COUNT],event_checks[3],tabs[4],status_label,daily_report;
+static unsigned daily_selection=255;
+static HICON brand_icon;
 static HWND multiplier_hint,event_hint,section_title,section_caption,footer;
 static HWND background_name,background_mode;
-static HWND page_controls[3][16];static int page_count[3],active_page;
+static HWND page_controls[4][16];static int page_count[4],active_page;
 static bool global_hotkey;
 static HBRUSH background_brush,background_pattern;
 static HFONT body_font,button_font,title_font,section_font;
@@ -60,8 +63,8 @@ static bool verify_game(HMODULE game) {
 }
 static DWORD WINAPI initialize(void *unused) {
  (void)unused;void *thread=NULL;HMODULE game=NULL;
- HMODULE other=GetModuleHandleW(L"Mastercheat.dll");
- if(other&&other!=self_module){log_line("Another Mastercheat.dll is loaded. Restart with only this DLL.");goto failed;}
+ HMODULE other=GetModuleHandleW(L"SoraVynx.Runtime.dll");
+ if(other&&other!=self_module){log_line("Another SoraVynx.Runtime.dll is loaded. Restart with only this DLL.");goto failed;}
  for(int i=0;i<120;i++){game=GetModuleHandleW(L"GameAssembly.dll");if(game)break;Sleep(1000);}
  if(!game||!verify_game(game)||!bind_api(game))goto failed;
  log_line("GameAssembly loaded base: %p",(void*)game);
@@ -103,6 +106,7 @@ static void refresh_status(void) {
  else if(!state)wcscpy(text,L"Connecting to the game... enter the main menu.");
  else swprintf(text,256,L"READY   /   Player %d of 5   /   Event %d of 3",player,events);
  update_text(status_label,text);
+ if(daily_report)EnableWindow(daily_report,state==1);
  swprintf(text,256,L"Damage Multiplier  (x%ld / 2 - 50)",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
  swprintf(text,256,L"Score Multiplier  (x%ld / 2 - 100)",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
  swprintf(text,256,L"Mob Vacuum  (distance %ld / 1 - 10)",(long)read_atomic(&vacuum_distance));update_text(checks[MOB_VACUUM],text);
@@ -136,8 +140,10 @@ static void make_background(HWND hwnd) {
  tint_rect(background_dc,status,UI_CARD,panel_alpha);
  RECT appearance_inputs[3]={{432,296,520,332},{856,296,944,332},{432,368,520,404}};
  if(active_page==2){for(int i=0;i<3;i++)tint_rect(background_dc,appearance_inputs[i],UI_BUTTON,button_alpha);}
+ else if(active_page==3){for(int i=0;i<8;i++){RECT row={208,180+35*i,624,210+35*i};tint_rect(background_dc,row,UI_BUTTON,button_alpha);}}
  else {for(int i=0;i<(active_page==0?5:3);i++){RECT row={208,180+58*i,960,228+58*i};tint_rect(background_dc,row,UI_BUTTON,button_alpha);}}
- RECT accent={24,72,152,76};HBRUSH brush=CreateSolidBrush(UI_ACCENT);FillRect(background_dc,&accent,brush);DeleteObject(brush);
+ if(brand_icon)DrawIconEx(background_dc,24,12,brand_icon,28,28,0,NULL,DI_NORMAL);
+ RECT accent={24,88,152,91};HBRUSH brush=CreateSolidBrush(UI_ACCENT);FillRect(background_dc,&accent,brush);DeleteObject(brush);
  background_pattern=CreatePatternBrush(background_bitmap);ReleaseDC(hwnd,dc);
 }
 static void refresh_background(void) {
@@ -166,35 +172,35 @@ static void draw_label(DRAWITEMSTRUCT *item) {
 }
 static void draw_button(DRAWITEMSTRUCT *item) {
  HDC dc=item->hDC;RECT rect=item->rcItem;int id=(int)item->CtlID;
- bool player=id>=100&&id<100+FEATURE_COUNT,event_control=id>=300&&id<303,tab=id>=400&&id<=402;
- bool active=player?read_atomic(&feature_flags[id-100]):event_control?read_atomic(&event_flags[id-300]):tab&&active_page==id-400;
+ bool player=id>=100&&id<100+FEATURE_COUNT,event_control=id>=300&&id<303,tab=id>=400&&id<=403,daily=id>=600&&id<608;
+ bool active=player?read_atomic(&feature_flags[id-100]):event_control?read_atomic(&event_flags[id-300]):daily?(daily_selection&(1u<<(id-600)))!=0:tab&&active_page==id-400;
  bool available=!(item->itemState&ODS_DISABLED);
  bool pressed=(item->itemState&ODS_SELECTED)!=0;
  copy_control_background(item);
- if(!player&&!event_control)tint_rect(dc,rect,tab&&active?RGB(30,77,84):UI_BUTTON,(BYTE)(button_opacity*255/100));
+ if(!player&&!event_control&&!daily)tint_rect(dc,rect,tab&&active?RGB(30,77,84):UI_BUTTON,(BYTE)(button_opacity*255/100));
  if(pressed)tint_rect(dc,rect,UI_ACCENT,48);HBRUSH brush;
  if(active){RECT line={0,0,3,rect.bottom};brush=CreateSolidBrush(UI_ACCENT);FillRect(dc,&line,brush);DeleteObject(brush);}
  SetBkMode(dc,TRANSPARENT);SelectObject(dc,button_font);SetTextColor(dc,available?UI_TEXT:UI_MUTED);
- RECT text=rect;text.left+=16;if(player||event_control)text.right-=70;
+ RECT text=rect;text.left+=16;if(player||event_control||daily)text.right-=70;
  wchar_t label[100];GetWindowTextW(item->hwndItem,label,100);
  if(id==410||id==411)text=rect;
  shadow_text(dc,label,text,DT_SINGLELINE|DT_VCENTER|((id==410||id==411)?DT_CENTER:DT_LEFT),available?UI_TEXT:UI_MUTED);
- if(player||event_control){
-  RECT badge={rect.right-59,rect.top+13,rect.right-12,rect.bottom-13};
+ if(player||event_control||daily){
+  RECT badge={rect.right-59,rect.top+(daily?4:13),rect.right-12,rect.bottom-(daily?4:13)};
   tint_rect(dc,badge,active?RGB(74,220,191):RGB(44,59,79),(BYTE)(button_opacity*255/100));
-  shadow_text(dc,!available?L"N/A":active?L"ON":L"OFF",badge,DT_CENTER|DT_SINGLELINE|DT_VCENTER,active?UI_ACCENT:UI_TEXT);
+  shadow_text(dc,daily?(active?L"USE":L"SKIP"):!available?L"N/A":active?L"ON":L"OFF",badge,DT_CENTER|DT_SINGLELINE|DT_VCENTER,active?UI_ACCENT:UI_TEXT);
  }
  if(item->itemState&ODS_FOCUS){InflateRect(&rect,-4,-4);SetTextColor(dc,UI_TEXT);SetBkColor(dc,UI_BG);DrawFocusRect(dc,&rect);}
 }
 static void switch_page(int page) {
- if(page<0||page>=3)return;
+ if(page<0||page>=4)return;
  active_page=page;
- for(int p=0;p<3;p++)for(int i=0;i<page_count[p];i++)ShowWindow(page_controls[p][i],p==page?SW_SHOW:SW_HIDE);
- const wchar_t *titles[]={L"Player",L"Bouncing Bumper Bash",L"Custom Background"};
- const wchar_t *captions[]={L"Your core combat toolkit",L"Independent skill and score controls",L"Image, panel and button appearance"};
- const wchar_t *footers[]={L"Hide the panel with F1. Your toggles stay active.",L"F6 cooldown   /   F7 energy   /   F8 score",L"Appearance is saved automatically. Gameplay settings stay active."};
+ for(int p=0;p<4;p++)for(int i=0;i<page_count[p];i++)ShowWindow(page_controls[p][i],p==page?SW_SHOW:SW_HIDE);
+ const wchar_t *titles[]={L"Player",L"Bouncing Bumper Bash",L"Custom Background",L"Auto Daily"};
+ const wchar_t *captions[]={L"Your core combat toolkit",L"Independent skill and score controls",L"Image, panel and button appearance",L"Keep current in-game selections"};
+ const wchar_t *footers[]={L"Hide the panel with F1. Your toggles stay active.",L"F6 cooldown   /   F7 energy   /   F8 score",L"Appearance is saved automatically. Gameplay settings stay active.",L"Setup required. Task selection does not execute or complete missions."};
  update_text(section_title,titles[page]);update_text(section_caption,captions[page]);update_text(footer,footers[page]);
- make_background(window);InvalidateRect(window,NULL,TRUE);for(int i=0;i<3;i++)InvalidateRect(tabs[i],NULL,TRUE);
+ make_background(window);InvalidateRect(window,NULL,TRUE);for(int i=0;i<4;i++)InvalidateRect(tabs[i],NULL,TRUE);
 }
 static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  switch(message){
@@ -206,7 +212,9 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  case WM_COMMAND:{
   int id=LOWORD(wp),notice=HIWORD(wp);
   if(notice==BN_CLICKED){
-   if(id>=400&&id<=402){switch_page(id-400);return 0;}
+   if(id>=400&&id<=403){switch_page(id-400);return 0;}
+   if(id==430){daily_copy_setup(hwnd);return 0;}
+   if(id>=600&&id<608){daily_selection^=1u<<(id-600);wchar_t value[16];swprintf(value,16,L"%u",daily_selection);if(!WritePrivateProfileStringW(L"AutoDaily",L"Tasks",value,ui_config_path))MessageBoxW(hwnd,L"Daily task selection could not be saved.",L"SoraVynx",MB_OK|MB_ICONWARNING);InvalidateRect(GetDlgItem(hwnd,id),NULL,TRUE);return 0;}
    if(id==410){ShowWindow(hwnd,SW_HIDE);return 0;}
    if(id==411){SendMessageW(hwnd,WM_CLOSE,0,0);return 0;}
    if(id==420){if(choose_background(hwnd))refresh_background();return 0;}
@@ -266,23 +274,25 @@ static HWND page_control(int page,const wchar_t *kind,const wchar_t *text,DWORD 
  HWND c=control(kind,text,style,x,y,w,h,id);if(c&&page_count[page]<16)page_controls[page][page_count[page]++]=c;return c;
 }
 static DWORD WINAPI run(void *unused) {
- (void)unused;WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=self_module;wc.lpszClassName=L"SSToolRuntime2";
+ (void)unused;WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=self_module;wc.lpszClassName=L"SoraVynxRuntime";
  wc.hCursor=LoadCursorW(NULL,MAKEINTRESOURCEW(32512));
+ brand_icon=LoadImageW(self_module,MAKEINTRESOURCEW(101),IMAGE_ICON,32,32,LR_DEFAULTCOLOR);wc.hIcon=brand_icon;
  background_brush=CreateSolidBrush(UI_BG);wc.hbrBackground=background_brush;
  load_ui_fonts(self_module);
  body_font=CreateFontW(-16,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[0]);
  button_font=CreateFontW(-16,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[1]);
- title_font=CreateFontW(-34,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[2]);
- section_font=CreateFontW(-24,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[1]);
+ title_font=CreateFontW(-26,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[2]);
+ section_font=CreateFontW(-23,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,ui_font_faces[1]);
  if(!RegisterClassW(&wc))return 1;
  DWORD style=WS_POPUP|WS_SYSMENU;
- window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"SSTool v1.0 | Stella Sora",style,CW_USEDEFAULT,CW_USEDEFAULT,1000,600,NULL,NULL,self_module,NULL);
+ window=CreateWindowExW(WS_EX_TOPMOST|WS_EX_TOOLWINDOW,wc.lpszClassName,L"SoraVynx v1.1 | Stella Sora",style,CW_USEDEFAULT,CW_USEDEFAULT,1000,600,NULL,NULL,self_module,NULL);
  if(!window)return 1;
  HRGN corners=CreateRoundRectRgn(0,0,1001,601,24,24);if(corners&&!SetWindowRgn(window,corners,FALSE))DeleteObject(corners);
  HMODULE dwm=LoadLibraryExW(L"dwmapi.dll",NULL,LOAD_LIBRARY_SEARCH_SYSTEM32);
  if(dwm){typedef HRESULT (WINAPI *SetAttribute)(HWND,DWORD,LPCVOID,DWORD);FARPROC proc=GetProcAddress(dwm,"DwmSetWindowAttribute");SetAttribute set=NULL;memcpy(&set,&proc,sizeof(set));BOOL dark=TRUE;if(set)set(window,20,&dark,sizeof(dark));FreeLibrary(dwm);}
  load_background_settings(self_module);make_background(window);
- HWND h=control(L"STATIC",L"SSTool",0,24,24,145,44,500);SendMessageW(h,WM_SETFONT,(WPARAM)title_font,TRUE);
+ daily_selection=GetPrivateProfileIntW(L"AutoDaily",L"Tasks",255,ui_config_path)&255u;
+ HWND h=control(L"STATIC",L"SoraVynx",0,24,44,145,36,500);SendMessageW(h,WM_SETFONT,(WPARAM)title_font,TRUE);
  control(L"STATIC",L"STELLA SORA  /  CONTROL PANEL",0,208,34,480,24,0);control(L"STATIC",L"F1 SHOW / HIDE",0,720,34,152,24,0);
  control(L"BUTTON",L"Hide",BS_OWNERDRAW|WS_TABSTOP,888,24,56,40,410);
  control(L"BUTTON",L"X",BS_OWNERDRAW|WS_TABSTOP,952,24,32,40,411);
@@ -290,6 +300,7 @@ static DWORD WINAPI run(void *unused) {
  tabs[0]=control(L"BUTTON",L"Player",BS_OWNERDRAW|WS_TABSTOP,16,140,146,48,400);
  tabs[1]=control(L"BUTTON",L"Event",BS_OWNERDRAW|WS_TABSTOP,16,200,146,48,401);
  tabs[2]=control(L"BUTTON",L"Custom BG",BS_OWNERDRAW|WS_TABSTOP,16,260,146,48,402);
+ tabs[3]=control(L"BUTTON",L"Auto Daily",BS_OWNERDRAW|WS_TABSTOP,16,320,146,48,403);
  section_title=control(L"STATIC",L"Player",0,208,104,344,32,0);SendMessageW(section_title,WM_SETFONT,(WPARAM)section_font,TRUE);
  section_caption=control(L"STATIC",L"Your core combat toolkit",0,208,140,344,24,0);
  const int visible[]={GOD_MODE,MULTI_HIT,NO_COOLDOWN,UNLIMITED_ENERGY,MOB_VACUUM};
@@ -314,6 +325,11 @@ static DWORD WINAPI run(void *unused) {
  page_control(1,L"EDIT",L"2",WS_BORDER|ES_NUMBER|WS_TABSTOP,872,302,88,36,203);
  page_control(1,L"STATIC",L"Higher score factors reach the target sooner. Start low and increase.",0,208,424,752,24,0);
  page_control(1,L"STATIC",L"Event settings are independent from Player.",0,208,384,752,24,0);
+ const wchar_t *daily_labels[]={L"Tier-up Trial: 1 battle",L"Ascension: 1 run",L"Upgrade Disc once",L"Upgrade Trekker once",L"Battle stages: 5 clears",L"Spend 100 Vigor",L"Interact with home Trekker",L"Claim Tyrant's Tower rewards"};
+ for(int i=0;i<8;i++)page_control(3,L"BUTTON",daily_labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+35*i,416,30,600+i);
+ page_control(3,L"STATIC",L"SETUP REQUIRED\r\n\r\nDaily actions are not bound yet.\r\nNo missions run from this page.\r\n\r\nCopy the runtime setup report\r\nto finish the game integration.",0,648,180,312,170,0);
+ daily_report=page_control(3,L"BUTTON",L"Copy setup report",BS_OWNERDRAW|WS_TABSTOP,648,368,312,44,430);
+ page_control(3,L"STATIC",L"Clipboard only. No log files.\r\nTrekker, Disc, team and stage:\r\nkeep current selections.",0,648,416,312,72,0);
  control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,48,200);
  status_label=control(L"STATIC",L"Connecting to game...",0,208,516,752,24,0);
  footer=control(L"STATIC",L"",0,208,552,752,24,0);

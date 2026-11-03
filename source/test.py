@@ -3,7 +3,7 @@ from pathlib import Path
 import subprocess,tempfile
 ROOT=Path(__file__).resolve().parent
 if __name__=='__main__':
- with tempfile.TemporaryDirectory(prefix='sstool2-tests-') as temporary:
+ with tempfile.TemporaryDirectory(prefix='soravynx-tests-') as temporary:
   binary=Path(temporary)/'backend-test'
   subprocess.run(['gcc','-O1','-g','-std=c11','-Wall','-Wextra','-Werror',
    '-Wno-unused-function','-Wno-misleading-indentation','-ffunction-sections',
@@ -24,3 +24,7 @@ if __name__=='__main__':
   subprocess.run(['gcc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(ROOT/'tests/ui_layout_test.c'),'-o',str(layout_binary)],check=True)
   subprocess.run([str(layout_binary)],check=True)
   print('PASS full-window background fit/fill: original aspect ratio, coverage, portrait/wide and invalid source')
+  daily_binary=Path(temporary)/'daily-text-test'
+  subprocess.run(['gcc','-std=c11','-Wall','-Wextra','-Werror','-fsanitize=address,undefined',str(ROOT/'tests/daily_text_test.c'),'-o',str(daily_binary)],check=True)
+  subprocess.run([str(daily_binary)],check=True)
+  print('PASS daily metadata name filtering and bounded formatting including truncation and zero-size buffers')

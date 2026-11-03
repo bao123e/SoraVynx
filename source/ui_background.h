@@ -45,22 +45,22 @@ static void save_background_settings(HWND owner) {
     !WritePrivateProfileStringW(L"Appearance",L"PanelOpacity",panel,ui_config_path)||
     !WritePrivateProfileStringW(L"Appearance",L"ButtonOpacity",button,ui_config_path)||
     !WritePrivateProfileStringW(L"Appearance",L"Fill",background_fill?L"1":L"0",ui_config_path))
-  MessageBoxW(owner,L"Appearance changed for this session, but config.ini could not be saved. Move SSTool to a writable folder.",L"SSTool",MB_OK|MB_ICONWARNING);
+  MessageBoxW(owner,L"Appearance changed for this session, but config.ini could not be saved. Move SoraVynx to a writable folder.",L"SoraVynx",MB_OK|MB_ICONWARNING);
 }
 static bool choose_background(HWND owner) {
- if(!image_decoder){MessageBoxW(owner,L"Windows could not initialize the image decoder.",L"SSTool",MB_OK|MB_ICONERROR);return false;}
+ if(!image_decoder){MessageBoxW(owner,L"Windows could not initialize the image decoder.",L"SoraVynx",MB_OK|MB_ICONERROR);return false;}
  wchar_t path[32768]=L"";
  OPENFILENAMEW dialog={0};dialog.lStructSize=sizeof(dialog);dialog.hwndOwner=owner;
- dialog.lpstrTitle=L"SSTool - Choose background";
+ dialog.lpstrTitle=L"SoraVynx - Choose background";
  dialog.lpstrFilter=L"Images (PNG, JPG, BMP)\0*.png;*.jpg;*.jpeg;*.bmp\0\0";
  dialog.lpstrFile=path;dialog.nMaxFile=32768;
  dialog.Flags=OFN_EXPLORER|OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_NOCHANGEDIR;
  if(!GetOpenFileNameW(&dialog)) {
-  if(CommDlgExtendedError())MessageBoxW(owner,L"The image picker could not be opened.",L"SSTool",MB_OK|MB_ICONERROR);
+  if(CommDlgExtendedError())MessageBoxW(owner,L"The image picker could not be opened.",L"SoraVynx",MB_OK|MB_ICONERROR);
   return false;
  }
  HBITMAP next=decode_background(path);
- if(!next){MessageBoxW(owner,L"Cannot read this image. Choose a PNG, JPG or BMP up to 8192 pixels per side and 32 megapixels.",L"SSTool",MB_OK|MB_ICONERROR);return false;}
+ if(!next){MessageBoxW(owner,L"Cannot read this image. Choose a PNG, JPG or BMP up to 8192 pixels per side and 32 megapixels.",L"SoraVynx",MB_OK|MB_ICONERROR);return false;}
  if(custom_image)DeleteObject(custom_image);custom_image=next;wcscpy(background_path,path);
  save_background_settings(owner);return true;
 }
