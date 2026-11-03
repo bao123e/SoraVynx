@@ -12,7 +12,11 @@ Bản này lưu danh sách lựa chọn và cung cấp hai báo cáo để hoàn
 
 Đóng game và cập nhật cả EXE/DLL cùng bản. Vào màn chính, đợi Player/Event READY, chọn **Auto Daily → Copy Lua name report**, chờ thông báo đã sao chép rồi dán nội dung vào cuộc trao đổi phát triển. Không cần làm lại nhiệm vụ. Nếu không có callback Update sau 15 giây, yêu cầu bị hủy; trở lại màn chính rồi thử lại. Nếu cầu nối không khả dụng, tool báo rõ và Player/Event vẫn hoạt động.
 
-**Lua report v4:** dùng đúng chữ ký LuaManager/LuaEnv từ report v3; chỉ đọc singleton hiện có, không tạo LuaManager hay môi trường Lua mới. Một hook riêng gọi Update gốc trước, kiểm tra Unity đang ở main thread, rồi chạy script kiểm tra cố định được nhúng trong resource. Không nhận script tùy ý, không require module mới, không gọi hàm nhiệm vụ tìm được. Script dùng duyệt bảng raw, chỉ xuất tên module, bảng và hàm; không xuất scalar, địa chỉ, thân hàm, giá trị tài khoản hay lỗi Lua chi tiết. Giới hạn 30000 entry, 512 bảng, sâu 4 tầng, 2400 dòng và 192 KiB nội dung; báo rõ mức bao phủ. Module chưa nạp và phương thức chỉ có qua metatable chưa được kiểm tra. Script có cấp phát tạm trong Lua; kiểm thử mô phỏng không thay thế xác minh trong game thật.
+**Lua report v5:** dùng cầu nối main-thread đã xác nhận hoạt động từ report v4. Một hook riêng gọi Update gốc trước, kiểm tra Unity main thread, đọc singleton LuaManager/LuaEnv hiện có và chạy script kiểm tra cố định nhúng trong resource. Không nhận script tùy ý, không require module mới, không gọi hàm nhiệm vụ tìm được.
+
+Script ưu tiên 18 lớp dữ liệu liên quan daily cùng các controller UI đã nạp, bỏ duyệt đệ quy super/__index. Thu thập hàm khai báo trực tiếp, tên/số tham số qua debug API nếu runtime hỗ trợ và liên kết cấu trúc PlayerData/PanelManager tới lớp đã nạp. Khi debug API không hỗ trợ hoặc lỗi, ghi unknown; không suy ra hàm không có đối số. Không xuất scalar, địa chỉ, thân hàm, giá trị tài khoản hay thông báo lỗi debug/Lua chi tiết.
+
+Giới hạn 30000 entry tổng, 2048 entry mỗi lần liệt kê bảng, 2400 dòng và 192 KiB nội dung; mỗi module tối đa 96 hàm/12 KiB, chia lượt giữa các module. Có mức bao phủ và NOT_LOADED cho lớp chưa thấy trong package.loaded. Nếu cần lấy thêm controller, mở trang tương ứng trong game rồi chụp lại; không phải nâng cấp, tặng quà, tiêu Vigor hay làm lại daily. Không cần gửi lại Copy API metadata v3. Script có cấp phát tạm trong Lua; kiểm thử mô phỏng không thay thế xác minh game thật.
 
 **Copy API metadata:** giữ report v3 để chẩn đoán C#/IL2CPP: danh sách assembly, quét Game/Hotfix và assembly ứng dụng, ưu tiên Lua/UI cùng sáu nhóm nhiệm vụ. Giới hạn 512 KiB tổng, 192 KiB chỉ mục; nhóm Lua/UI 64 KiB với 16 KiB/lớp, nhóm nhiệm vụ 24 KiB với 4 KiB/lớp. Chỉ metadata, không đọc giá trị field hay gọi hành động game.
 
@@ -46,3 +50,9 @@ Report v2 thực tế đã liệt kê đủ 637 ứng viên Hotfix nhưng không
 ## Lua report v4 trong preview.4
 
 Report v3 thực tế liệt kê đủ 1005 ứng viên, trong đó có Game.LuaManager, LuaUIController và XLua.LuaEnv/LuaTable. Đây là cầu nối C#, chưa phải tên module nghiệp vụ Lua. Bản preview.4 bổ sung inventory tên module/hàm đã nạp thay vì tiếp tục tăng dung lượng metadata. Test trên Lua VM thật kiểm tra thứ tự ổn định, chu trình, độ sâu, dung lượng và không gọi các hàm game/metamethod trong fixture hoặc xuất scalar bí mật. Không cam kết mọi hàm daily đã xuất hiện hoặc Auto Daily sẽ hoạt động chỉ từ tên hàm.
+
+## Kết quả report v4 và sửa trong preview.5
+
+Report v4 thực tế đã đọc Lua thành công: 4090 entry, 300 bảng, đủ 2400 dòng và Limited=yes. Có ReceiveDailyReward, ReceiveDailyActiveReward, SendDailyShopRewardReceiveReq, SendDiscStrengthenReq, ReqApplyAgent và ITDailyRewardReq, nhưng tên hàm không xác nhận được đối số, điều kiện gọi, tài nguyên hoặc callback hoàn tất. Nhiều dòng thuộc super của Login/CheckIn controller; các module PlayerCharData/PlayerDatingData chỉ còn tên, thiếu chi tiết.
+
+Report v5 sửa đúng phần này, bổ sung metadata tham số và liên kết instance. Auto Daily vẫn setup-only; danh sách hàm chưa đủ để chạy một chuỗi nhiệm vụ thật. [Bản đồ thông tin đã tìm được](AUTO_DAILY.vi.md) ghi rõ những phần còn thiếu.

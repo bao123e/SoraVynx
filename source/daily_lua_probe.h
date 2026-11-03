@@ -25,7 +25,7 @@ static const wchar_t *daily_lua_failure=L"Lua inspection is unavailable in this 
 
 static wchar_t *daily_lua_error_result(const wchar_t *reason) {
  size_t length=wcslen(reason)+160;wchar_t *result=calloc(length,sizeof(*result));
- if(result)swprintf(result,length,L"SoraVynx Auto Daily setup - Lua report v4\r\nStatus: inspection stopped\r\n%ls\r\nNo daily actions executed.\r\n",reason);
+ if(result)swprintf(result,length,L"SoraVynx Auto Daily setup - Lua report v5\r\nStatus: inspection stopped\r\n%ls\r\nNo daily actions executed.\r\n",reason);
  return result;
 }
 static wchar_t *daily_lua_collect(void) {

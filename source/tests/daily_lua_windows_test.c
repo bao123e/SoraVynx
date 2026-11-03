@@ -15,7 +15,7 @@ struct RuntimeAPI api;
 const void *hotfix_image;
 static int originals,inspections,utility_calls,handles,freed;
 static bool on_main=true,raise_exception,manager_ready=true,bad_result,reenter;
-static const wchar_t report_text[]=L"SoraVynx Auto Daily setup - Lua report v4\r\nFUNCTION loaded/Daily.Claim\r\n";
+static const wchar_t report_text[]=L"SoraVynx Auto Daily setup - Lua report v5\r\nFUNCTION loaded/Daily.Claim\r\n";
 static void *manager_object=(void*)10,*env_object=(void*)11;
 static unsigned char array_storage[40];
 static void *string_object=(void*)12,*array_object=array_storage,*script_object=(void*)14;

@@ -1,5 +1,14 @@
 # SoraVynx release notes
 
+## 1.1.0-preview.5
+
+- Fix Lua report v4 exhausting 2,400 lines on inherited superclass helpers before reaching all daily APIs.
+- Target the confirmed PlayerQuestData, PlayerShopData, DispatchData, Disc/Char and battle data modules; exclude superclass/__index recursion and unrelated activity modules.
+- Add optional debug parameter count/names without calling discovered functions, and structural links from existing PlayerData/PanelManager objects to loaded classes. Unknown metadata is never treated as zero arguments.
+- Apply round-robin per-module quotas and explicit missing-module/coverage markers. Keep the existing bounded main-thread bridge, clipboard workflow and Player/Event backend.
+- Extend real Lua VM regressions for superclass flooding, later-module coverage, parameter metadata/fallback and object-class associations.
+- Auto Daily execution is still NOT implemented. Close the game and update both EXE/DLL. Copy Lua name report produces report v5; no need to repeat tasks or send C# report v3 again.
+
 ## 1.1.0-preview.4
 
 - Use report v3's confirmed Game/XLua signatures to add a separate, optional Lua name inspection bridge.

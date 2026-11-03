@@ -35,44 +35,57 @@ def run():
         finally:
             lua.lua_close(state)
 
-    base = '''
+    base = r'''
     action_calls=0
     local function forbidden() action_calls=action_calls+1; error('game action called') end
-    DailyMissionManager={ClaimAll=forbidden, Send=forbidden, AccountToken='PRIVATE_TOKEN',
-      UserName='PRIVATE_NAME', [123456789]='PRIVATE_ID', ['secret@example.com']=forbidden}
-    DailyMissionManager.self=DailyMissionManager
-    setmetatable(DailyMissionManager,{__index=forbidden,__pairs=forbidden,__tostring=forbidden})
-    package.loaded['Game.DailyAffairs']=DailyMissionManager
-    package.loaded['Game.Dispatch']={StartCommission=forbidden}
-    package.loaded['Game.Disc']={Upgrade=forbidden}
-    package.loaded['Game.Heartlink']={SendGift=forbidden}
+    local quest={ReceiveDailyReward=function(self,questIds) forbidden() end,
+      AccountToken='PRIVATE_TOKEN', UserName='PRIVATE_NAME', [123456789]='PRIVATE_ID',
+      ['secret@example.com']=forbidden, super={}}
+    for i=1,2500 do quest.super['Inherited_'..i]=forbidden end
+    quest.__index=quest
+    setmetatable(quest,{__index=forbidden,__pairs=forbidden,__tostring=forbidden})
+    package.loaded['GameCore.Data.DataClass.PlayerQuestData']=quest
+    package.loaded['GameCore.Data.DataClass.DispatchData']={ReqApplyAgent=function(self,agentId,charIds) forbidden() end}
+    package.loaded['GameCore.Data.DataClass.PlayerDiscData']={SendDiscStrengthenReq=function(self,discId,materials) forbidden() end}
+    local shop={SendDailyShopRewardReceiveReq=function(self) forbidden() end}
+    shop.__index=shop
+    package.loaded['GameCore.Data.DataClass.PlayerShopData']=shop
+    package.loaded['Game.UI.Heartlink.GiftCtrl']={SendGift=function(self,giftId,count) forbidden() end}
+    PlayerData={Shop=setmetatable({},shop),Quest=setmetatable({}, {__index=quest}),UserName='PRIVATE_NAME'}
+    PanelManager={OpenPanel=forbidden}
     '''
     report = inspect(base)
-    for required in ['Lua report v4', 'MODULE Game.DailyAffairs table',
-                     'FUNCTION loaded/Game.DailyAffairs.ClaimAll',
-                     'FUNCTION loaded/Game.Dispatch.StartCommission',
-                     'FUNCTION loaded/Game.Disc.Upgrade',
-                     'FUNCTION loaded/Game.Heartlink.SendGift', 'Limited=no', 'ALIAS ']:
+    for required in ['Lua report v5', 'MODULE GameCore.Data.DataClass.PlayerQuestData table',
+                     'ReceiveDailyReward [nparams=2; vararg=no; params=self,questIds]',
+                     'ReqApplyAgent [nparams=3; vararg=no; params=self,agentId,charIds]',
+                     'SendDiscStrengthenReq [nparams=3; vararg=no; params=self,discId,materials]',
+                     'SendDailyShopRewardReceiveReq [nparams=1; vararg=no; params=self]',
+                     'SendGift [nparams=3; vararg=no; params=self,giftId,count]',
+                     'OBJECT global/PlayerData.Shop class=GameCore.Data.DataClass.PlayerShopData',
+                     'OBJECT global/PlayerData.Quest class=GameCore.Data.DataClass.PlayerQuestData',
+                     'NOT_LOADED GameCore.Data.DataClass.PlayerCharData', 'Limited=no']:
         assert required in report, required
-    for secret in ['PRIVATE_TOKEN', 'PRIVATE_NAME', 'PRIVATE_ID', '123456789', 'secret@example.com', 'AccountToken', 'UserName']:
+    for secret in ['PRIVATE_TOKEN', 'PRIVATE_NAME', 'PRIVATE_ID', '123456789',
+                   'secret@example.com', 'AccountToken', 'UserName', 'Inherited_', '.super.', '.__index']:
         assert secret not in report, secret
-    # Arbitrary insertion order must produce the same inventory.
-    reordered = inspect(base.replace('ClaimAll=forbidden, Send=forbidden', 'Send=forbidden, ClaimAll=forbidden'))
+    reordered = inspect(base.replace("Shop=setmetatable({},shop),Quest=setmetatable({}, {__index=quest})",
+                                    "Quest=setmetatable({}, {__index=quest}),Shop=setmetatable({},shop)"))
     assert report == reordered
-    body = [line for line in report.splitlines() if line.startswith(('GLOBAL ', 'MODULE ', 'FUNCTION ', 'TABLE ', 'ALIAS '))]
+    body = [line for line in report.splitlines() if line.startswith(('MODULE ', 'TARGET ', 'FUNCTION ', 'OBJECT ', 'FIELD ', 'NOT_LOADED Game', 'NOT_PRESENT global/', 'DETAIL_COVERAGE '))]
     assert body == sorted(body)
     limited = inspect(base + '''
-    package.loaded['Game.DailyHuge']={}
-    for i=1,40000 do package.loaded['Game.DailyHuge']['Action_'..i]=function() action_calls=action_calls+1 end end
+    package.loaded['GameCore.Data.DataClass.PlayerCharData']={}
+    for i=1,40000 do package.loaded['GameCore.Data.DataClass.PlayerCharData']['Action_'..i]=function() action_calls=action_calls+1 end end
     ''')
     assert 'Limited=yes' in limited and len(limited.encode()) <= 198000
-    assert 'MODULE Game.Heartlink table' in limited
-    deep = inspect(base + '''
-    local t={};package.loaded['Game.DailyDeep']=t
-    for i=1,100 do t.Child={};t=t.Child end
-    ''')
-    assert 'Limited=yes' in deep
-    print('PASS real Lua inventory: deterministic module/function names, cycles/depth/budgets, no scalar values, no metamethods or game actions')
+    assert 'ReqApplyAgent [nparams=3' in limited
+    assert 'SendDiscStrengthenReq [nparams=3' in limited
+    assert 'OBJECT global/PlayerData.Shop class=' in limited
+    no_debug = inspect(base + "\ndebug=nil")
+    assert 'nparams=unknown; vararg=unknown; params=unknown' in no_debug
+    broken_debug = inspect(base + "\ndebug={getinfo=function() error('PRIVATE_ERROR') end,getlocal=function() error('PRIVATE_ERROR') end}")
+    assert 'nparams=unknown' in broken_debug and 'PRIVATE_ERROR' not in broken_debug
+    print('PASS real Lua inventory: targeted declared functions, debug parameters/fallback, object-class links, superclass exclusion, fair quotas and zero game actions/scalar values')
 
 
 if __name__ == '__main__':
