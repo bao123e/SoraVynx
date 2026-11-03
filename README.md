@@ -2,16 +2,24 @@
 
 > ## 🎮 **good luck have fun!**
 
-Tool dành cho **Stella Sora** trên Windows x64.
-
 ### [⬇ Tải SSTool v1.0.zip](https://github.com/bao123e/sstool/raw/refs/heads/runtime2-test/SSTool%20v1.0.zip)
 
-- **God Mode** — giảm sát thương nhận về 0 trên đường xử lý được hỗ trợ.
-- **Damage Multiplier** — nhân sát thương **x2–x50**.
-- **No Cooldown** — reset hồi chiêu kỹ năng.
-- **Unlimited Energy** — duy trì năng lượng kỹ năng.
-- **Mob Vacuum** — gom quái về phía nhân vật.
+**01 · Player**
+- God Mode
+- Damage Multiplier **x2–x50**
+- No Cooldown
+- Unlimited Energy
+- Mob Vacuum
 
-Giải nén, đóng game rồi mở **SSTool.exe**: hộp chọn file xuất hiện ngay. Chọn **StellaSora.exe** và bấm **Open** để tự chạy game + tool; **Cancel** để thoát. Công cụ nhớ thư mục lần trước. Giữ **Mastercheat.dll** cạnh EXE. Nhấn **F1** để ẩn/hiện menu; mở lại **SSTool.exe** để hiện bảng đang chạy. Bản phát hành không tạo file log.
+**02 · Event — Bouncing Bumper Bash**
+- No Cooldown riêng cho event.
+- Unlimited Energy riêng cho event.
+- Score Multiplier chỉnh được **x2–x100**, mặc định x2.
 
-[Mã nguồn tương ứng & giấy phép](https://github.com/bao123e/sstool/tree/3ecd2647bf85ff25cfe1cf2b8b743ae8f764d8a1/source) · Giấy phép kèm trong ZIP.
+Giải nén, đóng game rồi mở **SSTool.exe** → chọn **StellaSora.exe** → **Open**. Giữ **Mastercheat.dll** cạnh EXE. **F1** ẩn/hiện menu; mở lại EXE để hiện bảng đang chạy. **Disable all** tắt cả hai nhóm. Phím event: F6 hồi chiêu, F7 năng lượng, F8 nhân điểm.
+
+Nền ảnh nhúng sẵn trong DLL, làm dịu dưới lớp tối để đọc rõ các nút. Không tạo file log. Hai nhóm Player và Event độc lập.
+
+Event x2 đã được người dùng xác nhận hoạt động. x100 là giới hạn của tool, không phải giới hạn của game; mức trên x2 và giao diện mới chưa được xác nhận trực tiếp trong game. Build Windows x64 và 18 nhóm kiểm thử mô phỏng/tiện ích đã đạt.
+
+[Mã nguồn tương ứng & giấy phép](https://github.com/bao123e/sstool/tree/0a7662c/source) · Giấy phép kèm trong ZIP. Minh họa Stella Sora thuộc các chủ sở hữu tương ứng; nền dùng bản xử lý từ ảnh người dùng cung cấp.
