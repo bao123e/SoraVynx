@@ -1,5 +1,15 @@
 # SoraVynx release notes
 
+## 1.1.0-preview.7
+
+- Fix Shop action bypassing the Daily Gift UI button by sending a direct reward request.
+- Discover active LuaBehaviourBase components through the game's XLua/Unity bridge, require one ShopCtrl instance with the exact loaded class, and invoke OnBtnClick_DailyGift(self) once.
+- Validate the live handler signature and stop on absent, disabled, ambiguous or incompatible controllers. Do not fall back to the direct Shop request or screen coordinates.
+- Rename the action to Daily Gift / status. Hide the tool and focus this game's Unity window while the queued action runs; suppress the initial status dialog after handler invocation so it cannot cover the game UI. F1 restores the tool.
+- Preserve one invocation per game session and status-only repeat clicks. Handler return does not prove the UI opened or rewards were received; real-game validation remains required.
+- Extend Lua and Windows/Wine tests for active UI discovery, identity/signature checks, ambiguity, errors, no direct-request fallback and hiding without a modal dialog.
+- Auto Daily is still partial; other 11 tasks and the full scheduler remain unimplemented. Close the game and update both EXE/DLL.
+
 ## 1.1.0-preview.6
 
 - Use report v5's confirmed PlayerData.Shop instance and SendDailyShopRewardReceiveReq(self, callback) signature to add Shop gift / status.

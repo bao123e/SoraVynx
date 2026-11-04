@@ -73,5 +73,8 @@ int main(void){
  manager_ready=true;bad_result=false;daily_lua_shop_request(NULL);assert(daily_lua_kind==1&&daily_lua_state==1);
  daily_lua_cancel_queued();assert(!daily_lua_state);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(inspections==before);
  daily_lua_shop_request(NULL);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(daily_lua_state==3&&daily_lua_result_kind==1);assert(SetTimer(NULL,1,50,dismiss));daily_lua_poll(NULL);assert(!daily_lua_state);KillTimer(NULL,1);
+ HWND ui=CreateWindowW(L"STATIC",L"UI flow",WS_OVERLAPPEDWINDOW|WS_VISIBLE,10,10,100,100,NULL,NULL,GetModuleHandleW(NULL),NULL);assert(ui&&IsWindowVisible(ui));
+ const wchar_t invoked[]=L"Daily Gift\r\nStatus: UI_HANDLER_INVOKED\r\n";daily_lua_result=calloc(sizeof(invoked)/sizeof(wchar_t),sizeof(wchar_t));memcpy(daily_lua_result,invoked,sizeof(invoked));daily_lua_result_kind=1;daily_lua_state=3;
+ daily_lua_poll(ui);assert(!daily_lua_state&&!IsWindowVisible(ui));DestroyWindow(ui);
  puts("PASS Lua probe: original Update, idle/shared/off-main guards, one queued scan, reentrancy, GC handles, exceptions, clipboard and timeout");return 0;
 }

@@ -4,14 +4,14 @@
 
 SoraVynx is a native Windows x64 toolkit for Stella Sora with Player/Event controls and customizable backgrounds.
 
-**[Download v1.1.0 preview.6](https://github.com/bao123e/SoraVynx/releases/tag/v1.1.0-preview.6)** · [Source & build](source/README.vi.md)
+**[Download v1.1.0 preview.7](https://github.com/bao123e/SoraVynx/releases/tag/v1.1.0-preview.7)** · [Source & build](source/README.vi.md)
 
 - **Player:** God Mode, Damage x2–x50, No Cooldown, Unlimited Energy, Mob Vacuum.
 - **Event:** cooldown/energy riêng và Score x2–x100.
 - **Custom BG:** PNG/JPG/BMP, Fit/Fill, opacity ảnh/bảng/nút riêng.
-- **Auto Daily — tích hợp một phần:** **Shop gift / status** gửi một yêu cầu nhận quà Shop miễn phí khi mục Shop đang USE; bấm lại chỉ cập nhật trạng thái. Chưa tự chạy cả 12 nhiệm vụ. **Copy Lua name report** và **Copy API metadata** giữ chức năng chẩn đoán.
+- **Auto Daily — tích hợp một phần:** **Daily Gift / status** gọi handler của nút Daily Gift trên controller Shop đang hoạt động khi mục Shop đang USE. Chưa tự chạy cả 12 nhiệm vụ. Hai nút Copy report giữ chức năng chẩn đoán.
 
-Để thử Shop: đóng game, cập nhật cả EXE/DLL, vào màn chính đợi READY rồi chọn Auto Daily → Shop gift / status. Chuyển lại game để nhận callback, sau đó bấm nút lần nữa để xem trạng thái. Mỗi phiên game tối đa một lần gửi; chưa giải mã server success nên cần xác nhận quà trong game. Không mua hàng hoặc tạo log.
+Để thử: đóng game, cập nhật cả EXE/DLL, mở **Shop** trong game và để trang này hiện. Đợi READY rồi chọn Auto Daily → **Daily Gift / status**. Tool tự ẩn và trả focus về game để thấy giao diện Daily Gift. **F1** hiện lại tool; bấm lại nút để xem trạng thái, không gọi lại handler trong cùng phiên game. Nếu không tìm thấy đúng một controller Shop đang hoạt động, tool báo dừng. Build/test mô phỏng đạt; cần kiểm tra giao diện và nhận quà trong game thật. Không tạo log.
 
 Giao diện bo góc, logo SoraVynx và font **Be Vietnam Pro** nhúng sẵn. Không đánh số menu; không tạo log.
 

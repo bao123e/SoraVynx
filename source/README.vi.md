@@ -4,17 +4,19 @@ SoraVynx là tên mới của toolkit Stella Sora. Launcher **SoraVynx.exe**, th
 
 Menu không đánh số: **Player**, **Event**, **Custom BG**, **Auto Daily**. Player/Event giữ backend trước; các hàng đủ chiều ngang và ô Damage/Vacuum/Score nằm cùng hàng. Custom BG có Image/Panel/Button opacity riêng 0–100%, Fit/Fill và ảnh PNG/JPG/BMP. Font mới **Be Vietnam Pro** nhúng Regular/SemiBold/Bold, hỗ trợ tiếng Việt; logo SoraVynx trong app và icon EXE. Không cài font hệ thống, không tạo log.
 
-## Auto Daily: Shop request preview, chưa tự chạy cả chuỗi
+## Auto Daily: Daily Gift UI preview, chưa tự chạy cả chuỗi
 
 Mười hai lựa chọn theo ảnh người dùng: Tier-up Trial; Ascension; nâng Disc; nâng Trekker; 5 battle stages; tiêu 100 Vigor; tương tác Trekker màn chính; nhận thưởng Tyrant’s Tower; tặng quà Heartlink; dispatch commission; nhận quà ngẫu nhiên Shop; đăng nhập ngày. Dự kiến dùng đội, màn, difficulty, Trekker và Disc đang chọn trong game.
 
-Bản preview.6 thêm **Shop gift / status**, hành động đầu tiên được nối từ report v5. Mười một nhiệm vụ còn lại và scheduler chưa thực hiện. Các lựa chọn USE/SKIP vẫn được lưu; nút Shop chỉ hoạt động khi mục Claim Shop random reward đang USE. Không đánh dấu nhiệm vụ hoàn tất từ lựa chọn này.
+Bản preview.7 sửa luồng Shop: **Daily Gift / status** gọi handler của nút Daily Gift thay cho request nhận quà trực tiếp của preview.6. Mười một nhiệm vụ còn lại và scheduler chưa thực hiện. Các lựa chọn USE/SKIP được lưu; nút chỉ hoạt động khi Claim Shop random reward đang USE.
 
-Đóng game, cập nhật cả EXE/DLL, vào màn chính đợi READY rồi chọn **Auto Daily → Shop gift / status**. Chuyển lại game để luồng Update chạy và nhận callback. Hộp trạng thái được sao chép vào clipboard khi khả dụng. Sau vài giây bấm lại cùng nút để cập nhật trạng thái; lần bấm này không gửi yêu cầu mới. Không phải gửi lại metadata C# v3.
+Đóng game, cập nhật cả EXE/DLL, mở trang **Shop** trong game và giữ nó hiển thị. Đợi READY rồi chọn **Auto Daily → Daily Gift / status**. Tool tự ẩn và chuyển focus về cửa sổ Unity của cùng game để Update tiếp tục chạy. Khi handler trả về bình thường, không hiện MessageBox trạng thái đầu tiên để tránh che giao diện game. Bấm **F1** để hiện lại tool; bấm lại nút để xem trạng thái đã copy vào clipboard, không gọi handler lần nữa trong phiên game này.
 
-Lệnh cố định xác minh đúng PlayerData.Shop.class, tên/số tham số đã quan sát của SendDailyShopRewardReceiveReq(self, callback) và GetDailyShopReward(self). Sau khi getter trả boolean, lệnh gửi đúng một yêu cầu nhận quà miễn phí. Tool không suy ra ý nghĩa true/false của cờ, không gọi phương thức mua hàng, nâng cấp, gửi quà hay battle. Nó ghi nhận callback và việc cờ quà thay đổi, không giải mã mã thành công hay đánh dấu task hoàn thành; cần xác nhận kết quả trong game. Payload callback chỉ lấy loại đối số, không sao chép giá trị hay thông báo lỗi.
+Script cố định dùng CS/typeof và UnityEngine.Object.FindObjectsOfType để tìm LuaBehaviourBase đang active/enabled. Chỉ nhận tên ShopCtrl đã chuẩn hóa đường dẫn, Lua instance có đúng class Game.UI.ShopEx.ShopCtrl và handler OnBtnClick_DailyGift(self) đúng metadata tham số. Có hơn một instance khác nhau hoặc không có instance đúng thì dừng. Không gọi request trực tiếp khi việc tìm controller thất bại, không dùng tọa độ màn hình và không tạo controller mới.
 
-Giới hạn hiện tại: một lần thử mỗi phiên game, kể cả handler ném lỗi sau khi bắt đầu. Không retry tự động; lần bấm sau chỉ lấy trạng thái. Để thử lại sau lỗi mạng hoặc sang ngày mới phải khởi động lại game. Disable all/X hủy lệnh còn chờ Update; yêu cầu đã gửi được game xử lý. F1/Hide chỉ ẩn tool. Cầu nối hoặc metadata không phù hợp thì báo dừng; Player/Event giữ backend cũ.
+Lệnh ghi trạng thái riêng trước khi gọi handler, kể cả trường hợp handler ném lỗi sau khi đã thực hiện một phần. Mỗi phiên game tối đa một lần gọi; các lần bấm sau chỉ đọc trạng thái. GetDailyShopReward được dùng tùy chọn để quan sát cờ quà đổi mà không xuất giá trị scalar. Handler trả về không tự chứng minh Daily Gift đã mở hay quà đã nhận; cần kiểm tra trong game. Lệnh không tự đánh dấu nhiệm vụ hoàn thành. Handler gốc của game sở hữu các bước UI và request của nó.
+
+Disable all/X hoặc chuyển Shop sang SKIP hủy lệnh còn chờ Update; F1/Hide chỉ ẩn tool. Hành động đã chạy được game tiếp tục xử lý. Muốn thử lại sau lỗi hoặc ngày mới, khởi động lại game để kết thúc trạng thái một lần thử. Player/Event giữ backend trước.
 
 **Copy Lua name report** vẫn đọc metadata, không gọi handler nhiệm vụ. Vào màn chính hoặc mở trang cần chẩn đoán, chờ READY rồi bấm nút và chuyển lại game. Không cần làm lại daily. Nếu không có callback Update sau 15 giây, yêu cầu chờ bị hủy.
 
@@ -26,7 +28,7 @@ Giới hạn 30000 entry tổng, 2048 entry mỗi lần liệt kê bảng, 2400 
 
 **Copy API metadata:** giữ report v3 để chẩn đoán C#/IL2CPP: danh sách assembly, quét Game/Hotfix và assembly ứng dụng, ưu tiên Lua/UI cùng sáu nhóm nhiệm vụ. Giới hạn 512 KiB tổng, 192 KiB chỉ mục; nhóm Lua/UI 64 KiB với 16 KiB/lớp, nhóm nhiệm vụ 24 KiB với 4 KiB/lớp. Chỉ metadata, không đọc giá trị field hay gọi hành động game.
 
-Hai báo cáo chẩn đoán chỉ sao chép vào clipboard, không tạo tệp log. Lệnh Shop riêng có thể gửi yêu cầu game thật như mô tả trên; chưa có chuỗi tự động 12 nhiệm vụ.
+Hai báo cáo chẩn đoán chỉ sao chép vào clipboard, không tạo tệp log. Lệnh Daily Gift riêng có thể chạy handler UI/game thật như mô tả trên; chưa có chuỗi tự động 12 nhiệm vụ.
 
 ## Build / kiểm thử
 
@@ -39,7 +41,7 @@ python source/test_report_windows.py --zig /path/to/zig-0.14.1
 
 Build xuất EXE, DLL và build.json vào source/dist. SHA-256 DLL nhúng trong EXE; source/build.json ghi hash của cặp phát hành. Bitmap nền không nhúng sẵn; resource chỉ có logo/icon và font. Các tệp EXE/DLL phát hành nằm ngay gốc repo; ZIP nằm ở GitHub Releases.
 
-22 nhóm kiểm thử native/Lua gồm backend mô phỏng, tiện ích launcher, hình học Fit/Fill và bộ định dạng báo cáo có giới hạn và script inventory chạy trên Lua VM thật. Bộ test Windows/Wine mới kiểm tra callback Update gốc, idle/shared/off-main guards, hàng đợi một yêu cầu, reentrancy, GC handle, exception, clipboard và timeout. Đã kiểm tra 13 nhóm UI qua Wine, gồm font/logo, trang Auto Daily và sao chép metadata qua clipboard với API giả; không thay thế kiểm tra game thật. Shop có backend gửi yêu cầu thử nghiệm; 11 nhiệm vụ khác chưa thực hiện.
+22 nhóm kiểm thử native/Lua gồm backend mô phỏng, tiện ích launcher, hình học Fit/Fill và bộ định dạng báo cáo có giới hạn và script inventory chạy trên Lua VM thật. Bộ test Windows/Wine mới kiểm tra callback Update gốc, idle/shared/off-main guards, hàng đợi một yêu cầu, reentrancy, GC handle, exception, clipboard và timeout. Đã kiểm tra 13 nhóm UI qua Wine, gồm font/logo, trang Auto Daily và sao chép metadata qua clipboard với API giả; không thay thế kiểm tra game thật. Daily Gift có backend gọi handler UI thử nghiệm; 11 nhiệm vụ khác chưa thực hiện.
 
 Giữ F1/Hide để ẩn mà không tắt tính năng; X/Alt+F4 tắt tính năng rồi ẩn. F6/F7/F8 điều khiển event. Chỉnh giao diện và danh sách daily không đổi trạng thái Player/Event.
 
@@ -66,3 +68,7 @@ Report v5 sửa phần này, bổ sung metadata tham số và liên kết instan
 ## Hành động Shop đầu tiên trong preview.6
 
 Report v5 thực tế xác nhận PlayerData.Shop, GetDailyShopReward(self) và SendDailyShopRewardReceiveReq(self, callback); đồng thời cho thấy DispatchData.ReqApplyAgent không có self, nên không thể dùng một kiểu gọi chung cho mọi task. Shop được nối riêng với kiểm tra chữ ký/instance và trạng thái một lần thử. Test trên Lua VM thật xác nhận handler mua hàng không bị gọi, callback không làm lộ payload, không có lần gửi thứ hai khi bấm lại hoặc sau exception. Build mới chưa được kiểm tra trong game thật.
+
+## Sửa luồng UI trong preview.7
+
+Ảnh preview.6 của người dùng cho thấy callback request đã về và cờ Shop đã đổi, nhưng tool không mở nút Daily Gift. Preview.7 thay direct request bằng đúng OnBtnClick_DailyGift của ShopCtrl đang hoạt động, dựa trên chữ ký report v5 và public getters LuaBehaviourBase từ report v3. Script không gọi tên hàm trên một class hoặc instance tùy ý. Tool ẩn trước khi trả focus về game; kết quả handler-invoked được copy mà không bật popup che UI. Chỉ kết quả lỗi hoặc lần hỏi trạng thái sau đó mới hiện hộp thông tin. Chưa xác minh thao tác này trong game thật.

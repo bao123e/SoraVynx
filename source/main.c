@@ -112,7 +112,7 @@ static void refresh_status(void) {
  if(daily_report){LONG pending=InterlockedCompareExchange(&daily_lua_state,0,0);EnableWindow(daily_report,state==1&&!pending);update_text(daily_report,pending&&!daily_lua_kind?L"Inspecting Lua names...":L"Copy Lua name report");}
  LONG pending_shop=InterlockedCompareExchange(&daily_lua_state,0,0);
  EnableWindow(GetDlgItem(window,432),state==1&&!pending_shop&&(daily_selection&(1u<<10)));
- update_text(GetDlgItem(window,432),pending_shop&&daily_lua_kind?L"Return to the game...":L"Shop gift / status");
+ update_text(GetDlgItem(window,432),pending_shop&&daily_lua_kind?L"Return to the game...":L"Daily Gift / status");
  swprintf(text,256,L"Damage Multiplier  (x%ld / 2 - 50)",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
  swprintf(text,256,L"Score Multiplier  (x%ld / 2 - 100)",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
  swprintf(text,256,L"Mob Vacuum  (distance %ld / 1 - 10)",(long)read_atomic(&vacuum_distance));update_text(checks[MOB_VACUUM],text);
@@ -204,7 +204,7 @@ static void switch_page(int page) {
  for(int p=0;p<4;p++)for(int i=0;i<page_count[p];i++)ShowWindow(page_controls[p][i],p==page?SW_SHOW:SW_HIDE);
  const wchar_t *titles[]={L"Player",L"Bouncing Bumper Bash",L"Custom Background",L"Auto Daily"};
  const wchar_t *captions[]={L"Your core combat toolkit",L"Independent skill and score controls",L"Image, panel and button appearance",L"Keep current in-game selections"};
- const wchar_t *footers[]={L"Hide the panel with F1. Your toggles stay active.",L"F6 cooldown   /   F7 energy   /   F8 score",L"Appearance is saved automatically. Gameplay settings stay active.",L"Shop gift / status sends one free-gift request. Other tasks require setup."};
+ const wchar_t *footers[]={L"Hide the panel with F1. Your toggles stay active.",L"F6 cooldown   /   F7 energy   /   F8 score",L"Appearance is saved automatically. Gameplay settings stay active.",L"Daily Gift / status opens the Shop button flow. Other tasks require setup."};
  update_text(section_title,titles[page]);update_text(section_caption,captions[page]);update_text(footer,footers[page]);
  make_background(window);InvalidateRect(window,NULL,TRUE);for(int i=0;i<4;i++)InvalidateRect(tabs[i],NULL,TRUE);
 }
@@ -221,7 +221,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
    if(id>=400&&id<=403){switch_page(id-400);return 0;}
    if(id==430){daily_lua_request(hwnd);return 0;}
    if(id==431){daily_copy_setup(hwnd);return 0;}
-   if(id==432){if(read_atomic(&init_state)==1&&(daily_selection&(1u<<10)))daily_lua_shop_request(hwnd);return 0;}
+   if(id==432){if(read_atomic(&init_state)==1&&(daily_selection&(1u<<10))){daily_lua_shop_request(hwnd);if(daily_lua_kind==1&&InterlockedCompareExchange(&daily_lua_state,0,0)==1)daily_lua_return_to_game(hwnd);}return 0;}
    if(id>=600&&id<612){daily_selection^=1u<<(id-600);if(id==610&&!(daily_selection&(1u<<10))&&daily_lua_kind==1)daily_lua_cancel_queued();wchar_t value[16];swprintf(value,16,L"%u",daily_selection);if(!WritePrivateProfileStringW(L"AutoDaily",L"Tasks",value,ui_config_path)||!WritePrivateProfileStringW(L"AutoDaily",L"TaskCount",L"12",ui_config_path))MessageBoxW(hwnd,L"Daily task selection could not be saved.",L"SoraVynx",MB_OK|MB_ICONWARNING);InvalidateRect(GetDlgItem(hwnd,id),NULL,TRUE);return 0;}
    if(id==410){ShowWindow(hwnd,SW_HIDE);return 0;}
    if(id==411){SendMessageW(hwnd,WM_CLOSE,0,0);return 0;}
@@ -338,10 +338,10 @@ static DWORD WINAPI run(void *unused) {
  page_control(1,L"STATIC",L"Event settings are independent from Player.",0,208,384,752,24,0);
  const wchar_t *daily_labels[]={L"Tier-up Trial: 1 battle",L"Ascension: 1 run",L"Upgrade Disc once",L"Upgrade Trekker once",L"Battle stages: 5 clears",L"Spend 100 Vigor",L"Interact with home Trekker",L"Claim Tyrant's Tower rewards",L"Send 1 Heartlink gift",L"Dispatch 1 commission",L"Claim Shop random reward",L"Daily login"};
  for(int i=0;i<12;i++)page_control(3,L"BUTTON",daily_labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+25*i,416,24,600+i);
- page_control(3,L"STATIC",L"PARTIAL INTEGRATION\r\n\r\nShop gift request is available.\r\nOther 11 tasks require setup.\r\n\r\nOne attempt per game session.\r\nClick again to check status.",0,648,180,312,170,0);
+ page_control(3,L"STATIC",L"PARTIAL INTEGRATION\r\n\r\nDaily Gift UI action is available.\r\nOther 11 tasks require setup.\r\n\r\nOpen Shop before using it.\r\nF1 restores the hidden tool.",0,648,180,312,170,0);
  daily_report=page_control(3,L"BUTTON",L"Copy Lua name report",BS_OWNERDRAW|WS_TABSTOP,648,368,312,44,430);
  page_control(3,L"BUTTON",L"Copy API metadata",BS_OWNERDRAW|WS_TABSTOP,648,420,312,32,431);
- page_control(3,L"BUTTON",L"Shop gift / status",BS_OWNERDRAW|WS_TABSTOP,648,460,312,32,432);
+ page_control(3,L"BUTTON",L"Daily Gift / status",BS_OWNERDRAW|WS_TABSTOP,648,460,312,32,432);
  control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,48,200);
  status_label=control(L"STATIC",L"Connecting to game...",0,208,516,752,24,0);
  footer=control(L"STATIC",L"",0,208,552,752,24,0);

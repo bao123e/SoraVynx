@@ -3,7 +3,7 @@
 #include "vendor/minhook/include/MinHook.h"
 
 /* Fixed Lua commands are deferred to LuaManager.Update. Inspection is read-only;
- * the separate, explicit Shop command can send one free-gift request. */
+ * the separate Shop command invokes the active Daily Gift UI handler. */
 static const void *daily_lua_update_method,*daily_lua_inspect_method,*daily_lua_main_thread_method;
 static void *daily_lua_manager_class,*daily_lua_env_class;
 static void *daily_lua_instance_field,*daily_lua_env_field;
@@ -17,7 +17,7 @@ static int32_t (*daily_lua_array_element_size)(void*);
 static uint32_t (*daily_lua_handle_new)(void*,bool);
 static void (*daily_lua_handle_free)(uint32_t);
 static char *daily_lua_script,*daily_shop_script;
-static LONG daily_lua_kind,daily_lua_result_kind; /* 0 inspection, 1 explicit Shop claim/status */
+static LONG daily_lua_kind,daily_lua_result_kind; /* 0 inspection, 1 explicit Daily Gift UI/status */
 static wchar_t *daily_lua_result;
 static volatile LONG daily_lua_state; /* 0 idle, 1 queued, 2 executing, 3 result, 4 preparing */
 static bool daily_lua_available;
@@ -116,9 +116,19 @@ static void daily_lua_request_kind(HWND owner,LONG kind) {
 static void daily_lua_request(HWND owner){daily_lua_request_kind(owner,0);}
 static void daily_lua_shop_request(HWND owner){daily_lua_request_kind(owner,1);}
 static void daily_lua_cancel_queued(void){InterlockedCompareExchange(&daily_lua_state,0,1);}
+static BOOL CALLBACK daily_lua_find_game(HWND hwnd,LPARAM context) {
+ DWORD process=0;GetWindowThreadProcessId(hwnd,&process);wchar_t name[64];
+ if(process==GetCurrentProcessId()&&IsWindowVisible(hwnd)&&GetClassNameW(hwnd,name,64)&&!wcscmp(name,L"UnityWndClass")){
+  *(HWND*)context=hwnd;return FALSE;
+ }return TRUE;
+}
+static void daily_lua_return_to_game(HWND owner) {
+ HWND game=NULL;EnumWindows(daily_lua_find_game,(LPARAM)&game);ShowWindow(owner,SW_HIDE);if(game)SetForegroundWindow(game);
+}
 static void daily_lua_poll(HWND owner) {
  LONG state=InterlockedCompareExchange(&daily_lua_state,0,0);
  if(state==1&&GetTickCount64()-daily_lua_requested_at>15000&&InterlockedCompareExchange(&daily_lua_state,0,1)==1){
+  if(daily_lua_kind)ShowWindow(owner,SW_SHOWNOACTIVATE);
   MessageBoxW(owner,L"No Lua Update received within 15 seconds. Return to the game main menu and retry.",L"SoraVynx",MB_OK|MB_ICONINFORMATION);return;
  }
  if(state!=3||InterlockedCompareExchange(&daily_lua_state,2,3)!=3)return;
@@ -130,7 +140,10 @@ static void daily_lua_poll(HWND owner) {
    if(!copied)GlobalFree(memory);
   }
  }
- if(kind&&result)MessageBoxW(owner,result,L"SoraVynx - Shop gift / status",MB_OK|MB_ICONINFORMATION);
+ if(kind&&result){
+  if(wcsstr(result,L"\r\nStatus: UI_HANDLER_INVOKED\r\n"))daily_lua_return_to_game(owner);
+  else {ShowWindow(owner,SW_SHOWNOACTIVATE);MessageBoxW(owner,result,L"SoraVynx - Daily Gift / status",MB_OK|MB_ICONINFORMATION);}
+ }
  else MessageBoxW(owner,copied?L"Lua name report copied. Send it to continue Auto Daily integration. No daily tasks were run.":L"Could not copy the Lua report. Please retry.",L"SoraVynx",MB_OK|(copied?MB_ICONINFORMATION:MB_ICONERROR));
  free(result);
 }
