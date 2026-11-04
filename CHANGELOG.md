@@ -1,5 +1,15 @@
 # SoraVynx release notes
 
+## 1.1.0-preview.9
+
+- Address the real .8 failure reporting zero LuaBehaviourBase objects while Shop was visible. A normal Unity object search is no longer the sole discovery route.
+- Add Resources.FindObjectsOfTypeAll for LuaBehaviourBase and LuaUIController, following the latter's public luaBehaviour link. Require active hierarchy and valid/loaded scenes to exclude prefabs, assets and inactive objects.
+- Add a read-only pure-Lua registry route when the verified zero-argument PanelManager.GetCurPanelId getter matches a known Shop enum ID. Inspect bounded UI-closure upvalue tables and same-source helper closures without calling panel-opening helpers or exposing IDs/values.
+- Resolve only the current Shop registry entry, then retain existing namespace, handler-arity, ambiguity and single-attempt guards. No direct reward-request fallback or coordinate click is added.
+- Report per-route counts and current-Shop proof status, so empty Unity searches can be distinguished from missing Lua registry/context information.
+- Extend real Lua VM tests with the exact zero-normal-objects case, live runtime objects, controller links with disabled Lua update components, scene/prefab rejection, nested Lua registry helpers and current-page mismatches.
+- Auto Daily remains partial. Mock/Wine tests do not replace real-game verification; close the game and replace both EXE/DLL.
+
 ## 1.1.0-preview.8
 
 - Fix the .7 lookup design that could stop before live UI discovery when the canonical package.loaded class entry or raw declared method was absent. The screenshot's generic message did not distinguish these cases from missing signature metadata.

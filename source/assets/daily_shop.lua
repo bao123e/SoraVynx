@@ -62,16 +62,158 @@ end
 if raw(_G,"_SORAVYNX_DAILY_GIFT_UI_V1")~=nil then
  return stop("OLDER_ATTEMPT_PRESENT","An earlier UI command already attempted this session. Restart the game before testing this revision.")
 end
-local ok,objects=protected(function()
- local cs,typeof=raw(_G,"CS"),raw(_G,"typeof")
- if kind(cs)~="table" or kind(typeof)~="function" then return nil end
- return cs.UnityEngine.Object.FindObjectsOfType(typeof(cs.LuaBehaviourBase))
-end)
-if not ok or objects==nil then return stop("UNITY_UI_ENUMERATION_FAILED","The game's Lua UI bridge could not list active behaviours. No handler invoked.") end
-local count_ok,count=protected(function() return objects.Length end)
-if not count_ok or kind(count)~="number" or count<0 or count>4096 or count%1~=0 then
- return stop("UNITY_UI_LIST_INVALID","The UI bridge returned an unexpected behaviour list. No handler invoked.")
+-- Unity's normal finder excludes inactive/DontSave objects. Record every route separately.
+local records,record_seen={},{}
+local function class_definition(t)
+ return module_classes[t] or raw(t,"__index")==t or raw(t,"class")==t or
+  (kind(raw(t,"new"))=="function" and (kind(raw(t,"__cname"))=="string" or kind(raw(t,"ctor"))=="function"))
 end
+local discovery={normal="unavailable",all="unavailable",controllers="unavailable",registry=0,shop="unavailable"}
+local enumeration_ok=false
+local function add_behaviour(b,active_proof)
+ if b~=nil and not record_seen[b] then record_seen[b]=true;records[#records+1]={behaviour=b,active=active_proof} end
+end
+local function active_scene(component)
+ local ok,active=protected(function()
+  local go=component.gameObject
+  if component.isActiveAndEnabled~=true or go==nil or go.activeInHierarchy~=true then return false end
+  local scene=go.scene;if scene==nil then return false end
+  local valid_ok,valid=protected(function() return scene:IsValid() end)
+  local loaded_ok,loaded_scene=protected(function() return scene.isLoaded end)
+  if (valid_ok and valid==false) or (loaded_ok and loaded_scene==false) then return false end
+  return (valid_ok and valid==true) or (loaded_ok and loaded_scene==true)
+ end)
+ return ok and active==true
+end
+local function enumerate(route,controller)
+ local ok,objects=protected(function()
+  local cs,typeof=raw(_G,"CS"),raw(_G,"typeof")
+  if kind(cs)~="table" or kind(typeof)~="function" then return nil end
+  local type_class;if controller then type_class=cs.LuaUIController else type_class=cs.LuaBehaviourBase end
+  if type_class==nil then return nil end
+  local target_type=typeof(type_class)
+  if route=="normal" then return cs.UnityEngine.Object.FindObjectsOfType(target_type) end
+  return cs.UnityEngine.Resources.FindObjectsOfTypeAll(target_type)
+ end)
+ if not ok or objects==nil then return end
+ local valid,length=protected(function() return objects.Length end)
+ if not valid or kind(length)~="number" or length<0 or length%1~=0 or length>(route=="normal" and 4096 or 8192) then
+  discovery[route]="invalid";return
+ end
+ enumeration_ok=true;discovery[route]=length
+ for i=0,length-1 do
+  local valid,b,proof=protected(function()
+   local object=objects[i]
+   if controller then
+    if active_scene(object) then return object.luaBehaviour,true end
+   elseif route=="normal" then return object,false
+   elseif active_scene(object) then return object,true end
+  end)
+  if valid then add_behaviour(b,proof) end
+ end
+end
+enumerate("normal",false)
+enumerate("all",false)
+enumerate("controllers",true)
+-- A pure Lua UI can be kept in PanelManager closures without any LuaBehaviour component.
+-- The registry route is only enabled when the known zero-argument getter proves Shop is current.
+local panel_manager=raw(_G,"PanelManager")
+local panel_ids=raw(_G,"PanelId")
+if kind(panel_ids)~="table" and kind(loaded)=="table" then panel_ids=raw(loaded,"GameCore.UI.PanelId") end
+local function zero_arg(fn)
+ if kind(fn)~="function" or kind(info)~="function" then return false end
+ local ok,meta=protected(info,fn,"u")
+ return ok and kind(meta)=="table" and raw(meta,"nparams")==0 and raw(meta,"isvararg")==false
+end
+local current_id=nil
+local enum_keys={}
+local shop_ids={}
+if kind(panel_ids)=="table" then
+ local key,value=nil,nil
+ for i=1,2048 do
+  key,value=next(panel_ids,key);if key==nil then break end
+  local enum_name,enum_id=key,value
+  if kind(key)=="number" and kind(value)=="string" then enum_name,enum_id=value,key end
+  if kind(enum_name)=="string" and #enum_name<=80 then
+   local name=enum_name:lower():gsub("[^%w]","")
+   if enum_name:match("^[%a_][%w_]*$") and name:find("shop",1,true) and #enum_keys<12 then enum_keys[#enum_keys+1]=enum_name end
+   if name=="shop" or name=="shopex" or name=="shoppanel" or name=="panelshop" or name=="panelshopex" then
+    if kind(enum_id)=="number" or kind(enum_id)=="string" then shop_ids[enum_id]=true end
+   end
+  end
+ end
+end
+local current_getter=kind(panel_manager)=="table" and raw(panel_manager,"GetCurPanelId") or nil
+if not zero_arg(current_getter) then discovery.shop="getter_unavailable"
+elseif next(shop_ids)==nil then discovery.shop="enum_unavailable"
+else
+ local ok,value=protected(current_getter)
+ if ok and (kind(value)=="number" or kind(value)=="string") then
+  current_id=value;discovery.shop=shop_ids[value] and "verified" or "not_current"
+ else discovery.shop=ok and "getter_type_unsupported" or "getter_failed" end
+end
+local upvalue=kind(dbg)=="table" and raw(dbg,"getupvalue") or nil
+discovery.upvalues=kind(upvalue)=="function" and "ready" or "unavailable"
+if discovery.shop=="verified" and kind(upvalue)=="function" then
+ local roots,queued,registry_seen={},{},{}
+ local function enqueue(t,depth)
+  if kind(t)=="table" and t~=_G and t~=player and t~=loaded and t~=panel_ids and not queued[t] then
+   queued[t]=true;roots[#roots+1]={t,depth}
+  end
+ end
+ local functions,seen_functions,sources={},{},{}
+ local function source_of(fn)
+  if kind(info)~="function" then return nil end
+  local ok,meta=protected(info,fn,"S")
+  return ok and kind(meta)=="table" and raw(meta,"source") or nil
+ end
+ for _,name in ipairs({"GetCurPanelId","OpenPanelWithContext","CheckPanelOpen","SwitchAllUI","Home"}) do
+  local fn=raw(panel_manager,name)
+  if kind(fn)=="function" then
+   functions[#functions+1]={fn,0};local source=source_of(fn);if kind(source)=="string" then sources[source]=true end
+  end
+ end
+ for q=1,32 do
+  local item=functions[q];if not item then break end
+  local fn,depth=item[1],item[2]
+  if not seen_functions[fn] then
+   seen_functions[fn]=true
+   for index=1,32 do
+    local ok,label,value=protected(upvalue,fn,index);if not ok or label==nil then break end
+    if label~="_ENV" and label~="_G" then
+     if kind(value)=="table" then enqueue(value,0)
+     elseif kind(value)=="function" and depth<2 and sources[source_of(value)] then functions[#functions+1]={value,depth+1} end
+    end
+   end
+  end
+ end
+ for q=1,128 do
+  local item=roots[q];if not item then break end
+  local t,depth=item[1],item[2]
+  local entry=raw(t,current_id)
+  if kind(entry)=="table" and not class_definition(entry) and not registry_seen[entry] then
+   registry_seen[entry]=true;discovery.registry=discovery.registry+1
+   records[#records+1]={root=entry,registry=true}
+  elseif kind(entry)=="userdata" then
+   local ok,b=protected(function() if active_scene(entry) then return entry.luaBehaviour end end)
+   if ok then add_behaviour(b,true) end
+  end
+  if depth<2 then
+   local key,value=nil,nil
+   for step=1,256 do
+    key,value=next(t,key);if key==nil then break end
+    if key~="class" and key~="__index" and key~="super" and kind(value)=="table" and raw(value,"__index")~=value then enqueue(value,depth+1) end
+   end
+  end
+ end
+end
+local function discovery_text()
+ return "Discovery: normal=" .. discovery.normal .. "; all=" .. discovery.all .. "; UIControllers=" ..
+  discovery.controllers .. "; registry=" .. discovery.registry .. "; currentShop=" .. discovery.shop .. "; upvalues=" .. discovery.upvalues .. "."
+end
+if discovery.shop=="not_current" then return stop("SHOP_NOT_CURRENT","PanelManager reports a different current page. No handler invoked.\r\n" .. discovery_text()) end
+if not enumeration_ok and #records==0 then return stop("UNITY_UI_ENUMERATION_FAILED","The available UI discovery routes failed.\r\n" .. discovery_text()) end
+local count=#records
 local function normalise(name)
  return name:gsub("^@",""):gsub("\\","/"):gsub("/","."):gsub("%.lua$",""):gsub("^%.*","")
 end
@@ -105,7 +247,9 @@ local seen_instances,found_instances={},{}
 local named,instances,missing,unresolved,lookup_errors=0,0,0,0,0
 for index=0,count-1 do
  local valid,root,full,panel=protected(function()
-  local b=objects[index];if not b.isActiveAndEnabled then return nil end
+  local record=records[index+1]
+  if record.registry then named=named+1;return record.root,false,true end
+  local b=record.behaviour;if not record.active and not b.isActiveAndEnabled then return nil end
   local name=b.luaClassName;if kind(name)~="string" then return nil end
   name=normalise(name)
   local qualified=name==target or name:sub(-#target-1)=="." .. target
@@ -131,7 +275,7 @@ for index=0,count-1 do
       local key,value=nil,nil
       for step=1,256 do
        key,value=next(t,key);if key==nil then break end
-       if key~="class" and key~="super" and key~="__index" and kind(value)=="table" and not module_classes[value] and raw(value,"__index")~=value then
+       if key~="class" and key~="super" and key~="__index" and kind(value)=="table" and not class_definition(value) then
         queue[#queue+1]={value,depth+1}
        end
       end
@@ -156,10 +300,9 @@ for index=0,count-1 do
    end
   end
   -- With a short component name, prove its namespace through a loaded class or function source metadata.
-  if not qualified and not hint and not source_proves_owner(fn) then unresolved=unresolved+1
-  elseif kind(fn)=="function" then
-   if not found_instances[instance] then found_instances[instance]=true;found=found+1;candidate=instance;handler=fn end
-  else missing=missing+1 end
+  if kind(fn)~="function" then missing=missing+1
+  elseif not qualified and not hint and not source_proves_owner(fn) then unresolved=unresolved+1
+  elseif not found_instances[instance] then found_instances[instance]=true;found=found+1;candidate=instance;handler=fn end
   end
  end
 end
@@ -168,7 +311,8 @@ if found==0 then
  local code=named==0 and "SHOP_CONTROLLER_NOT_FOUND" or instances==0 and "SHOP_INSTANCE_UNAVAILABLE" or
   unresolved>0 and "SHORT_SHOP_NAME_UNRESOLVED" or lookup_errors>0 and "SHOP_HANDLER_LOOKUP_FAILED" or "SHOP_HANDLER_MISSING"
  return stop(code,"No compatible Daily Gift handler resolved from the active UI.\r\nObserved: " .. count ..
-  " behaviours; " .. named .. " Shop names; " .. instances .. " UI tables; " .. missing .. " missing handlers.")
+  " eligible behaviours/roots; " .. named .. " Shop roots; " .. instances .. " UI tables; " .. missing .. " missing handlers.\r\n" .. discovery_text() ..
+  (#enum_keys>0 and "\r\nShop enum keys: " .. table.concat(enum_keys,",") or ""))
 end
 local compatible,reason=signature(handler)
 if not compatible then return stop(reason,"The active Shop's Daily Gift handler failed signature validation. No handler invoked.") end

@@ -1,6 +1,6 @@
 # Auto Daily — tình trạng tích hợp
 
-Report Lua v5 đã xác nhận chữ ký và liên kết PlayerData cho nhiều lớp. Preview.8 nối riêng handler UI Daily Gift trên Shop; chưa có scheduler hay 11 nhiệm vụ còn lại. Report metadata v3 không chứa chữ ký của các hàm Lua này.
+Report Lua v5 đã xác nhận chữ ký và liên kết PlayerData cho nhiều lớp. Preview.9 nối riêng handler UI Daily Gift trên Shop; chưa có scheduler hay 11 nhiệm vụ còn lại. Report metadata v3 không chứa chữ ký của các hàm Lua này.
 
 | Nhiệm vụ | Thông tin đã thấy | Cần xác minh trước khi chạy |
 | --- | --- | --- |
@@ -14,7 +14,7 @@ Report Lua v5 đã xác nhận chữ ký và liên kết PlayerData cho nhiều 
 | Thưởng Tyrant’s Tower | PlayerInfinityTowerData.ITDailyRewardReq | Điều kiện nhận, đối số và callback kết quả |
 | Quà Heartlink | PlayerDatingData/PlayerDormData đã nạp; thiếu chi tiết | Handler tặng, mục tiêu/vật phẩm đang chọn, giới hạn một quà |
 | Dispatch commission | DispatchData.ReqApplyAgent | Commission/đội hiện tại, slot trống, callback kết quả |
-| Quà miễn phí Shop | PlayerData.Shop; SendDailyShopRewardReceiveReq(self, callback); GetDailyShopReward(self) | Preview.8 gọi ShopCtrl.OnBtnClick_DailyGift(self) trên instance UI đang hoạt động; cần xác minh UI/quà trong game |
+| Quà miễn phí Shop | PlayerData.Shop; SendDailyShopRewardReceiveReq(self, callback); GetDailyShopReward(self) | Preview.9 gọi ShopCtrl.OnBtnClick_DailyGift(self) trên instance UI đang hoạt động; cần xác minh UI/quà trong game |
 | Daily login | PlayerDailyData.CheckDailyCheckIn/ProcessDailyCheckIn | Phân biệt login quest với bảng check-in; không đăng nhập lại tài khoản |
 
 PlayerQuestData có ReceiveDailyReward và ReceiveDailyActiveReward, nhưng chưa xác nhận đối số hay trạng thái có thể nhận. Không gọi hàm chỉ dựa vào tên; không gọi LevelEnd hoặc sửa trạng thái task để đánh dấu hoàn tất.
@@ -34,3 +34,7 @@ Người dùng xác nhận preview.6 không bấm/mở Daily Gift. Phiên bản 
 ## Tra handler preview.8
 
 Thông báo .7 trong Shop bị gộp giữa thiếu module, thiếu raw method và thiếu chữ ký, nên không đủ kết luận nguyên nhân. Phiên bản .8 dùng active instance làm nguồn chính, class/super/metatable dispatch và alias module làm bằng chứng phụ. ShopCtrl pure Lua dưới ShopPanel cũng được xét theo namespace/function identity. Chỉ biết số tham số bằng một và không vararg mới gọi; tên local bị strip không tự làm binding thất bại. Mỗi lần dừng có Code cụ thể, không yêu cầu người dùng gửi lại toàn bộ metadata chỉ để biết bước nào lỗi.
+
+## Tìm UI runtime preview.9
+
+Ảnh .8 xác nhận normal Unity finder trả 0; đó là lỗi discovery, chưa đến bước gọi handler. .9 xét Resources với active-scene filtering và LuaUIController.luaBehaviour, đồng thời có registry pure Lua từ PanelManager khi current Shop ID được getter/enum xác minh. Chỉ đọc helper/upvalue, không gọi hàm mở panel để đoán. Nếu vẫn dừng, số lượng từng route và trạng thái currentShop cho biết bước còn thiếu; scalar ID và account values không được đưa ra clipboard.
