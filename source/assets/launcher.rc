@@ -12,7 +12,7 @@ BEGIN
    VALUE "FileDescription", "SoraVynx - Stella Sora Toolkit\0"
    VALUE "ProductName", "SoraVynx\0"
    VALUE "FileVersion", "1.1.0\0"
-   VALUE "ProductVersion", "1.1.0-preview.5\0"
+   VALUE "ProductVersion", "1.1.0-preview.6\0"
    VALUE "OriginalFilename", "SoraVynx.exe\0"
   END
  END

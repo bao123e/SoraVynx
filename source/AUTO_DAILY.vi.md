@@ -1,6 +1,6 @@
 # Auto Daily — tình trạng tích hợp
 
-Report Lua v4 đã chạy được trên game. Các tên dưới đây được quan sát trong report, chưa xác nhận cách gọi hay backend thực thi. Report metadata v3 không chứa chữ ký của các hàm Lua này.
+Report Lua v5 đã xác nhận chữ ký và liên kết PlayerData cho nhiều lớp. Preview.6 nối riêng một yêu cầu Shop miễn phí; chưa có scheduler hay 11 nhiệm vụ còn lại. Report metadata v3 không chứa chữ ký của các hàm Lua này.
 
 | Nhiệm vụ | Thông tin đã thấy | Cần xác minh trước khi chạy |
 | --- | --- | --- |
@@ -14,9 +14,15 @@ Report Lua v4 đã chạy được trên game. Các tên dưới đây được 
 | Thưởng Tyrant’s Tower | PlayerInfinityTowerData.ITDailyRewardReq | Điều kiện nhận, đối số và callback kết quả |
 | Quà Heartlink | PlayerDatingData/PlayerDormData đã nạp; thiếu chi tiết | Handler tặng, mục tiêu/vật phẩm đang chọn, giới hạn một quà |
 | Dispatch commission | DispatchData.ReqApplyAgent | Commission/đội hiện tại, slot trống, callback kết quả |
-| Quà miễn phí Shop | PlayerShopData.SendDailyShopRewardReceiveReq | Instance, điều kiện chưa nhận, đối số và callback |
+| Quà miễn phí Shop | PlayerData.Shop; SendDailyShopRewardReceiveReq(self, callback); GetDailyShopReward(self) | Preview.6 gửi một yêu cầu; cần xác minh kết quả game/server, chưa tự đánh dấu hoàn thành |
 | Daily login | PlayerDailyData.CheckDailyCheckIn/ProcessDailyCheckIn | Phân biệt login quest với bảng check-in; không đăng nhập lại tài khoản |
 
 PlayerQuestData có ReceiveDailyReward và ReceiveDailyActiveReward, nhưng chưa xác nhận đối số hay trạng thái có thể nhận. Không gọi hàm chỉ dựa vào tên; không gọi LevelEnd hoặc sửa trạng thái task để đánh dấu hoàn tất.
 
 Report v5 chỉ kiểm tra tên hàm, metadata tham số nếu có và cấu trúc đối tượng. Không gọi các hàm trong bảng, không xuất scalar, không tạo log. Dữ liệu report người dùng không được commit vào repo. Các module chưa nạp có thể cần mở trang UI tương ứng rồi chụp lại; không phải làm lại nhiệm vụ.
+
+## Shop preview.6
+
+Shop gift / status là lệnh riêng có thể gửi một yêu cầu game thật khi mục Shop đang USE. Cầu nối vẫn chạy sau Update gốc trên main thread. Kiểm tra chữ ký và class identity trước khi gửi, lưu trạng thái riêng trong Lua VM để không tự gửi lại, và giữ payload callback ngoài báo cáo. Tool chỉ xác nhận delivery của callback và cờ quà có đổi hay không; chưa giải mã server success. Callback không đồng nghĩa nhiệm vụ đã xong.
+
+Report v5 có 149 module mục tiêu và vẫn chạm dung lượng 192 KiB; không cần thêm một bản report tổng quát để thử riêng Shop. Các task còn lại cần xác minh tiến độ/lựa chọn/callback và loại gọi: ví dụ ReqApplyAgent(agentList, agentData, callback) là hàm không có self, còn CharUpgrade(self, nCharId, tbMat, mapTargetLevel, callback) cần đúng nguyên liệu hiện tại. Không suy ra các tham số này chỉ từ tên hàm.

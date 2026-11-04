@@ -1,5 +1,14 @@
 # SoraVynx release notes
 
+## 1.1.0-preview.6
+
+- Use report v5's confirmed PlayerData.Shop instance and SendDailyShopRewardReceiveReq(self, callback) signature to add Shop gift / status.
+- Validate live class identity, parameter metadata and the reward getter before one explicit free-gift request. Later clicks only refresh status; no automatic retry after exceptions or callback errors.
+- Track callback delivery and reward-flag changes without copying payload values or declaring server success/task completion. Purchases, upgrades, gifts and battles are not invoked by this command.
+- Run the fixed Shop command through the existing main-thread Lua bridge, respect the Shop USE/SKIP choice and cancel queued commands on Disable all/close.
+- Add real Lua VM coverage for synchronous/asynchronous callbacks, duplicate clicks, handler exceptions, context changes, signature guards and payload exclusion; extend Windows/Wine queue and UI checks.
+- Auto Daily remains partial: the other 11 tasks and the full scheduler are NOT implemented. In-game verification of this new action remains required. Replace both EXE/DLL while the game is closed.
+
 ## 1.1.0-preview.5
 
 - Fix Lua report v4 exhausting 2,400 lines on inherited superclass helpers before reaching all daily APIs.

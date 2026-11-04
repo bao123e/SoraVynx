@@ -1,10 +1,13 @@
 {
   "product": "SoraVynx",
-  "version": "1.1.0-preview.5",
+  "version": "1.1.0-preview.6",
   "auto_daily_ready": false,
-  "sha256": "35d6783d0b4f13c90516a512631354d8a1c8ab8a4b0839387ba7bb8adf59d96d",
-  "bytes": 814592,
-  "launcher_sha256": "7aaf058ad6704304b9827e3186e1962f664738b1f3660bbf8b00f155f18e7386",
+  "daily_supported_actions": [
+    "shop_daily_reward_request"
+  ],
+  "sha256": "4a922f07a14b51fda5c319d0cba67ec75a67b4ff3c49155cff1121771b6adff9",
+  "bytes": 819712,
+  "launcher_sha256": "f4411acb884656d5de7c68661e15f508c52f4aea59b10776d3494bcf6149b3e6",
   "launcher_runtime_tested": false,
   "tool_upstream_commit": "30f67811411dca754f1b876b4d4dbf6a001e0a20",
   "minhook_commit": "8af6b4acae5a9388fd742b56fa79ece89d96f823",

@@ -4,13 +4,19 @@ SoraVynx là tên mới của toolkit Stella Sora. Launcher **SoraVynx.exe**, th
 
 Menu không đánh số: **Player**, **Event**, **Custom BG**, **Auto Daily**. Player/Event giữ backend trước; các hàng đủ chiều ngang và ô Damage/Vacuum/Score nằm cùng hàng. Custom BG có Image/Panel/Button opacity riêng 0–100%, Fit/Fill và ảnh PNG/JPG/BMP. Font mới **Be Vietnam Pro** nhúng Regular/SemiBold/Bold, hỗ trợ tiếng Việt; logo SoraVynx trong app và icon EXE. Không cài font hệ thống, không tạo log.
 
-## Auto Daily: setup preview, chưa tự chạy
+## Auto Daily: Shop request preview, chưa tự chạy cả chuỗi
 
 Mười hai lựa chọn theo ảnh người dùng: Tier-up Trial; Ascension; nâng Disc; nâng Trekker; 5 battle stages; tiêu 100 Vigor; tương tác Trekker màn chính; nhận thưởng Tyrant’s Tower; tặng quà Heartlink; dispatch commission; nhận quà ngẫu nhiên Shop; đăng nhập ngày. Dự kiến dùng đội, màn, difficulty, Trekker và Disc đang chọn trong game.
 
-Bản này lưu danh sách lựa chọn và cung cấp hai báo cáo để hoàn tất tích hợp. Không có nút Start giả, không chạy hay đánh dấu hoàn thành nhiệm vụ. Dự kiến giữ Trekker, Disc, đội và màn đang chọn trong game.
+Bản preview.6 thêm **Shop gift / status**, hành động đầu tiên được nối từ report v5. Mười một nhiệm vụ còn lại và scheduler chưa thực hiện. Các lựa chọn USE/SKIP vẫn được lưu; nút Shop chỉ hoạt động khi mục Claim Shop random reward đang USE. Không đánh dấu nhiệm vụ hoàn tất từ lựa chọn này.
 
-Đóng game và cập nhật cả EXE/DLL cùng bản. Vào màn chính, đợi Player/Event READY, chọn **Auto Daily → Copy Lua name report**, chờ thông báo đã sao chép rồi dán nội dung vào cuộc trao đổi phát triển. Không cần làm lại nhiệm vụ. Nếu không có callback Update sau 15 giây, yêu cầu bị hủy; trở lại màn chính rồi thử lại. Nếu cầu nối không khả dụng, tool báo rõ và Player/Event vẫn hoạt động.
+Đóng game, cập nhật cả EXE/DLL, vào màn chính đợi READY rồi chọn **Auto Daily → Shop gift / status**. Chuyển lại game để luồng Update chạy và nhận callback. Hộp trạng thái được sao chép vào clipboard khi khả dụng. Sau vài giây bấm lại cùng nút để cập nhật trạng thái; lần bấm này không gửi yêu cầu mới. Không phải gửi lại metadata C# v3.
+
+Lệnh cố định xác minh đúng PlayerData.Shop.class, tên/số tham số đã quan sát của SendDailyShopRewardReceiveReq(self, callback) và GetDailyShopReward(self). Sau khi getter trả boolean, lệnh gửi đúng một yêu cầu nhận quà miễn phí. Tool không suy ra ý nghĩa true/false của cờ, không gọi phương thức mua hàng, nâng cấp, gửi quà hay battle. Nó ghi nhận callback và việc cờ quà thay đổi, không giải mã mã thành công hay đánh dấu task hoàn thành; cần xác nhận kết quả trong game. Payload callback chỉ lấy loại đối số, không sao chép giá trị hay thông báo lỗi.
+
+Giới hạn hiện tại: một lần thử mỗi phiên game, kể cả handler ném lỗi sau khi bắt đầu. Không retry tự động; lần bấm sau chỉ lấy trạng thái. Để thử lại sau lỗi mạng hoặc sang ngày mới phải khởi động lại game. Disable all/X hủy lệnh còn chờ Update; yêu cầu đã gửi được game xử lý. F1/Hide chỉ ẩn tool. Cầu nối hoặc metadata không phù hợp thì báo dừng; Player/Event giữ backend cũ.
+
+**Copy Lua name report** vẫn đọc metadata, không gọi handler nhiệm vụ. Vào màn chính hoặc mở trang cần chẩn đoán, chờ READY rồi bấm nút và chuyển lại game. Không cần làm lại daily. Nếu không có callback Update sau 15 giây, yêu cầu chờ bị hủy.
 
 **Lua report v5:** dùng cầu nối main-thread đã xác nhận hoạt động từ report v4. Một hook riêng gọi Update gốc trước, kiểm tra Unity main thread, đọc singleton LuaManager/LuaEnv hiện có và chạy script kiểm tra cố định nhúng trong resource. Không nhận script tùy ý, không require module mới, không gọi hàm nhiệm vụ tìm được.
 
@@ -20,7 +26,7 @@ Giới hạn 30000 entry tổng, 2048 entry mỗi lần liệt kê bảng, 2400 
 
 **Copy API metadata:** giữ report v3 để chẩn đoán C#/IL2CPP: danh sách assembly, quét Game/Hotfix và assembly ứng dụng, ưu tiên Lua/UI cùng sáu nhóm nhiệm vụ. Giới hạn 512 KiB tổng, 192 KiB chỉ mục; nhóm Lua/UI 64 KiB với 16 KiB/lớp, nhóm nhiệm vụ 24 KiB với 4 KiB/lớp. Chỉ metadata, không đọc giá trị field hay gọi hành động game.
 
-Cả hai báo cáo chỉ sao chép vào clipboard, không tạo tệp log. Auto Daily vẫn chưa thực hiện nhiệm vụ; cần xác minh module/hàm và luồng game trước khi nối hành động thực tế.
+Hai báo cáo chẩn đoán chỉ sao chép vào clipboard, không tạo tệp log. Lệnh Shop riêng có thể gửi yêu cầu game thật như mô tả trên; chưa có chuỗi tự động 12 nhiệm vụ.
 
 ## Build / kiểm thử
 
@@ -33,7 +39,7 @@ python source/test_report_windows.py --zig /path/to/zig-0.14.1
 
 Build xuất EXE, DLL và build.json vào source/dist. SHA-256 DLL nhúng trong EXE; source/build.json ghi hash của cặp phát hành. Bitmap nền không nhúng sẵn; resource chỉ có logo/icon và font. Các tệp EXE/DLL phát hành nằm ngay gốc repo; ZIP nằm ở GitHub Releases.
 
-21 nhóm kiểm thử native/Lua gồm backend mô phỏng, tiện ích launcher, hình học Fit/Fill và bộ định dạng báo cáo có giới hạn và script inventory chạy trên Lua VM thật. Bộ test Windows/Wine mới kiểm tra callback Update gốc, idle/shared/off-main guards, hàng đợi một yêu cầu, reentrancy, GC handle, exception, clipboard và timeout. Đã kiểm tra 13 nhóm UI qua Wine, gồm font/logo, trang Auto Daily và sao chép metadata qua clipboard với API giả; không thay thế kiểm tra game thật. Auto Daily chưa có backend thực hiện nhiệm vụ.
+22 nhóm kiểm thử native/Lua gồm backend mô phỏng, tiện ích launcher, hình học Fit/Fill và bộ định dạng báo cáo có giới hạn và script inventory chạy trên Lua VM thật. Bộ test Windows/Wine mới kiểm tra callback Update gốc, idle/shared/off-main guards, hàng đợi một yêu cầu, reentrancy, GC handle, exception, clipboard và timeout. Đã kiểm tra 13 nhóm UI qua Wine, gồm font/logo, trang Auto Daily và sao chép metadata qua clipboard với API giả; không thay thế kiểm tra game thật. Shop có backend gửi yêu cầu thử nghiệm; 11 nhiệm vụ khác chưa thực hiện.
 
 Giữ F1/Hide để ẩn mà không tắt tính năng; X/Alt+F4 tắt tính năng rồi ẩn. F6/F7/F8 điều khiển event. Chỉnh giao diện và danh sách daily không đổi trạng thái Player/Event.
 
@@ -55,4 +61,8 @@ Report v3 thực tế liệt kê đủ 1005 ứng viên, trong đó có Game.Lua
 
 Report v4 thực tế đã đọc Lua thành công: 4090 entry, 300 bảng, đủ 2400 dòng và Limited=yes. Có ReceiveDailyReward, ReceiveDailyActiveReward, SendDailyShopRewardReceiveReq, SendDiscStrengthenReq, ReqApplyAgent và ITDailyRewardReq, nhưng tên hàm không xác nhận được đối số, điều kiện gọi, tài nguyên hoặc callback hoàn tất. Nhiều dòng thuộc super của Login/CheckIn controller; các module PlayerCharData/PlayerDatingData chỉ còn tên, thiếu chi tiết.
 
-Report v5 sửa đúng phần này, bổ sung metadata tham số và liên kết instance. Auto Daily vẫn setup-only; danh sách hàm chưa đủ để chạy một chuỗi nhiệm vụ thật. [Bản đồ thông tin đã tìm được](AUTO_DAILY.vi.md) ghi rõ những phần còn thiếu.
+Report v5 sửa phần này, bổ sung metadata tham số và liên kết instance. Ở preview.5 Auto Daily vẫn setup-only; danh sách hàm chưa đủ để chạy một chuỗi nhiệm vụ thật. [Bản đồ thông tin đã tìm được](AUTO_DAILY.vi.md) ghi rõ những phần còn thiếu.
+
+## Hành động Shop đầu tiên trong preview.6
+
+Report v5 thực tế xác nhận PlayerData.Shop, GetDailyShopReward(self) và SendDailyShopRewardReceiveReq(self, callback); đồng thời cho thấy DispatchData.ReqApplyAgent không có self, nên không thể dùng một kiểu gọi chung cho mọi task. Shop được nối riêng với kiểm tra chữ ký/instance và trạng thái một lần thử. Test trên Lua VM thật xác nhận handler mua hàng không bị gọi, callback không làm lộ payload, không có lần gửi thứ hai khi bấm lại hoặc sau exception. Build mới chưa được kiểm tra trong game thật.
