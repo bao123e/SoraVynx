@@ -4,27 +4,19 @@ SoraVynx là tên mới của toolkit Stella Sora. Launcher **SoraVynx.exe**, th
 
 Menu không đánh số: **Player**, **Event**, **Custom BG**, **Auto Daily**. Player/Event giữ backend trước; các hàng đủ chiều ngang và ô Damage/Vacuum/Score nằm cùng hàng. Custom BG có Image/Panel/Button opacity riêng 0–100%, Fit/Fill và ảnh PNG/JPG/BMP. Font mới **Be Vietnam Pro** nhúng Regular/SemiBold/Bold, hỗ trợ tiếng Việt; logo SoraVynx trong app và icon EXE. Không cài font hệ thống, không tạo log.
 
-## Auto Daily: Daily Gift UI preview, chưa tự chạy cả chuỗi
+## Auto Daily: thử Tower reward, bỏ qua Shop
 
 Mười hai lựa chọn theo ảnh người dùng: Tier-up Trial; Ascension; nâng Disc; nâng Trekker; 5 battle stages; tiêu 100 Vigor; tương tác Trekker màn chính; nhận thưởng Tyrant’s Tower; tặng quà Heartlink; dispatch commission; nhận quà ngẫu nhiên Shop; đăng nhập ngày. Dự kiến dùng đội, màn, difficulty, Trekker và Disc đang chọn trong game.
 
-Bản preview.9 tiếp tục sửa luồng Shop: **Daily Gift / status** gọi handler của nút Daily Gift thay cho request nhận quà trực tiếp của preview.6. Mười một nhiệm vụ còn lại và scheduler chưa thực hiện. Các lựa chọn USE/SKIP được lưu; nút chỉ hoạt động khi Claim Shop random reward đang USE.
+Bản preview.10 dừng phần Shop theo yêu cầu: luôn xóa bit USE của Shop khi đọc cấu hình, lưu lại SKIP và khóa hàng Shop trong UI. Script Shop cũ giữ trong mã nguồn để lưu lịch sử, không còn được nhúng hay chạy trong DLL. Mười nhiệm vụ khác vẫn chưa triển khai; chỉ có lệnh thử Tower reward.
 
-Đóng game, cập nhật cả EXE/DLL, mở trang **Shop** trong game và giữ nó hiển thị. Đợi READY rồi chọn **Auto Daily → Daily Gift / status**. Tool tự ẩn và chuyển focus về cửa sổ Unity của cùng game để Update tiếp tục chạy. Khi handler trả về bình thường, không hiện MessageBox trạng thái đầu tiên để tránh che giao diện game. Bấm **F1** để hiện lại tool; bấm lại nút để xem trạng thái đã copy vào clipboard, không gọi handler lần nữa trong phiên game này.
+Đóng game, cập nhật cả EXE/DLL, vào game và mở Tyrant’s Tower để dữ liệu thưởng được nạp. Đợi READY, bật USE cho **Claim Tyrant’s Tower rewards**, chọn **Tower reward / status**. Lệnh chạy sau Update gốc trên main thread; tool tự ẩn và trả focus về game. F1 hiện lại tool, bấm lại nút để đọc trạng thái vào clipboard mà không gửi thêm yêu cầu.
 
-Ảnh .8 xác nhận FindObjectsOfType(LuaBehaviourBase) trả 0 trong Shop. Bản .9 thêm hai đường độc lập: Resources.FindObjectsOfTypeAll cho LuaBehaviourBase và LuaUIController, theo public getter luaBehaviour của controller. Object từ Resources phải thuộc hierarchy active và scene valid/loaded; không gọi handler trên prefab/asset hay object inactive. Controller đang active có thể sở hữu LuaBehaviour tắt Update; khi đó trạng thái active của controller là bằng chứng UI.
+Nguồn binding là report v5: PlayerData.InfinityTower có đúng class PlayerInfinityTowerData, ITDailyRewardReq(self) một tham số và không vararg, InfinityTowerRewardsTab là bảng. Khi module cache không có class chuẩn, chỉ chấp nhận source metadata của handler khớp đúng module. Thiếu/bất đồng class, arity hoặc dữ liệu thưởng thì dừng có Code. Không dùng CS/Unity object discovery hay registry PanelManager của phần Shop.
 
-Nếu UI là pure Lua, lệnh chỉ xét registry khi PanelManager.GetCurPanelId có chữ ký 0 tham số/không vararg và trả ID khớp hằng số Shop đã nhận diện trong PanelId. Đọc upvalue của các hàm PanelManager cố định và helper cùng source tối đa hai tầng, không gọi hàm mở/đổi panel. Duyệt tối đa 32 function, 32 upvalue/function, 128 bảng registry và 256 entry/bảng, sâu hai tầng. Chỉ đưa entry có key bằng current Shop ID vào bước tìm ShopCtrl. Không xuất ID, upvalue values, source code hay thông báo exception gốc. Nếu không chứng minh được Shop hiện tại, registry không được dùng. Nếu chứng minh đang ở trang khác thì dừng trước khi gọi handler.
+Mỗi phiên game chỉ thử gọi handler một lần, ghi state trước khi gọi để không tự retry sau exception. Các lần sau so sánh snapshot giới hạn của riêng bảng thưởng Tower (32 node, 128 entry/node, sâu hai tầng), chỉ xuất số field thay đổi, không xuất scalar/ID. Thay đổi có thể là cập nhật dữ liệu thông thường; không suy ra nhận thưởng thành công hay task hoàn tất. Chưa giải mã server response. Handler gốc và game chịu trách nhiệm xử lý/hiển thị thưởng, cần xác nhận trong game thật.
 
-Sau khi tìm được object phù hợp bằng các đường trên, script xét LuaBehaviourBase active/enabled hoặc Lua instance từ registry đã xác nhận. Từ ShopCtrl đang hiển thị, tìm handler trên instance, class, superclass và metatable; nếu __index là function thì chỉ tra đúng tên OnBtnClick_DailyGift qua protected lookup. Không bắt buộc package.loaded có class theo khóa chuẩn. Alias module dạng dấu chấm/gạch chéo vẫn được dùng làm bằng chứng danh tính khi có.
-
-Nếu ShopCtrl là pure Lua object nằm trong ShopPanel, chỉ duyệt raw table con hai tầng trong panel Shop đang hoạt động, tối đa 64 node và 256 entry/node. Với tên component rút gọn, chỉ nhận handler khi nối được class/function với module ShopCtrl đã biết hoặc debug source metadata khớp namespace Game.UI.ShopEx.ShopCtrl. Chỉ so sánh source path trong bộ nhớ, không xuất path hay thân hàm ra báo cáo.
-
-Chữ ký vẫn phải có nparams=1 và isvararg=false. Khi debug.getlocal cung cấp tên tham số hợp lệ thì tên phải là self; khi tên bị strip/không hỗ trợ thì dựa vào số tham số, namespace và instance đã xác nhận. Không suy ra arity khi debug metadata thiếu. Nếu không xác minh được thì dừng với Code riêng cho từng khâu, không tự chuyển sang request nhận quà trực tiếp hay tọa độ click. Code và số lượng UI table chỉ phục vụ chẩn đoán; không sao chép scalar tài khoản hay thông báo exception gốc.
-
-Lệnh ghi trạng thái riêng trước khi gọi handler, kể cả trường hợp handler ném lỗi sau khi đã thực hiện một phần. Mỗi phiên game tối đa một lần gọi; các lần bấm sau chỉ đọc trạng thái. GetDailyShopReward được dùng tùy chọn để quan sát cờ quà đổi mà không xuất giá trị scalar. Handler trả về không tự chứng minh Daily Gift đã mở hay quà đã nhận; cần kiểm tra trong game. Lệnh không tự đánh dấu nhiệm vụ hoàn thành. Handler gốc của game sở hữu các bước UI và request của nó.
-
-Disable all/X hoặc chuyển Shop sang SKIP hủy lệnh còn chờ Update; F1/Hide chỉ ẩn tool. Hành động đã chạy được game tiếp tục xử lý. Muốn thử lại sau lỗi hoặc ngày mới, khởi động lại game để kết thúc trạng thái một lần thử. Player/Event giữ backend trước.
+Disable all/X hoặc chuyển Tower sang SKIP sẽ hủy lệnh còn chờ; hành động đã chạy không được retry tự động. Nút Shop bị khóa SKIP và không thể gửi action Shop. Player/Event, Custom BG và font/logo giữ nguyên backend/giao diện trước. Không tạo log. Muốn thử lại sau lỗi hoặc ngày mới thì restart game để kết thúc giới hạn một lần thử.
 
 **Copy Lua name report** vẫn đọc metadata, không gọi handler nhiệm vụ. Vào màn chính hoặc mở trang cần chẩn đoán, chờ READY rồi bấm nút và chuyển lại game. Không cần làm lại daily. Nếu không có callback Update sau 15 giây, yêu cầu chờ bị hủy.
 
@@ -36,7 +28,7 @@ Giới hạn 30000 entry tổng, 2048 entry mỗi lần liệt kê bảng, 2400 
 
 **Copy API metadata:** giữ report v3 để chẩn đoán C#/IL2CPP: danh sách assembly, quét Game/Hotfix và assembly ứng dụng, ưu tiên Lua/UI cùng sáu nhóm nhiệm vụ. Giới hạn 512 KiB tổng, 192 KiB chỉ mục; nhóm Lua/UI 64 KiB với 16 KiB/lớp, nhóm nhiệm vụ 24 KiB với 4 KiB/lớp. Chỉ metadata, không đọc giá trị field hay gọi hành động game.
 
-Hai báo cáo chẩn đoán chỉ sao chép vào clipboard, không tạo tệp log. Lệnh Daily Gift riêng có thể chạy handler UI/game thật như mô tả trên; chưa có chuỗi tự động 12 nhiệm vụ.
+Hai báo cáo chẩn đoán chỉ sao chép vào clipboard, không tạo tệp log. Lệnh Tower riêng có thể gọi handler nhận thưởng game thật như mô tả trên; chưa có chuỗi tự động 12 nhiệm vụ.
 
 ## Build / kiểm thử
 
@@ -49,7 +41,7 @@ python source/test_report_windows.py --zig /path/to/zig-0.14.1
 
 Build xuất EXE, DLL và build.json vào source/dist. SHA-256 DLL nhúng trong EXE; source/build.json ghi hash của cặp phát hành. Bitmap nền không nhúng sẵn; resource chỉ có logo/icon và font. Các tệp EXE/DLL phát hành nằm ngay gốc repo; ZIP nằm ở GitHub Releases.
 
-22 nhóm kiểm thử native/Lua gồm backend mô phỏng, tiện ích launcher, hình học Fit/Fill và bộ định dạng báo cáo có giới hạn và script inventory chạy trên Lua VM thật. Bộ test Windows/Wine mới kiểm tra callback Update gốc, idle/shared/off-main guards, hàng đợi một yêu cầu, reentrancy, GC handle, exception, clipboard và timeout. Đã kiểm tra 13 nhóm UI qua Wine, gồm font/logo, trang Auto Daily và sao chép metadata qua clipboard với API giả; không thay thế kiểm tra game thật. Daily Gift có backend gọi handler UI thử nghiệm; 11 nhiệm vụ khác chưa thực hiện.
+22 nhóm kiểm thử native/Lua gồm backend mô phỏng, tiện ích launcher, hình học Fit/Fill và bộ định dạng báo cáo có giới hạn và script inventory chạy trên Lua VM thật. Bộ test Windows/Wine mới kiểm tra callback Update gốc, idle/shared/off-main guards, hàng đợi một yêu cầu, reentrancy, GC handle, exception, clipboard và timeout. Đã kiểm tra 13 nhóm UI qua Wine, gồm font/logo, trang Auto Daily và sao chép metadata qua clipboard với API giả; không thay thế kiểm tra game thật. Tower có handler request thử nghiệm; Shop bị SKIP và 10 nhiệm vụ khác chưa thực hiện.
 
 Giữ F1/Hide để ẩn mà không tắt tính năng; X/Alt+F4 tắt tính năng rồi ẩn. F6/F7/F8 điều khiển event. Chỉnh giao diện và danh sách daily không đổi trạng thái Player/Event.
 
@@ -88,3 +80,7 @@ Report v5 thực tế xác nhận PlayerData.Shop, GetDailyShopReward(self) và 
 ## Sửa trường hợp zero behaviours trong preview.9
 
 Ảnh thực tế trả SHOP_CONTROLLER_NOT_FOUND với normal search bằng 0. Chưa thể kết luận chỉ từ ảnh rằng object có DontSave hay toàn bộ UI là pure Lua, nên .9 xét cả loaded runtime objects và registry UI đã được xác minh current Shop. Báo cáo có normal/all/UIControllers/registry/currentShop theo từng đường và tên hằng enum Shop nếu cần chẩn đoán; không sao chép giá trị ID. Test dựng đúng trường hợp normal finder rỗng nhưng Resources hoặc private PanelManager cache chứa Shop đang dùng. Getter current panel là hàm nghiệp vụ duy nhất được gọi để kiểm tra context; các hàm OpenPanelWithContext/CheckPanelOpen/helper chỉ bị đọc metadata/upvalue, không được thực thi. Còn cần xác minh trong game thật.
+
+## Chuyển mục tiêu preview.10
+
+Người dùng yêu cầu bỏ qua Shop để thử nhiệm vụ khác. Bản này thay resource command 405 bằng daily_tower.lua, không tiếp tục đường dò UI Shop. Trạng thái auto_daily_ready vẫn false; daily_supported_actions chỉ ghi tower_daily_reward_request. Bộ test active dùng mock Tower model trên Lua VM thật, kiểm tra đúng self/arity/class, một lần thử, status refresh, không gọi UI/Shop/battle và không xuất giá trị reward state. Mã/test Shop cũ không chạy trong test mặc định và không nằm trong runtime resource.

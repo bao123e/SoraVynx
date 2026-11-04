@@ -1,5 +1,15 @@
 # SoraVynx release notes
 
+## 1.1.0-preview.10
+
+- Pause Shop work as requested: clear and persist its USE bit, lock the Shop row to SKIP and remove the Shop command from the runtime resource.
+- Switch the action button to Tower reward / status using report v5's confirmed PlayerData.InfinityTower instance and ITDailyRewardReq(self) signature.
+- Validate class identity, handler arity and ready reward-table data before one explicit request. Repeated clicks only observe the reward table; no retry after handler errors.
+- Copy only observation counts/status, never reward-field scalar values or IDs, and do not infer server success or daily completion from a returned handler or changed fields.
+- Keep the main-thread bridge, queued cancellation, F1 restore, Player/Event functions and no-log behavior. No Shop UI lookup, battle entry, upgrade or gift-send call is used by the Tower command.
+- Replace the active Lua regression with Tower coverage and update Windows/UI tests for the Tower USE bit and disabled Shop row.
+- Full Auto Daily remains unimplemented; real-game verification is required. Close the game and replace both EXE/DLL.
+
 ## 1.1.0-preview.9
 
 - Address the real .8 failure reporting zero LuaBehaviourBase objects while Shop was visible. A normal Unity object search is no longer the sole discovery route.

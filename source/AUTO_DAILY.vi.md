@@ -1,6 +1,9 @@
 # Auto Daily — tình trạng tích hợp
 
-Report Lua v5 đã xác nhận chữ ký và liên kết PlayerData cho nhiều lớp. Preview.9 nối riêng handler UI Daily Gift trên Shop; chưa có scheduler hay 11 nhiệm vụ còn lại. Report metadata v3 không chứa chữ ký của các hàm Lua này.
+**Hiện tại preview.10:** Shop bị bỏ qua theo yêu cầu; script Shop không được nhúng trong runtime. Chuyển sang lệnh thử ITDailyRewardReq(self) trên PlayerData.InfinityTower, chưa xác minh server success. Chưa có scheduler đầy đủ và 10 nhiệm vụ khác chưa triển khai.
+
+
+Report Lua v5 đã xác nhận chữ ký và liên kết PlayerData cho nhiều lớp. Trước preview.10, preview.9 thử nối handler UI Daily Gift trên Shop (nay đã bỏ qua); chưa có scheduler hay 11 nhiệm vụ còn lại. Report metadata v3 không chứa chữ ký của các hàm Lua này.
 
 | Nhiệm vụ | Thông tin đã thấy | Cần xác minh trước khi chạy |
 | --- | --- | --- |
@@ -11,7 +14,7 @@ Report Lua v5 đã xác nhận chữ ký và liên kết PlayerData cho nhiều 
 | Thắng 5 battle stages | Các module dữ liệu battle đã nạp | Đọc tiến độ và chỉ chạy số trận còn thiếu |
 | Tiêu 100 Vigor | Chưa xác nhận cách đọc tiến độ daily | Tính phần đã tiêu, tận dụng các trận đã chạy |
 | Tương tác Trekker màn chính | MainViewCtrl đã thấy | Handler tương tác và xác nhận task tăng tiến độ |
-| Thưởng Tyrant’s Tower | PlayerInfinityTowerData.ITDailyRewardReq | Điều kiện nhận, đối số và callback kết quả |
+| Thưởng Tyrant’s Tower | PlayerData.InfinityTower.ITDailyRewardReq(self) | Preview.10 gửi một lần; chưa giải mã server success, cần xác minh phần quà trong game |
 | Quà Heartlink | PlayerDatingData/PlayerDormData đã nạp; thiếu chi tiết | Handler tặng, mục tiêu/vật phẩm đang chọn, giới hạn một quà |
 | Dispatch commission | DispatchData.ReqApplyAgent | Commission/đội hiện tại, slot trống, callback kết quả |
 | Quà miễn phí Shop | PlayerData.Shop; SendDailyShopRewardReceiveReq(self, callback); GetDailyShopReward(self) | Preview.9 gọi ShopCtrl.OnBtnClick_DailyGift(self) trên instance UI đang hoạt động; cần xác minh UI/quà trong game |
@@ -38,3 +41,7 @@ Thông báo .7 trong Shop bị gộp giữa thiếu module, thiếu raw method v
 ## Tìm UI runtime preview.9
 
 Ảnh .8 xác nhận normal Unity finder trả 0; đó là lỗi discovery, chưa đến bước gọi handler. .9 xét Resources với active-scene filtering và LuaUIController.luaBehaviour, đồng thời có registry pure Lua từ PanelManager khi current Shop ID được getter/enum xác minh. Chỉ đọc helper/upvalue, không gọi hàm mở panel để đoán. Nếu vẫn dừng, số lượng từng route và trạng thái currentShop cho biết bước còn thiếu; scalar ID và account values không được đưa ra clipboard.
+
+## Tower preview.10
+
+Binding đã thấy trong report v5: PlayerData.InfinityTower.class trỏ PlayerInfinityTowerData, ITDailyRewardReq(self), InfinityTowerRewardsTab. Lệnh chỉ gửi một lần khi class/arity/state sẵn sàng, không gọi EnterInfinityTower/GetITInfoReq, không dùng locator Shop. Status chỉ đếm khác biệt snapshot bảng thưởng; không được dùng để tự đánh dấu task hoàn tất. Shop luôn SKIP. Cần người dùng xác minh phần quà/tiến độ Tower trong game thật.

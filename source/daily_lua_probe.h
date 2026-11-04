@@ -3,7 +3,7 @@
 #include "vendor/minhook/include/MinHook.h"
 
 /* Fixed Lua commands are deferred to LuaManager.Update. Inspection is read-only;
- * the separate Shop command invokes the active Daily Gift UI handler. */
+ * the action command calls the daily Tower reward handler. */
 static const void *daily_lua_update_method,*daily_lua_inspect_method,*daily_lua_main_thread_method;
 static void *daily_lua_manager_class,*daily_lua_env_class;
 static void *daily_lua_instance_field,*daily_lua_env_field;
@@ -16,8 +16,8 @@ static uint32_t (*daily_lua_array_header_size)(void);
 static int32_t (*daily_lua_array_element_size)(void*);
 static uint32_t (*daily_lua_handle_new)(void*,bool);
 static void (*daily_lua_handle_free)(uint32_t);
-static char *daily_lua_script,*daily_shop_script;
-static LONG daily_lua_kind,daily_lua_result_kind; /* 0 inspection, 1 explicit Daily Gift UI/status */
+static char *daily_lua_script,*daily_action_script;
+static LONG daily_lua_kind,daily_lua_result_kind; /* 0 inspection, 1 explicit Tower reward/status */
 static wchar_t *daily_lua_result;
 static volatile LONG daily_lua_state; /* 0 idle, 1 queued, 2 executing, 3 result, 4 preparing */
 static bool daily_lua_available;
@@ -26,7 +26,7 @@ static const wchar_t *daily_lua_failure=L"Lua inspection is unavailable in this 
 
 static wchar_t *daily_lua_error_result(const wchar_t *reason) {
  size_t length=wcslen(reason)+160;wchar_t *result=calloc(length,sizeof(*result));
- if(result)swprintf(result,length,daily_lua_kind?L"SoraVynx Shop bridge stopped\r\n%ls\r\nA request may already have been sent. Check the game; no automatic retry was made.\r\n":L"SoraVynx Auto Daily setup - Lua report v5\r\nStatus: inspection stopped\r\n%ls\r\nNo daily actions executed.\r\n",reason);
+ if(result)swprintf(result,length,daily_lua_kind?L"SoraVynx Tower bridge stopped\r\n%ls\r\nA request may already have been sent. Check the game; no automatic retry was made.\r\n":L"SoraVynx Auto Daily setup - Lua report v5\r\nStatus: inspection stopped\r\n%ls\r\nNo daily actions executed.\r\n",reason);
  return result;
 }
 static wchar_t *daily_lua_collect(void) {
@@ -35,7 +35,7 @@ static wchar_t *daily_lua_collect(void) {
  if(!manager||!api.class_is_assignable_from(daily_lua_manager_class,api.object_get_class(manager)))return daily_lua_error_result(L"Existing LuaManager is not ready. Enter the game main menu and retry.");
  api.field_get_value(manager,daily_lua_env_field,&env);
  if(!env||!api.class_is_assignable_from(daily_lua_env_class,api.object_get_class(env)))return daily_lua_error_result(L"The existing Lua environment is not ready. No environment was created.");
- void *script=daily_lua_string_new(daily_lua_kind?daily_shop_script:daily_lua_script);
+ void *script=daily_lua_string_new(daily_lua_kind?daily_action_script:daily_lua_script);
  if(!script)return daily_lua_error_result(L"Could not allocate the fixed inspection script.");
  uint32_t script_handle=daily_lua_handle_new(script,false);if(!script_handle)return daily_lua_error_result(L"Could not retain the inspection script.");
  /* Only a bundled fixed command; no input text is evaluated.
@@ -97,7 +97,7 @@ static bool daily_lua_install(HMODULE game,HMODULE resources) {
  resource=FindResourceW(resources,MAKEINTRESOURCEW(405),MAKEINTRESOURCEW(10));
  bytes=resource?SizeofResource(resources,resource):0;data=resource?LoadResource(resources,resource):NULL;
  script=data?LockResource(data):NULL;if(!script||!bytes||bytes>65536)goto failed;
- daily_shop_script=calloc((size_t)bytes+1,1);if(!daily_shop_script)goto failed;memcpy(daily_shop_script,script,bytes);
+ daily_action_script=calloc((size_t)bytes+1,1);if(!daily_action_script)goto failed;memcpy(daily_action_script,script,bytes);
  void *entry=*(void *const *)update;MEMORY_BASIC_INFORMATION info;
  if(!entry||!VirtualQuery(entry,&info,sizeof(info))||info.State!=MEM_COMMIT||
     (info.Protect&(PAGE_GUARD|PAGE_NOACCESS))||!(info.Protect&(PAGE_EXECUTE|PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_EXECUTE_WRITECOPY)))goto failed;
@@ -107,14 +107,14 @@ static bool daily_lua_install(HMODULE game,HMODULE resources) {
  memcpy(&daily_lua_update_original,&original,sizeof(original));
  if(MH_EnableHook(entry)!=MH_OK){MH_RemoveHook(entry);goto failed;}
  daily_lua_available=true;return true;
- failed:free(daily_lua_script);free(daily_shop_script);daily_lua_script=daily_shop_script=NULL;return false;
+ failed:free(daily_lua_script);free(daily_action_script);daily_lua_script=daily_action_script=NULL;return false;
 }
 static void daily_lua_request_kind(HWND owner,LONG kind) {
  if(!daily_lua_available){MessageBoxW(owner,daily_lua_failure,L"SoraVynx",MB_OK|MB_ICONINFORMATION);return;}
  if(InterlockedCompareExchange(&daily_lua_state,4,0)==0){daily_lua_kind=kind;daily_lua_requested_at=GetTickCount64();InterlockedExchange(&daily_lua_state,1);}
 }
 static void daily_lua_request(HWND owner){daily_lua_request_kind(owner,0);}
-static void daily_lua_shop_request(HWND owner){daily_lua_request_kind(owner,1);}
+static void daily_lua_tower_request(HWND owner){daily_lua_request_kind(owner,1);}
 static void daily_lua_cancel_queued(void){InterlockedCompareExchange(&daily_lua_state,0,1);}
 static BOOL CALLBACK daily_lua_find_game(HWND hwnd,LPARAM context) {
  DWORD process=0;GetWindowThreadProcessId(hwnd,&process);wchar_t name[64];
@@ -145,8 +145,8 @@ static void daily_lua_poll(HWND owner) {
   }
  }
  if(kind&&result){
-  if(wcsstr(result,L"\r\nStatus: UI_HANDLER_INVOKED\r\n"))daily_lua_return_to_game(owner);
-  else {daily_lua_restore_tool(owner);MessageBoxW(owner,result,L"SoraVynx - Daily Gift / status",MB_OK|MB_ICONINFORMATION);}
+  if(wcsstr(result,L"\r\nStatus: TOWER_REQUEST_ATTEMPTED\r\n"))daily_lua_return_to_game(owner);
+  else {daily_lua_restore_tool(owner);MessageBoxW(owner,result,L"SoraVynx - Tower reward / status",MB_OK|MB_ICONINFORMATION);}
  }
  else MessageBoxW(owner,copied?L"Lua name report copied. Send it to continue Auto Daily integration. No daily tasks were run.":L"Could not copy the Lua report. Please retry.",L"SoraVynx",MB_OK|(copied?MB_ICONINFORMATION:MB_ICONERROR));
  free(result);

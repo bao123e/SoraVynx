@@ -4,14 +4,14 @@
 
 SoraVynx is a native Windows x64 toolkit for Stella Sora with Player/Event controls and customizable backgrounds.
 
-**[Download v1.1.0 preview.9](https://github.com/bao123e/SoraVynx/releases/tag/v1.1.0-preview.9)** · [Source & build](source/README.vi.md)
+**[Download v1.1.0 preview.10](https://github.com/bao123e/SoraVynx/releases/tag/v1.1.0-preview.10)** · [Source & build](source/README.vi.md)
 
 - **Player:** God Mode, Damage x2–x50, No Cooldown, Unlimited Energy, Mob Vacuum.
 - **Event:** cooldown/energy riêng và Score x2–x100.
 - **Custom BG:** PNG/JPG/BMP, Fit/Fill, opacity ảnh/bảng/nút riêng.
-- **Auto Daily — tích hợp một phần:** **Daily Gift / status** gọi handler của nút Daily Gift trên controller Shop đang hoạt động khi mục Shop đang USE. Chưa tự chạy cả 12 nhiệm vụ. Hai nút Copy report giữ chức năng chẩn đoán.
+- **Auto Daily — tích hợp một phần:** Shop được đặt cố định **SKIP** theo yêu cầu. Nút thử nghiệm mới **Tower reward / status** gửi một yêu cầu nhận thưởng ngày Tyrant’s Tower. Chưa tự chạy cả chuỗi nhiệm vụ.
 
-Để thử: đóng game, cập nhật cả EXE/DLL, mở **Shop** trong game và để trang này hiện. Đợi READY rồi chọn Auto Daily → **Daily Gift / status**. Tool tự ẩn và trả focus về game để thấy giao diện Daily Gift. **F1** hiện lại tool; bấm lại nút để xem trạng thái, không gọi lại handler trong cùng phiên game. Bản .9 thêm tìm object runtime/ẩn và registry Lua của PanelManager khi bộ quét Unity thông thường trả 0. Chỉ gọi handler sau khi xác minh UI Shop phù hợp. Nếu dừng, thông báo có dòng **Code:** chỉ đúng bước lỗi. Build/test mô phỏng đạt; cần kiểm tra giao diện và nhận quà trong game thật. Không tạo log.
+Để thử Tower: đóng game, cập nhật cả EXE/DLL, vào game và mở Tyrant’s Tower để dữ liệu thưởng sẵn sàng. Đợi READY, đặt **Claim Tyrant’s Tower rewards → USE**, rồi chọn **Tower reward / status**. Tool tự ẩn để game xử lý; **F1** hiện lại tool. Bấm lại nút để xem trạng thái đã copy, không gửi thêm yêu cầu trong phiên game đó. Chưa xác minh thành công server; cần kiểm tra quà trong game. Các nút Copy report vẫn dùng được. Không tạo log.
 
 Giao diện bo góc, logo SoraVynx và font **Be Vietnam Pro** nhúng sẵn. Không đánh số menu; không tạo log.
 
@@ -19,4 +19,4 @@ Giao diện bo góc, logo SoraVynx và font **Be Vietnam Pro** nhúng sẵn. Kh�
 
 Repo chính thức: **[bao123e/SoraVynx](https://github.com/bao123e/SoraVynx)**. Repo chứa đầy đủ EXE, DLL, giấy phép và thư mục source; ZIP chỉ ở Releases.
 
-Build Windows x64; 22 nhóm kiểm thử native/Lua và hai test report Windows/Wine đạt; 13 nhóm UI Wine đạt. Player/Event giữ backend đã được kiểm tra trước đó; Shop có lệnh gửi yêu cầu thử nghiệm; 11 nhiệm vụ còn lại chưa thực hiện. [AGPL-3.0-or-later, MinHook BSD, font SIL OFL](LICENSE.txt).
+Build Windows x64; 22 nhóm kiểm thử native/Lua và hai test report Windows/Wine đạt; 13 nhóm UI Wine đạt. Player/Event giữ backend đã được kiểm tra trước đó; Tower có lệnh gửi yêu cầu thử nghiệm; Shop bị bỏ qua và 10 nhiệm vụ khác chưa thực hiện. [AGPL-3.0-or-later, MinHook BSD, font SIL OFL](LICENSE.txt).

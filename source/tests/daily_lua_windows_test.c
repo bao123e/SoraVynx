@@ -23,7 +23,7 @@ static void *mock_class(void *object){return object==manager_object?(void*)20:ob
 static bool mock_assignable(void *a,void *b){return a==b;}
 static void mock_static(void *field,void *value){assert(field==(void*)30);*(void**)value=manager_ready?manager_object:NULL;}
 static void mock_field(void *object,void *field,void *value){assert(object==manager_object&&field==(void*)31);*(void**)value=env_object;}
-static void *mock_string(const char *text){assert(!strcmp(text,daily_lua_kind?"fixed shop script":"fixed inspection script"));return script_object;}
+static void *mock_string(const char *text){assert(!strcmp(text,daily_lua_kind?"fixed tower script":"fixed inspection script"));return script_object;}
 static int32_t mock_length(void *value){assert(value==string_object);return (int32_t)wcslen(report_text);}
 static const uint16_t *mock_chars(void *value){assert(value==string_object);return (const uint16_t*)report_text;}
 static uintptr_t mock_count(void *value){assert(value==array_object);return bad_result?2:1;}
@@ -55,7 +55,7 @@ int main(void){
  api.object_get_class=mock_class;api.class_is_assignable_from=mock_assignable;api.field_static_get_value=mock_static;api.field_get_value=mock_field;api.runtime_invoke=mock_invoke;api.object_unbox=mock_unbox;
  daily_lua_manager_class=(void*)20;daily_lua_env_class=(void*)21;daily_lua_instance_field=(void*)30;daily_lua_env_field=(void*)31;
  daily_lua_string_new=mock_string;daily_lua_string_length=mock_length;daily_lua_string_chars=mock_chars;daily_lua_array_length=mock_count;daily_lua_array_header_size=mock_header;daily_lua_array_element_size=mock_element_size;daily_lua_handle_new=mock_handle;daily_lua_handle_free=mock_free;
- daily_lua_update_original=mock_original;daily_lua_update_method=(void*)76;daily_lua_inspect_method=(void*)77;daily_lua_main_thread_method=(void*)91;daily_lua_script="fixed inspection script";daily_shop_script="fixed shop script";daily_lua_available=true;
+ daily_lua_update_original=mock_original;daily_lua_update_method=(void*)76;daily_lua_inspect_method=(void*)77;daily_lua_main_thread_method=(void*)91;daily_lua_script="fixed inspection script";daily_action_script="fixed tower script";daily_lua_available=true;
  assert(!daily_lua_install(NULL,NULL)); /* Optional probe failure never alters core startup. */
  daily_lua_update_hook(manager_object,daily_lua_update_method);assert(originals==1&&!inspections&&!utility_calls);
  daily_lua_request(NULL);daily_lua_request(NULL);assert(daily_lua_state==1);
@@ -70,11 +70,11 @@ int main(void){
  raise_exception=false;bad_result=true;daily_lua_request(NULL);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(wcsstr(daily_lua_result,L"Unexpected or oversized")&&handles==freed);discard();
  manager_ready=false;int before=inspections;daily_lua_request(NULL);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(inspections==before&&wcsstr(daily_lua_result,L"not ready"));discard();
  daily_lua_request(NULL);daily_lua_requested_at=GetTickCount64()-16000;daily_lua_poll(NULL);assert(!daily_lua_state);KillTimer(NULL,1);
- manager_ready=true;bad_result=false;daily_lua_shop_request(NULL);assert(daily_lua_kind==1&&daily_lua_state==1);
+ manager_ready=true;bad_result=false;daily_lua_tower_request(NULL);assert(daily_lua_kind==1&&daily_lua_state==1);
  daily_lua_cancel_queued();assert(!daily_lua_state);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(inspections==before);
- daily_lua_shop_request(NULL);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(daily_lua_state==3&&daily_lua_result_kind==1);assert(SetTimer(NULL,1,50,dismiss));daily_lua_poll(NULL);assert(!daily_lua_state);KillTimer(NULL,1);
+ daily_lua_tower_request(NULL);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(daily_lua_state==3&&daily_lua_result_kind==1);assert(SetTimer(NULL,1,50,dismiss));daily_lua_poll(NULL);assert(!daily_lua_state);KillTimer(NULL,1);
  HWND ui=CreateWindowW(L"STATIC",L"UI flow",WS_OVERLAPPEDWINDOW|WS_VISIBLE,10,10,100,100,NULL,NULL,GetModuleHandleW(NULL),NULL);assert(ui&&IsWindowVisible(ui));
- const wchar_t invoked[]=L"Daily Gift\r\nStatus: UI_HANDLER_INVOKED\r\n";daily_lua_result=calloc(sizeof(invoked)/sizeof(wchar_t),sizeof(wchar_t));memcpy(daily_lua_result,invoked,sizeof(invoked));daily_lua_result_kind=1;daily_lua_state=3;
+ const wchar_t invoked[]=L"Tower reward\r\nStatus: TOWER_REQUEST_ATTEMPTED\r\n";daily_lua_result=calloc(sizeof(invoked)/sizeof(wchar_t),sizeof(wchar_t));memcpy(daily_lua_result,invoked,sizeof(invoked));daily_lua_result_kind=1;daily_lua_state=3;
  daily_lua_poll(ui);assert(!daily_lua_state&&!IsWindowVisible(ui));DestroyWindow(ui);
  puts("PASS Lua probe: original Update, idle/shared/off-main guards, one queued scan, reentrancy, GC handles, exceptions, clipboard and timeout");return 0;
 }

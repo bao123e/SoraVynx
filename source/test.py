@@ -30,4 +30,4 @@ if __name__=='__main__':
   print('PASS daily metadata name filtering and bounded formatting including truncation and zero-size buffers')
 
   subprocess.run(['python', str(ROOT/'test_lua_inventory.py')],check=True)
-  subprocess.run(['python', str(ROOT/'test_daily_shop.py')],check=True)
+  subprocess.run(['python', str(ROOT/'test_daily_tower.py')],check=True)
