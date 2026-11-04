@@ -125,10 +125,14 @@ static BOOL CALLBACK daily_lua_find_game(HWND hwnd,LPARAM context) {
 static void daily_lua_return_to_game(HWND owner) {
  HWND game=NULL;EnumWindows(daily_lua_find_game,(LPARAM)&game);ShowWindow(owner,SW_HIDE);if(game)SetForegroundWindow(game);
 }
+static void daily_lua_restore_tool(HWND owner) {
+ if(!owner)return;ShowWindow(owner,SW_SHOWNOACTIVATE);
+ RedrawWindow(owner,NULL,NULL,RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN|RDW_UPDATENOW);
+}
 static void daily_lua_poll(HWND owner) {
  LONG state=InterlockedCompareExchange(&daily_lua_state,0,0);
  if(state==1&&GetTickCount64()-daily_lua_requested_at>15000&&InterlockedCompareExchange(&daily_lua_state,0,1)==1){
-  if(daily_lua_kind)ShowWindow(owner,SW_SHOWNOACTIVATE);
+  if(daily_lua_kind)daily_lua_restore_tool(owner);
   MessageBoxW(owner,L"No Lua Update received within 15 seconds. Return to the game main menu and retry.",L"SoraVynx",MB_OK|MB_ICONINFORMATION);return;
  }
  if(state!=3||InterlockedCompareExchange(&daily_lua_state,2,3)!=3)return;
@@ -142,7 +146,7 @@ static void daily_lua_poll(HWND owner) {
  }
  if(kind&&result){
   if(wcsstr(result,L"\r\nStatus: UI_HANDLER_INVOKED\r\n"))daily_lua_return_to_game(owner);
-  else {ShowWindow(owner,SW_SHOWNOACTIVATE);MessageBoxW(owner,result,L"SoraVynx - Daily Gift / status",MB_OK|MB_ICONINFORMATION);}
+  else {daily_lua_restore_tool(owner);MessageBoxW(owner,result,L"SoraVynx - Daily Gift / status",MB_OK|MB_ICONINFORMATION);}
  }
  else MessageBoxW(owner,copied?L"Lua name report copied. Send it to continue Auto Daily integration. No daily tasks were run.":L"Could not copy the Lua report. Please retry.",L"SoraVynx",MB_OK|(copied?MB_ICONINFORMATION:MB_ICONERROR));
  free(result);

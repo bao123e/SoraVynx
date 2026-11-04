@@ -65,6 +65,20 @@ def run():
     case("behaviour.luaClassName='Game.UI.ShopEx.ShopCtrl'", 'run_shop();assert(clicks==1 and direct_requests==0)')
     case("behaviour.luaClassName='ShopCtrl';ctrl=setmetatable({}, {__index=class});behaviour.luaInstance=ctrl", 'run_shop();assert(clicks==1)')
     case('objects.Length=2;objects[1]=behaviour', 'run_shop();assert(clicks==1 and direct_requests==0)')
+    case("behaviour.luaClassName='UI/ShopEx/ShopCtrl.lua'", 'run_shop();assert(clicks==1)')
+    case("behaviour.luaClassName='ShopCtrl';ctrl.class=nil;setmetatable(ctrl,{__index=function(t,k) return class[k] end})", 'run_shop();assert(clicks==1)')
+    case("behaviour.luaClassName='Game.UI.ShopEx.ShopPanel';behaviour.luaInstance={ctrl=ctrl}", 'run_shop();assert(clicks==1 and direct_requests==0)')
+    case("behaviour.luaClassName='ShopPanel';behaviour.luaInstance={children={shop=ctrl}}", 'run_shop();assert(clicks==1)')
+    case("behaviour.luaClassName='Game.UI.ShopEx.ShopPanel';behaviour.luaInstance={ctrl=ctrl};objects.Length=2;objects[1]={isActiveAndEnabled=true,luaClassName='ShopCtrl',luaInstance=ctrl}", 'run_shop();assert(clicks==1)')
+    # Regression: the active UI exists while package.loaded has no canonical class entry.
+    case("package.loaded['Game.UI.ShopEx.ShopCtrl']=nil", 'run_shop();assert(clicks==1 and direct_requests==0)')
+    case("package.loaded['Game/UI/ShopEx/ShopCtrl']=class;package.loaded['Game.UI.ShopEx.ShopCtrl']=nil;behaviour.luaClassName='ShopCtrl'", 'run_shop();assert(clicks==1)')
+    case("package.loaded['Game.UI.ShopEx.ShopCtrl']=nil;ctrl.class=nil;setmetatable(ctrl,{__index=class})", 'run_shop();assert(clicks==1)')
+    case("package.loaded['Game.UI.ShopEx.ShopCtrl']=nil;ctrl.class=nil;setmetatable(ctrl,{__index=function(t,k) return class[k] end})", 'run_shop();assert(clicks==1)')
+    case("class.super={OnBtnClick_DailyGift=class.OnBtnClick_DailyGift};class.OnBtnClick_DailyGift=nil", 'run_shop();assert(clicks==1)')
+    case("debug.getlocal=nil", 'run_shop();assert(clicks==1 and direct_requests==0)')
+    case("debug.getlocal=function() error('PRIVATE_ERROR') end", 'local text=run_shop();assert(clicks==1 and not text:find("PRIVATE_ERROR",1,true))')
+    case("package.loaded['Game.UI.ShopEx.ShopCtrl']=nil;behaviour.luaClassName='ShopCtrl';local original_info=debug.getinfo;debug.getinfo=function(fn,what) if what=='S' then return {source='@Game/UI/ShopEx/ShopCtrl.lua'} end return original_info(fn,what) end", 'run_shop();assert(clicks==1)')
     for setup in ['debug=nil',
                   'class.OnBtnClick_DailyGift=function(self,unexpected) error("must not run") end',
                   'behaviour.isActiveAndEnabled=false',
@@ -72,7 +86,8 @@ def run():
                   'behaviour.luaInstance={class={}}',
                   'objects.Length=5000',
                   'CS=nil',
-                  "package.loaded['Game.UI.ShopEx.ShopCtrl']=nil",
+                  "package.loaded['Game.UI.ShopEx.ShopCtrl']=nil;behaviour.luaClassName='ShopCtrl'",
+                  "debug.getinfo=function() return {isvararg=false} end",
                   'objects.Length=2;objects[1]={isActiveAndEnabled=true,luaClassName="ShopCtrl",luaInstance={class=class}}']:
         case(setup, 'local text=run_shop();assert(clicks==0 and direct_requests==0 and text:find("Status: STOPPED",1,true))')
     case('class.OnBtnClick_DailyGift=function(self) clicks=clicks+1;error("PRIVATE_ERROR") end', '''
@@ -84,9 +99,18 @@ def run():
     ''')
     case('', '''
     run_shop();class.OnBtnClick_DailyGift=function(self) error('new handler must not run') end
-    local text=run_shop();assert(clicks==1 and direct_requests==0 and text:find('context changed',1,true))
+    local text=run_shop();assert(clicks==1 and direct_requests==0 and text:find('Status: UI_STATUS',1,true))
     ''')
-    print('PASS Daily Gift UI: live active controller, exact class/handler, one invocation, normalised names, duplicate/ambiguity guards, no RPC fallback or error disclosure')
+    case('', "run_shop();PlayerData.Shop={class=data};local text=run_shop();assert(clicks==1 and text:find('SESSION_CONTEXT_CHANGED',1,true))")
+    for setup, code in [
+        ("debug=nil", "DEBUG_ARITY_UNAVAILABLE"),
+        ("class.OnBtnClick_DailyGift=function(self,other) end", "HANDLER_ARITY_MISMATCH"),
+        ("class.OnBtnClick_DailyGift=function(button) end", "HANDLER_PARAMETER_MISMATCH"),
+        ("class.OnBtnClick_DailyGift=nil", "SHOP_HANDLER_MISSING"),
+        ("behaviour.luaInstance=nil", "SHOP_INSTANCE_UNAVAILABLE"),
+        ("CS=nil", "UNITY_UI_ENUMERATION_FAILED")]:
+        case(setup, 'local text=run_shop();assert(clicks==0 and direct_requests==0 and text:find("Code: '+code+'",1,true))')
+    print('PASS Daily Gift UI: live-instance dispatch without module cache, inherited/metatable methods, namespace/arity validation, optional local names, diagnostic codes, single attempt and no RPC fallback')
 
 
 if __name__ == '__main__':

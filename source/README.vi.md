@@ -8,11 +8,15 @@ Menu không đánh số: **Player**, **Event**, **Custom BG**, **Auto Daily**. P
 
 Mười hai lựa chọn theo ảnh người dùng: Tier-up Trial; Ascension; nâng Disc; nâng Trekker; 5 battle stages; tiêu 100 Vigor; tương tác Trekker màn chính; nhận thưởng Tyrant’s Tower; tặng quà Heartlink; dispatch commission; nhận quà ngẫu nhiên Shop; đăng nhập ngày. Dự kiến dùng đội, màn, difficulty, Trekker và Disc đang chọn trong game.
 
-Bản preview.7 sửa luồng Shop: **Daily Gift / status** gọi handler của nút Daily Gift thay cho request nhận quà trực tiếp của preview.6. Mười một nhiệm vụ còn lại và scheduler chưa thực hiện. Các lựa chọn USE/SKIP được lưu; nút chỉ hoạt động khi Claim Shop random reward đang USE.
+Bản preview.8 tiếp tục sửa luồng Shop: **Daily Gift / status** gọi handler của nút Daily Gift thay cho request nhận quà trực tiếp của preview.6. Mười một nhiệm vụ còn lại và scheduler chưa thực hiện. Các lựa chọn USE/SKIP được lưu; nút chỉ hoạt động khi Claim Shop random reward đang USE.
 
 Đóng game, cập nhật cả EXE/DLL, mở trang **Shop** trong game và giữ nó hiển thị. Đợi READY rồi chọn **Auto Daily → Daily Gift / status**. Tool tự ẩn và chuyển focus về cửa sổ Unity của cùng game để Update tiếp tục chạy. Khi handler trả về bình thường, không hiện MessageBox trạng thái đầu tiên để tránh che giao diện game. Bấm **F1** để hiện lại tool; bấm lại nút để xem trạng thái đã copy vào clipboard, không gọi handler lần nữa trong phiên game này.
 
-Script cố định dùng CS/typeof và UnityEngine.Object.FindObjectsOfType để tìm LuaBehaviourBase đang active/enabled. Chỉ nhận tên ShopCtrl đã chuẩn hóa đường dẫn, Lua instance có đúng class Game.UI.ShopEx.ShopCtrl và handler OnBtnClick_DailyGift(self) đúng metadata tham số. Có hơn một instance khác nhau hoặc không có instance đúng thì dừng. Không gọi request trực tiếp khi việc tìm controller thất bại, không dùng tọa độ màn hình và không tạo controller mới.
+Script dùng CS/typeof và UnityEngine.Object.FindObjectsOfType để tìm LuaBehaviourBase active/enabled. Từ ShopCtrl đang hiển thị, tìm handler trên instance, class, superclass và metatable; nếu __index là function thì chỉ tra đúng tên OnBtnClick_DailyGift qua protected lookup. Không bắt buộc package.loaded có class theo khóa chuẩn. Alias module dạng dấu chấm/gạch chéo vẫn được dùng làm bằng chứng danh tính khi có.
+
+Nếu ShopCtrl là pure Lua object nằm trong ShopPanel, chỉ duyệt raw table con hai tầng trong panel Shop đang hoạt động, tối đa 64 node và 256 entry/node. Với tên component rút gọn, chỉ nhận handler khi nối được class/function với module ShopCtrl đã biết hoặc debug source metadata khớp namespace Game.UI.ShopEx.ShopCtrl. Chỉ so sánh source path trong bộ nhớ, không xuất path hay thân hàm ra báo cáo.
+
+Chữ ký vẫn phải có nparams=1 và isvararg=false. Khi debug.getlocal cung cấp tên tham số hợp lệ thì tên phải là self; khi tên bị strip/không hỗ trợ thì dựa vào số tham số, namespace và instance đã xác nhận. Không suy ra arity khi debug metadata thiếu. Nếu không xác minh được thì dừng với Code riêng cho từng khâu, không tự chuyển sang request nhận quà trực tiếp hay tọa độ click. Code và số lượng UI table chỉ phục vụ chẩn đoán; không sao chép scalar tài khoản hay thông báo exception gốc.
 
 Lệnh ghi trạng thái riêng trước khi gọi handler, kể cả trường hợp handler ném lỗi sau khi đã thực hiện một phần. Mỗi phiên game tối đa một lần gọi; các lần bấm sau chỉ đọc trạng thái. GetDailyShopReward được dùng tùy chọn để quan sát cờ quà đổi mà không xuất giá trị scalar. Handler trả về không tự chứng minh Daily Gift đã mở hay quà đã nhận; cần kiểm tra trong game. Lệnh không tự đánh dấu nhiệm vụ hoàn thành. Handler gốc của game sở hữu các bước UI và request của nó.
 
@@ -72,3 +76,7 @@ Report v5 thực tế xác nhận PlayerData.Shop, GetDailyShopReward(self) và 
 ## Sửa luồng UI trong preview.7
 
 Ảnh preview.6 của người dùng cho thấy callback request đã về và cờ Shop đã đổi, nhưng tool không mở nút Daily Gift. Preview.7 thay direct request bằng đúng OnBtnClick_DailyGift của ShopCtrl đang hoạt động, dựa trên chữ ký report v5 và public getters LuaBehaviourBase từ report v3. Script không gọi tên hàm trên một class hoặc instance tùy ý. Tool ẩn trước khi trả focus về game; kết quả handler-invoked được copy mà không bật popup che UI. Chỉ kết quả lỗi hoặc lần hỏi trạng thái sau đó mới hiện hộp thông tin. Chưa xác minh thao tác này trong game thật.
+
+## Sửa tra handler trong preview.8
+
+Ảnh .7 cho thấy game đã ở Shop nhưng tool trả thông báo gộp về module/handler/chữ ký trước khi duyệt live UI. Chưa thể phân biệt nguyên nhân cụ thể chỉ từ thông báo cũ. Bản .8 chuyển lookup sang instance đang hiển thị, hỗ trợ class cache không có khóa chuẩn và các kiểu dispatch được dùng trong Lua, đồng thời tách Code chẩn đoán. Test dùng class không có trong package.loaded, handler kế thừa/__index function, controller pure Lua trong panel và missing local names; không gọi RPC dự phòng. Hành vi game thật vẫn cần kiểm tra.

@@ -1,5 +1,16 @@
 # SoraVynx release notes
 
+## 1.1.0-preview.8
+
+- Fix the .7 lookup design that could stop before live UI discovery when the canonical package.loaded class entry or raw declared method was absent. The screenshot's generic message did not distinguish these cases from missing signature metadata.
+- Resolve the fixed Daily Gift method from active Shop instances and their bounded class/metatable chains, including normal function-valued __index dispatch. Treat the module cache as an optional identity hint.
+- Support a pure Lua ShopCtrl stored under the active ShopPanel. For short component names, require a module-class/function identity link or matching function source-path metadata; no function bodies or source paths are copied into reports.
+- Keep a known one-argument/non-vararg arity mandatory. Missing debug local-variable names no longer fail a valid binding, while available incompatible parameter names still stop it.
+- Repaint the tool and all child controls when restoring it for an error/status dialog after hiding.
+- Replace generic Open Shop messages with explicit codes for UI discovery, instance availability, handler resolution, namespace proof, arity and parameter metadata failures.
+- Extend real Lua VM regressions for absent/aliased caches, inherited and function-metatable methods, nested controllers, unavailable local names and exact diagnostic codes. Preserve no direct-RPC fallback and one handler attempt per game session.
+- Auto Daily remains partial, and real-game verification is still required. Close the game and replace both EXE/DLL.
+
 ## 1.1.0-preview.7
 
 - Fix Shop action bypassing the Daily Gift UI button by sending a direct reward request.
