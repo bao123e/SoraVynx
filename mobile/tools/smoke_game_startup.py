@@ -57,6 +57,7 @@ def launch(name):
 
 report = {'test': 'source-bootstrap-candidate-startup' if os.environ.get('MODIFIED_GAME_APK') else 'existing-release-game-startup', 'gameplay_verified': False}
 try:
+    adb('shell', 'settings', 'put', 'global', 'http_proxy', '10.0.2.2:8765')
     adb('shell', 'wm', 'size', '720x1280')
     adb('shell', 'wm', 'density', '240')
     report['abi_list'] = adb('shell', 'getprop', 'ro.product.cpu.abilist')['stdout'].strip()
