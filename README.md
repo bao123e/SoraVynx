@@ -1,8 +1,10 @@
 <p align="center"><img src="source/assets/brand.png" width="112" alt="SoraVynx logo"></p>
 
-# SoraVynx — Stella Sora Toolkit for Windows
+# SoraVynx — Stella Sora Toolkit
 
-SoraVynx is a native Windows x64 toolkit for Stella Sora with Player/Event controls and customizable backgrounds.
+SoraVynx is a Windows x64 toolkit for Stella Sora, with an experimental Android ARM64 Player/Event integration. Both interfaces include custom backgrounds.
+
+## Windows
 
 **[Download v1.1.0 preview.10](https://github.com/bao123e/SoraVynx/releases/tag/v1.1.0-preview.10)** · [Source & build](source/README.vi.md)
 
@@ -20,3 +22,15 @@ Giao diện bo góc, logo SoraVynx và font **Be Vietnam Pro** nhúng sẵn. Kh�
 Repo chính thức: **[bao123e/SoraVynx](https://github.com/bao123e/SoraVynx)**. Repo chứa đầy đủ EXE, DLL, giấy phép và thư mục source; ZIP chỉ ở Releases.
 
 Build Windows x64; 22 nhóm kiểm thử native/Lua và hai test report Windows/Wine đạt; 13 nhóm UI Wine đạt. Player/Event giữ backend đã được kiểm tra trước đó; Tower có lệnh gửi yêu cầu thử nghiệm; Shop bị bỏ qua và 10 nhiệm vụ khác chưa thực hiện. [AGPL-3.0-or-later, MinHook BSD, font SIL OFL](LICENSE.txt).
+
+## Android Player/Event preview
+
+Menu React Native dùng [`@react-native-menu/menu`](https://github.com/react-native-menu/menu), font Be Vietnam Pro và logo SoraVynx. Có Player, Event và Custom BG; **không có Auto Daily**. Backend nằm trong APK game đã tích hợp, không yêu cầu root; app menu riêng không điều khiển được game gốc.
+
+**[Tải bộ APK Android thử nghiệm](https://github.com/bao123e/SoraVynx/actions/runs/42197498869/artifacts/13493142410)** (đăng nhập GitHub; artifact giữ 14 ngày).
+
+[Source Android](mobile/) · [Cài đặt và giới hạn](mobile/INSTALL.vi.md) · [Build APK bằng Actions](https://github.com/bao123e/SoraVynx/actions/workflows/android-preview.yml).
+
+Chỉ dành cho Stella Sora **2.0.0 / 26093014 / ARM64**, Android 8 trở lên. Hai APK trong bộ build cần được cài cùng nhau. Backend kiểm tra hash, chữ ký hàm và ABI trước khi cho bật từng chức năng. Build/kiểm tra cấu trúc và menu không chứng minh hiệu quả Player/Event; khởi động, đăng nhập và gameplay trên điện thoại thật **chưa được xác minh**. APK dùng chữ ký mới; việc gỡ game có thể làm mất dữ liệu và phải tải lại 12 GB. Đọc hướng dẫn trước khi thay game.
+
+Đã qua build release, kiểm tra chữ ký/hash và 12 nhóm kiểm thử host; menu đã chạy trên giả lập Android 15 ở chế độ dọc/ngang, tablet và chữ lớn. Các kiểm tra này không xác minh khởi động/đăng nhập game hoặc hiệu quả Player/Event trên máy thật.
