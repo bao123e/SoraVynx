@@ -31,7 +31,8 @@ function ControlPanel() {
   const pollingRef = useRef(false);
   const generation = useRef(0);
   const [error, setError] = useState('');
-  const {width} = useWindowDimensions();
+  const {width, height} = useWindowDimensions();
+  const compact = width > height;
   const panelColor = rgba('#102034', appearance.panelOpacity);
   const buttonColor = rgba('#24394D', appearance.buttonOpacity);
   const refresh = useCallback(async () => {
@@ -98,10 +99,10 @@ function ControlPanel() {
     <StatusBar barStyle="light-content" backgroundColor="#09111E" />
     {appearance.image ? <View pointerEvents="none" style={StyleSheet.absoluteFill}><Image source={{uri: appearance.image}}
       resizeMode="contain" style={[StyleSheet.absoluteFill, {opacity: appearance.imageOpacity / 100}]} /></View> : null}
-    <View style={styles.header}>
+    <View style={[styles.header, compact && styles.compactHeader]}>
       <View style={styles.brand}>
         <Image accessible={false} source={require('./assets/brand.png')} style={styles.logo} resizeMode="contain" />
-        <View style={styles.brandText}><Text style={styles.title}>SoraVynx</Text><Text style={styles.eyebrow}>STELLA SORA · ANDROID</Text></View>
+        <View style={styles.brandText}><Text style={styles.title}>SoraVynx</Text>{compact ? null : <Text style={styles.eyebrow}>STELLA SORA · ANDROID</Text>}</View>
       </View>
       <MenuView isAnchoredToRight shouldOpenOnLongPress={false}
         actions={[{id: 'game', title: 'Mở game'}, {id: 'refresh', title: 'Kiểm tra kết nối'}, {id: 'off', title: 'Tắt tất cả'}, {id: 'about', title: 'Thông tin bản thử nghiệm'}]}
@@ -121,12 +122,12 @@ function ControlPanel() {
       </Pressable>)}
     </ScrollView>
     <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-      <View style={[styles.status, {backgroundColor: panelColor}]}>
+      <View style={[styles.status, compact && styles.compactStatus, {backgroundColor: panelColor}]}>
         <Text style={styles.statusTitle}>{status.phase === 3 ? 'BACKEND CONNECTED · PREVIEW' : 'GAME CONNECTION'}</Text>
         <Text accessibilityLiveRegion="polite" style={styles.body}>{describe(status)}</Text>
         {busy ? <ActivityIndicator color={mint} accessibilityLabel="Đang gửi thay đổi" /> : null}
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-        {status.phase !== 3 ? button('Mở game', () => {void launch();}) : null}
+        {status.phase !== 3 && !compact ? button('Mở game', () => {void launch();}) : null}
       </View>
       {tab === 'Custom BG' ? <View style={[styles.panel, {backgroundColor: panelColor}]}>
         <Text style={styles.heading}>Custom Background</Text>
@@ -199,6 +200,7 @@ const styles = StyleSheet.create({
   tab: {minHeight: 48, paddingHorizontal: 20, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: '#6A7E94'},
   selected: {borderColor: mint}, tabLabel: {fontFamily: 'BeVietnamPro-SemiBold', color: '#F5F8FF', fontSize: 15}, selectedLabel: {color: mint},
   content: {flex: 1}, contentContainer: {padding: 20, paddingTop: 0, gap: 16},
+  compactHeader: {paddingVertical: 8}, compactStatus: {padding: 12, gap: 6},
   status: {borderRadius: 16, padding: 16, gap: 10}, statusTitle: {fontFamily: 'BeVietnamPro-SemiBold', color: mint, fontSize: 12, letterSpacing: 1},
   body: {fontFamily: 'BeVietnamPro-Regular', color: '#E5ECF7', fontSize: 14, lineHeight: 23},
   heading: {fontFamily: 'BeVietnamPro-Bold', color: '#F5F8FF', fontSize: 21},

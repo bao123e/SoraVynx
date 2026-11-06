@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the real release menu APK on an emulator; never installs/claims to test the game."""
 import re
+import struct
 import subprocess
 import time
 import xml.etree.ElementTree as ET
@@ -34,6 +35,19 @@ def click(text):
     node = find(text)
     bounds = [int(n) for n in re.findall(r"\d+", node.attrib["bounds"])]
     adb("shell", "input", "tap", str((bounds[0]+bounds[2])//2), str((bounds[1]+bounds[3])//2))
+
+
+def reveal(text):
+    for attempt in range(6):
+        root = tree()
+        for node in root.iter("node"):
+            if node.attrib.get("text") == text:
+                return node
+        png = adb("exec-out", "screencap", "-p")
+        width, height = struct.unpack(">II", png[16:24])
+        adb("shell", "input", "swipe", str(int(width*.75)), str(int(height*.85)), str(int(width*.75)), str(int(height*.4)), "300")
+        time.sleep(.4)
+    raise AssertionError("Cannot scroll to control: " + text)
 
 
 def snapshot(name):
@@ -70,13 +84,13 @@ try:
     click("Player")
     adb("shell", "settings", "put", "system", "user_rotation", "1")
     time.sleep(2)
-    find("God Mode")
+    reveal("God Mode")
     snapshot("phone-landscape")
     adb("shell", "settings", "put", "system", "user_rotation", "0")
     adb("shell", "wm", "size", "1200x1920")
     adb("shell", "wm", "density", "240")
     time.sleep(2)
-    find("God Mode")
+    reveal("God Mode")
     snapshot("tablet-player")
     adb("shell", "settings", "put", "system", "font_scale", "1.3")
     adb("shell", "wm", "size", "720x1280")
