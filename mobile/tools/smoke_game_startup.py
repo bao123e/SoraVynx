@@ -6,6 +6,7 @@ Diagnostic output belongs to CI, not to either production APK.
 """
 import json
 import os
+import re
 from startup_health import healthy_start
 import subprocess
 import time
@@ -44,7 +45,9 @@ def launch(name):
         samples.append({'after_seconds': second, 'pid': pid})
         screen(name + '-' + str(second))
     runtime_text = adb('logcat', '-d', '-t', '8000')['stdout']
-    (OUT / (name + '-runtime.txt')).write_text(runtime_text)
+    # Keep only engine/crash evidence; third-party SDK payloads can contain keys.
+    evidence = '\n'.join(line for line in runtime_text.splitlines() if re.search(r'\s(?:Unity|IL2CPP|CRASH|DEBUG|AndroidRuntime|libc)\s*:', line))
+    (OUT / (name + '-runtime.txt')).write_text(evidence)
     (OUT / (name + '-activity.txt')).write_text(adb('shell', 'dumpsys', 'activity', 'activities')['stdout'])
     return {'launch': started, 'initial_pid': initial_pid, 'process_samples': samples,
             'stable_without_crash': healthy_start(initial_pid, samples, runtime_text),
@@ -54,6 +57,8 @@ def launch(name):
 
 report = {'test': 'source-bootstrap-candidate-startup' if os.environ.get('MODIFIED_GAME_APK') else 'existing-release-game-startup', 'gameplay_verified': False}
 try:
+    adb('shell', 'wm', 'size', '720x1280')
+    adb('shell', 'wm', 'density', '240')
     report['abi_list'] = adb('shell', 'getprop', 'ro.product.cpu.abilist')['stdout'].strip()
     report['native_bridge'] = adb('shell', 'getprop', 'ro.dalvik.vm.native.bridge')['stdout'].strip()
     if 'arm64-v8a' not in report['abi_list'].split(','):
