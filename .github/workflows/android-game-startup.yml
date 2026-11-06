@@ -85,6 +85,10 @@ jobs:
           apksigner sign --ks /tmp/internal-test.jks --ks-pass pass:internal-test --out /tmp/test-menu.apk mobile/dist/SoraVynx-Menu-0.1.0-arm64-preview.apk
           echo 'MODIFIED_GAME_APK=/tmp/test-game.apk' >> "$GITHUB_ENV"
           echo 'MENU_APK=/tmp/test-menu.apk' >> "$GITHUB_ENV"
+      - name: Start an isolated test-network relay
+        run: |
+          python mobile/tools/test_network_proxy.py /tmp/proxy-connections.jsonl > /tmp/proxy-service.txt 2>&1 &
+          echo "TEST_PROXY_PID=$!" >> "$GITHUB_ENV"
       - name: Install packet-summary parser
         run: python -m pip install dpkt==1.9.8
       - uses: reactivecircus/android-emulator-runner@v2
@@ -95,11 +99,14 @@ jobs:
           profile: pixel_2
           disable-animations: true
           emulator-boot-timeout: 300
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 4096 -dns-server 8.8.8.8 -tcpdump /tmp/soravynx-network.pcap
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -memory 4096 -tcpdump /tmp/soravynx-network.pcap
           script: python mobile/tools/smoke_game_startup.py
       - name: Summarize game network connectivity without packet bodies
         if: always()
-        run: python mobile/tools/network_summary.py /tmp/soravynx-network.pcap startup-results/network-summary.json
+        run: |
+          python mobile/tools/network_summary.py /tmp/soravynx-network.pcap startup-results/network-summary.json
+          if [ -f /tmp/proxy-connections.jsonl ]; then cp /tmp/proxy-connections.jsonl startup-results/; fi
+          if [ -n "$TEST_PROXY_PID" ]; then kill "$TEST_PROXY_PID" || true; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
