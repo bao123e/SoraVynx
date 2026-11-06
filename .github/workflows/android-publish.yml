@@ -1,0 +1,82 @@
+name: Publish Android preview downloads
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify the successful source build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/bao123e/SoraVynx/actions/runs/42197498869 > /tmp/source-run.json
+          python - <<'PY'
+          import json
+          run = json.load(open('/tmp/source-run.json'))
+          assert run['conclusion'] == 'success'
+          assert run['head_sha'] == '395c681cb304da1eab32d7e43dc4697b217e52e3'
+          assert run['path'] == '.github/workflows/android-preview.yml'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 42197498869
+          name: SoraVynx-Android-0.1.0-preview.1-arm64
+          path: download
+      - name: Verify existing APKs and prepare the download ZIP
+        run: |
+          python - <<'PY'
+          import hashlib, pathlib, zipfile
+          root = pathlib.Path('download')
+          expected = {
+              'SoraVynx-Menu-0.1.0-arm64-preview.apk': '352ca6e91c551e3ad23e24ee124292c9f38510d5d565008d45dadbdd3568c50b',
+              'StellaSora-SoraVynx-2.0.0-arm64-preview.apk': '7aa399af0bd818245a725fa1127deb9adce2ed88585acc5dde1df516401cfe58',
+          }
+          for name, checksum in expected.items():
+              assert hashlib.sha256((root / name).read_bytes()).hexdigest() == checksum, name
+          archive = pathlib.Path('SoraVynx-Android-0.1.0-preview.1.zip')
+          names = [*expected, 'README.vi.md', 'SHA256SUMS.txt', 'BUILD-STATUS.txt']
+          with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as package:
+              for name in names:
+                  package.write(root / name, name)
+          with zipfile.ZipFile(archive) as package:
+              assert package.testzip() is None
+          pathlib.Path(archive.name + '.sha256').write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + '  ' + archive.name + '\n')
+          pathlib.Path('/tmp/android-release-notes.md').write_text(
+              'Android ARM64 Player/Event integration preview for Stella Sora 2.0.0. No Auto Daily.\n\n'
+              'These are the exact APKs from successful build 42197498869, with unchanged signatures and hashes. '
+              'Install the Menu APK first, then the integrated game APK from this same pair.\n\n'
+              'Build, APK structure/signing, host checks and the companion menu on an emulator passed. '
+              'Game startup/login and Player/Event effects on a real phone remain unverified. '
+              'The game APK has a new signing identity and cannot update the stock game. '
+              'Uninstalling the game can delete its data and require downloading 12 GB again.\n\n'
+              '[Installation and limitations](https://github.com/bao123e/SoraVynx/blob/main/mobile/INSTALL.vi.md). '
+              'Game assets and libraries retain their original ownership.\n')
+          PY
+      - name: Upload verified files and publish the prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create android-v0.1.0-preview.1 \
+            SoraVynx-Android-0.1.0-preview.1.zip \
+            SoraVynx-Android-0.1.0-preview.1.zip.sha256 \
+            download/SoraVynx-Menu-0.1.0-arm64-preview.apk \
+            download/StellaSora-SoraVynx-2.0.0-arm64-preview.apk \
+            download/SHA256SUMS.txt download/README.vi.md download/BUILD-STATUS.txt \
+            --repo "$GITHUB_REPOSITORY" --target 395c681cb304da1eab32d7e43dc4697b217e52e3 \
+            --title 'SoraVynx Android 0.1.0 preview.1' \
+            --notes-file /tmp/android-release-notes.md --prerelease --draft --latest=false
+          gh release view android-v0.1.0-preview.1 --repo "$GITHUB_REPOSITORY" --json assets > /tmp/release-assets.json
+          python - <<'PY'
+          import json
+          assets = json.load(open('/tmp/release-assets.json'))['assets']
+          assert len(assets) == 7 and all(asset['size'] > 0 for asset in assets)
+          PY
+          gh release edit android-v0.1.0-preview.1 --repo "$GITHUB_REPOSITORY" --draft=false --latest=false
