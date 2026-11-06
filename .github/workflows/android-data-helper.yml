@@ -1,0 +1,36 @@
+name: Test and publish Android data backup helper
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  helper:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Parse Windows PowerShell scripts and test read-only/backup failure cases
+        shell: powershell
+        run: |
+          $files = @('mobile/data-helper/GameData.ps1','mobile/tests/data_helper_test.ps1')
+          foreach ($file in $files) {
+              $tokens = $null; $errors = $null
+              [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $file), [ref]$tokens, [ref]$errors) | Out-Null
+              if ($errors.Count) { $errors | Format-List; throw 'PowerShell parse errors' }
+          }
+          & ./mobile/tests/data_helper_test.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Backup helper tests failed' }
+      - name: Package only the helper source files and publish direct downloads
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = @('mobile/data-helper/Inspect.cmd','mobile/data-helper/Backup.cmd','mobile/data-helper/GameData.ps1','mobile/data-helper/README.vi.md')
+          $archive = Join-Path $env:RUNNER_TEMP 'SoraVynx-Data-Helper-Windows.zip'
+          Compress-Archive -LiteralPath $files -DestinationPath $archive
+          $checksum = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath ($archive + '.sha256') -Value ($checksum + '  ' + (Split-Path $archive -Leaf)) -Encoding ASCII
+          gh release upload android-v0.1.0-preview.1 $archive ($archive + '.sha256') --repo $env:GITHUB_REPOSITORY --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Helper upload failed' }
