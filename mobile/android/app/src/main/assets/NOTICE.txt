@@ -1,0 +1,5 @@
+SoraVynx Android: AGPL-3.0-or-later.
+React Native: MIT (Meta Platforms, Inc.).
+@react-native-menu/menu: MIT (React Native Menu contributors).
+Be Vietnam Pro fonts: SIL Open Font License 1.1; see fonts/OFL.txt.
+Game assets and libraries retain their original ownership.

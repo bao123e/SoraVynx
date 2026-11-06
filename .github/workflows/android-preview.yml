@@ -1,0 +1,87 @@
+name: Build Android Player and Event preview
+on:
+  workflow_dispatch:
+  push:
+    branches: [android-player-event]
+    paths: ['mobile/**', '.github/workflows/android-preview.yml']
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SORAVYNX_KEYSTORE: /tmp/soravynx-preview.jks
+      SORAVYNX_STORE_PASSWORD: android-preview-build
+      SORAVYNX_KEY_ALIAS: soravynx
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install locked dependencies and run host checks
+        run: |
+          npm ci --prefix mobile --no-audit --no-fund
+          npm --prefix mobile run typecheck
+          npm --prefix mobile run lint
+          npm --prefix mobile test
+          python -m unittest discover -s mobile/tests -p '*_test.py'
+          cc -D_GNU_SOURCE -std=c11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable -Imobile/tests/stubs mobile/tests/native_test.c -ldl -o /tmp/soravynx-native-test
+          /tmp/soravynx-native-test
+      - name: Prepare Android build tools and per-build signing key
+        run: |
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+          keytool -genkeypair -keystore "$SORAVYNX_KEYSTORE" -storepass "$SORAVYNX_STORE_PASSWORD" -keypass "$SORAVYNX_STORE_PASSWORD" -alias "$SORAVYNX_KEY_ALIAS" -keyalg RSA -keysize 3072 -validity 3650 -dname 'CN=SoraVynx Android Preview'
+      - name: Build React Native menu APK
+        working-directory: mobile/android
+        run: bash gradlew :app:assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
+      - name: Build ARM64 runtime and signature-protected bridge
+        run: |
+          git init /tmp/Dobby
+          git -C /tmp/Dobby remote add origin https://github.com/jmpews/Dobby.git
+          git -C /tmp/Dobby fetch --depth=1 origin 5dfc8546954ce3b3198132ab13fddb89ee92cdd7
+          git -C /tmp/Dobby checkout --detach FETCH_HEAD
+          cmake -S mobile/integration/native -B /tmp/native-build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/27.1.12297006/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-26 -DANDROID_STL=c++_static \
+            -DCMAKE_BUILD_TYPE=Release -DDOBBY_SOURCE_DIR=/tmp/Dobby
+          cmake --build /tmp/native-build --target soravynx_game --parallel 2
+          mkdir -p /tmp/bridge-classes /tmp/bridge-dex
+          javac --release 8 -classpath "$ANDROID_HOME/platforms/android-36/android.jar" -d /tmp/bridge-classes mobile/integration/java/com/soravynx/bridge/*.java
+          find /tmp/bridge-classes -name '*.class' -print0 | xargs -0 "$ANDROID_HOME/build-tools/36.0.0/d8" --min-api 26 --lib "$ANDROID_HOME/platforms/android-36/android.jar" --output /tmp/bridge-dex
+      - name: Assemble integration from the exact analyzed game package
+        run: |
+          curl --fail --location --retry 2 --max-time 180 -o /tmp/game.xapk 'https://d.apkpure.com/b/XAPK/com.YoStarEN.StellaSora?version=latest'
+          curl --fail --location --retry 2 --max-time 120 -o /tmp/apktool.jar 'https://github.com/iBotPeaches/Apktool/releases/download/v2.12.1/apktool_2.12.1.jar'
+          echo '66cf4524a4a45a7f56567d08b2c9b6ec237bcdd78cee69fd4a59c8a0243aeafa  /tmp/apktool.jar' | sha256sum --check
+          python mobile/tools/package_game.py --xapk /tmp/game.xapk --apktool /tmp/apktool.jar \
+            --native /tmp/native-build/libsoravynx_game.so --helper /tmp/bridge-dex/classes.dex \
+            --work /tmp/game-integration --output /tmp/game-unaligned.apk
+          mkdir -p mobile/dist
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -P 16 -f 4 /tmp/game-unaligned.apk /tmp/game-aligned.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$SORAVYNX_KEYSTORE" \
+            --ks-pass "pass:$SORAVYNX_STORE_PASSWORD" --ks-key-alias "$SORAVYNX_KEY_ALIAS" \
+            --out mobile/dist/StellaSora-SoraVynx-2.0.0-arm64-preview.apk /tmp/game-aligned.apk
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk mobile/dist/SoraVynx-Menu-0.1.0-arm64-preview.apk
+          cp mobile/INSTALL.vi.md mobile/dist/README.vi.md
+      - name: Verify signing, manifests, assets and ARM64 integration
+        run: |
+          export PATH="$ANDROID_HOME/build-tools/36.0.0:$PATH"
+          python mobile/tools/verify_build.py mobile/dist
+          cd mobile/dist
+          sha256sum *.apk > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SoraVynx-Android-0.1.0-preview.1-arm64
+          path: mobile/dist/
+          retention-days: 14
+          if-no-files-found: error
