@@ -81,3 +81,5 @@ foreach ($case in @('inspect','good','corrupt','changed','running')) {
     }
     Write-Output ("PASS data helper: " + $case)
 }
+
+$global:LASTEXITCODE = 0

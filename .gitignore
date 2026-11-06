@@ -9,3 +9,6 @@ mobile/integration/build/
 mobile/dist/
 mobile/**/*.log
 mobile/**/__pycache__/
+mobile/data-helper/backups/
+mobile/data-helper/platform-tools/
+mobile/data-helper/platform-tools.zip
