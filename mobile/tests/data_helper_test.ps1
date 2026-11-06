@@ -31,7 +31,10 @@ if ($a[0] -eq 'shell') {
     }
     if ($command.StartsWith('find ')) {
         foreach ($file in Get-ChildItem -LiteralPath $path -Recurse -File) {
-            $suffix = $file.FullName.Substring($path.Length+1).Replace('\','/')
+            $marker = '\com.YoStarEN.StellaSora\'
+            $start = $file.FullName.LastIndexOf($marker, [StringComparison]::OrdinalIgnoreCase)
+            if ($start -lt 0) { throw 'Unexpected fixture path' }
+            $suffix = $file.FullName.Substring($start + $marker.Length).Replace('\','/')
             Write-Output ((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $remote + '/' + $suffix)
         }
         exit 0
