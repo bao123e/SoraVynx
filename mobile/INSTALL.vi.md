@@ -16,7 +16,7 @@ Nếu game không mở/không đăng nhập được sau khi đổi chữ ký, b
 
 - Menu React Native dùng `@react-native-menu/menu` 2.0.0; menu chạy ở ứng dụng riêng, không phải cửa sổ nổi trên game. Chuyển qua Recent Apps để đổi chức năng.
 - Backend được nạp **trong APK game đã tích hợp**, không yêu cầu root hoặc Accessibility. App riêng không điều khiển được bản game gốc.
-- Kiểm tra SHA-256 đúng thư viện và metadata, chữ ký hàm và vùng code trước khi hook. Entry dùng chung với ABI không tương thích sẽ bị bỏ qua. Không dùng RVA hay layout interpreter của bản Windows.
+- Kiểm tra SHA-256 đúng thư viện và metadata, chữ ký hàm và vùng code trước khi hook. Các assembly đang nạp được quét để loại entry dùng chung với chữ ký không tương thích; struct truyền theo giá trị không xác minh được cũng bị bỏ qua. Không dùng RVA hay layout interpreter của bản Windows.
 - Game Android có bảo vệ export/metadata và tải lớp động. Nếu API không được công khai khi chạy, chữ ký lớp thay đổi hoặc chỉ có interpreter entry không tương thích, một phần hoặc toàn bộ chức năng sẽ chưa khả dụng.
 - Chưa xác minh chức năng, độ ổn định, chống can thiệp, nhận điểm/thưởng trên máy thật. Đây là bản port để kiểm tra tương thích, không phải bản Android hoàn thiện.
 - SoraVynx không tạo log file/telemetry; menu release không có quyền Internet. SDK và hành vi của game gốc được giữ lại, có thể có ghi log riêng của game.

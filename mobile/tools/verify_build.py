@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -32,7 +33,12 @@ with ZipFile(game) as apk:
         "Java_com_soravynx_bridge_GameBridge_statusNative",
         "Java_com_soravynx_bridge_GameBridge_commandNative",
     ))
-    assert b"__android_log_print" not in native, "Runtime logging must be disabled"
+    with tempfile.NamedTemporaryFile(suffix=".so") as library:
+        library.write(native); library.flush()
+        symbols = subprocess.check_output(["readelf", "--dyn-syms", "-W", library.name], text=True)
+        dependencies = subprocess.check_output(["readelf", "-d", library.name], text=True)
+    assert not re.search(r"UND.*__android_log_print", symbols), "Runtime logging must be disabled"
+    assert "libdobby.so" not in dependencies and "libc++_shared.so" not in dependencies, "Runtime must be self contained"
 with ZipFile(menu) as apk:
     assert apk.testzip() is None
     js = apk.read("assets/index.android.bundle")

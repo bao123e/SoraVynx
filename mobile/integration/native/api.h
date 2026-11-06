@@ -10,10 +10,13 @@
  X(const void**,domain_get_assemblies,(void*,size_t*)) \
  X(const void*,assembly_get_image,(const void*)) \
  X(const char*,image_get_name,(const void*)) \
+ X(size_t,image_get_class_count,(const void*)) \
+ X(void*,image_get_class,(const void*,size_t)) \
  X(void*,thread_attach,(void*)) \
  X(void,thread_detach,(void*)) \
  X(void*,class_from_name,(const void*,const char*,const char*)) \
  X(void*,class_from_type,(const void*)) \
+ X(bool,class_is_valuetype,(void*)) \
  X(const void*,class_get_methods,(void*,void**)) \
  X(void*,class_get_parent,(void*)) \
  X(const char*,method_get_name,(const void*)) \

@@ -3,6 +3,7 @@
 #include "dobby.h"
 #include <link.h>
 #include <stdlib.h>
+#include "signatures.h"
 #include <string.h>
 #include <limits.h>
 #include <stdio.h>
@@ -32,7 +33,7 @@ static struct Target targets[TARGET_COUNT]={
  {"PlayerSkillCd","UpdateSkillCD","System.Void",1,A_VALUE8,{"TrueSync.FP"},0,-1,0}
 };
 #define MAX_GROUPS 24
-struct Group {void *entry;dobby_dummy_func_t original;int abi;bool conflict,enabled;volatile LONG entry_calls,null_methods;void *volatile sample_method;};
+struct Group {void *entry;dobby_dummy_func_t original;const void *shape;int abi;bool conflict,enabled;volatile LONG entry_calls,null_methods;void *volatile sample_method;};
 static struct Group groups[MAX_GROUPS];static int group_count;
 static const void *total_energy,*toughness_value,*weapon_attack_id,*reset_all_cd;
 static bool frame_vacuum_ready;
@@ -474,13 +475,38 @@ static int executable_segment(struct dl_phdr_info *info,size_t size,void *opaque
 }
 static bool executable(void *entry){struct ExecQuery q={(uintptr_t)entry,false};dl_iterate_phdr(executable_segment,&q);return q.valid;}
 static int add_group(const void *method,int abi) {
- if(!method)return -1;
+ if(!method||!native_parameters_safe(method))return -1;
  void *entry=*(void *const*)method;if(!entry||!executable(entry))return -1;
  int g;
  for(g=0;g<group_count;g++)if(groups[g].entry==entry)break;
- if(g==group_count){if(g>=MAX_GROUPS)return -1;groups[g].entry=entry;groups[g].abi=abi;group_count++;}
- else if(groups[g].abi!=abi)groups[g].conflict=true;
+ if(g==group_count){if(g>=MAX_GROUPS)return -1;groups[g].entry=entry;groups[g].abi=abi;groups[g].shape=method;group_count++;}
+ else if(groups[g].abi!=abi||!signature_equal(groups[g].shape,method))groups[g].conflict=true;
  return g;
+}
+/* Check all currently loaded metadata for shared entries, not just our target list.
+ * Conflicting or unbounded enumeration disables every uncertain hook. */
+static bool audit_shared_entries(void){
+ size_t count=0,total_classes=0,total_methods=0;
+ const void **assemblies=api.domain_get_assemblies(api.domain_get(),&count);
+ if(!assemblies||count>4096)return false;
+ for(size_t a=0;a<count;a++){
+  const void *image=api.assembly_get_image(assemblies[a]);if(!image)return false;
+  size_t classes=api.image_get_class_count(image);
+  if(classes>200000||classes>200000-total_classes)return false;
+  total_classes+=classes;
+  for(size_t c=0;c<classes;c++){
+   void *klass=api.image_get_class(image,c);if(!klass)return false;
+   void *iterator=NULL;const void *method;
+   while((method=api.class_get_methods(klass,&iterator))){
+    if(++total_methods>2000000)return false;
+    void *entry=*(void *const*)method;if(!entry)continue;
+    for(int g=0;g<group_count;g++)if(!groups[g].conflict&&groups[g].entry==entry){
+     if(!signature_equal(groups[g].shape,method))groups[g].conflict=true;
+    }
+   }
+  }
+ }
+ return true;
 }
 static bool event_ready_method(int i){int g=event_groups[i];return g>=0&&groups[g].enabled;}
 int enabled_hook_count(void){int n=0;for(int g=0;g<group_count;g++)n+=groups[g].enabled;return n;}
@@ -502,6 +528,7 @@ bool initialize_backend(void){
  event_methods[0]=event.full;event_methods[1]=event.sync;event_methods[2]=event.update;event_methods[3]=event.add_score;
  const int abis[]={A_BOOL0,A_OBJECT,A_VALUE8,A_INT};
  for(int i=0;i<4;i++)event_groups[i]=add_group(event_methods[i],abis[i]);
+ if(!audit_shared_entries())for(int g=0;g<group_count;g++)groups[g].conflict=true;
  for(int g=0;g<group_count;g++){
   if(groups[g].conflict)continue;
   if(DobbyHook(groups[g].entry,wrappers[groups[g].abi][g],&groups[g].original)==0&&groups[g].original)groups[g].enabled=true;

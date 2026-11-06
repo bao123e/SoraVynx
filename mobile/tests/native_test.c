@@ -1,6 +1,7 @@
 /* Host integration tests for typed dispatch and command gating; no game execution. */
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "../integration/native/backend.c"
 #include "../integration/native/controls.h"
 struct RuntimeAPI api;
@@ -34,6 +35,23 @@ static void clear(void){
  for(int i=0;i<4;i++){event_methods[i]=NULL;event_groups[i]=-1;}
  api.class_value_size=size8;api.object_unbox=unbox;api.object_get_class=object_class;api.field_get_value=field_get;
 }
+struct FakeMethod {void *entry;const char *result,*parameter;bool is_static;};
+static struct FakeMethod fake_known={(void*)0x1234,"System.Void","TrueSync.FP",false};
+static struct FakeMethod fake_foreign={(void*)0x1234,"System.Void","System.String",false};
+static const void *fake_assemblies[]={&fake_known};
+static const void **fake_domain_assemblies(void *domain,size_t *count){(void)domain;*count=1;return fake_assemblies;}
+static void *fake_domain(void){return &fake_known;}
+static const void *fake_image(const void *assembly){return assembly;}
+static size_t fake_class_count(const void *image){(void)image;return 1;}
+static void *fake_get_class(const void *image,size_t index){(void)index;return (void*)image;}
+static const void *fake_methods(void *klass,void **iterator){(void)klass;uintptr_t i=(uintptr_t)*iterator;*iterator=(void*)(i+1);return i==0?&fake_known:i==1?&fake_foreign:NULL;}
+static uint32_t fake_count(const void *method){(void)method;return 1;}
+static const void *fake_parameter(const void *method,uint32_t index){(void)index;return ((const struct FakeMethod*)method)->parameter;}
+static const void *fake_return(const void *method){return ((const struct FakeMethod*)method)->result;}
+static uint32_t fake_flags(const void *method,uint32_t *impl){(void)impl;return ((const struct FakeMethod*)method)->is_static?0x10:0;}
+static char *fake_type_name(const void *type){return strdup(type);}
+static void *fake_class_from_type(const void *type){return (void*)type;}
+static bool fake_value_type(void *klass){return !strcmp(klass,"TrueSync.FP")||!strcmp(klass,"OtherStruct");}
 int main(void){
  clear();
  assert(!apply_control(GOD_MODE,1,true));assert(feature_flags[GOD_MODE]==0);
@@ -67,5 +85,19 @@ int main(void){
  int_0(&monster,20,&other_method);assert(delta_value==20);
  event_flags[2]=0;int_0(&monster,20,&score_method);assert(delta_value==20);
  puts("PASS native Event score dispatch, positive delta, saturation and identity guards");
+ clear();
+ api.domain_get=fake_domain;api.domain_get_assemblies=fake_domain_assemblies;
+ api.assembly_get_image=fake_image;api.image_get_class_count=fake_class_count;api.image_get_class=fake_get_class;
+ api.class_get_methods=fake_methods;api.method_get_param_count=fake_count;api.method_get_param=fake_parameter;
+ api.method_get_return_type=fake_return;api.method_get_flags=fake_flags;api.type_get_name=fake_type_name;
+ api.free=free;api.class_from_type=fake_class_from_type;api.class_is_valuetype=fake_value_type;
+ assert(native_parameters_safe(&fake_known));
+ fake_known.parameter="OtherStruct";assert(!native_parameters_safe(&fake_known));fake_known.parameter="TrueSync.FP";
+ groups[0].entry=fake_known.entry;groups[0].shape=&fake_known;
+ assert(audit_shared_entries());assert(groups[0].conflict);
+ groups[0].conflict=false;fake_foreign.parameter="TrueSync.FP";
+ assert(audit_shared_entries());assert(!groups[0].conflict);
+ fake_foreign.is_static=true;assert(audit_shared_entries());assert(groups[0].conflict);
+ puts("PASS unknown value structs and foreign/static shared-entry aliases cannot reach typed wrappers");
  return 0;
 }
