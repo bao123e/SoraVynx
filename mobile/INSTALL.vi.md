@@ -6,7 +6,7 @@
 
 1. Trước khi thay game, liên kết tài khoản và kiểm tra bạn có thể đăng nhập lại. Bộ APK dùng chữ ký mới, không cài đè được game gốc. Nếu phải gỡ game gốc, có thể mất dữ liệu cục bộ và phải tải lại khoảng 12 GB. Không có cam kết giữ dữ liệu.
 2. Cài `SoraVynx-Menu-0.1.0-arm64-preview.apk` trước, sau đó `StellaSora-SoraVynx-2.0.0-arm64-preview.apk` trong **cùng bộ build**. APK game đã gồm thư viện ARM64, không cần cài thêm split.
-3. Mở game, hoàn tất tải dữ liệu và vào màn chính. Mở SoraVynx từ danh sách ứng dụng gần đây. Chờ trạng thái backend.
+3. Mở game và hoàn tất tải dữ liệu. Sau lần tải đầu tiên, đóng hẳn game rồi mở lại, vào màn chính; sau đó mở SoraVynx từ danh sách ứng dụng gần đây và chờ trạng thái backend. Bản preview này chờ runtime/lớp game tối đa 10 phút mỗi phiên; nếu quá thời gian chờ, khởi động lại game sẽ khởi tạo lại backend, không cần gỡ/cài APK hay tải lại dữ liệu.
 4. Trong Player hoặc Event, chỉ các chức năng backend nối được mới cho bật. Trở lại game bằng **Về game**. Kiểm tra riêng từng chức năng; dòng CONNECTED chỉ xác nhận đã cài hook, không xác nhận hiệu quả trong trận.
 5. **Tắt tất cả** tắt Player và Event. Đóng hẳn game cũng xóa các cờ bật; không lưu chúng cho lần mở sau. Mục Custom BG có chọn ảnh, giữ đủ ảnh và opacity riêng cho ảnh/khung/nút.
 
