@@ -16,7 +16,7 @@ cc -D_GNU_SOURCE -std=c11 -Itests/stubs tests/native_test.c -ldl -o /tmp/soravyn
 /tmp/soravynx-native-test
 ```
 
-Use the **Build Android Player and Event preview** Actions workflow for the APK pair. It verifies the original XAPK hash against `integration/profile.json`, builds the menu and native backend, adds the loader, and signs both APKs with the same ephemeral key. Build tools: Node 22, JDK 17, Android SDK 36, NDK 27.1, APKTool 2.12.1; Dobby pinned at `0527af1b00b8c99cbfdd1efad3ad3fca57fadc60`, logging disabled. If the upstream `latest` XAPK changes, the build intentionally stops for re-analysis.
+Use the **Build Android Player and Event preview** Actions workflow for the APK pair. It verifies the original XAPK hash against `integration/profile.json`, builds the menu and native backend, adds the loader, and signs both APKs with the same ephemeral key. Build tools: Node 22, JDK 17, Android SDK 36, NDK 27.1, APKTool 2.12.1; Dobby pinned at `0527af1b00b8c99cbfdd1efad3ad3fca57fadc60`, logging disabled. The public CDN link may expire; provide a refreshed direct URL in the workflow `xapk_url` input if needed. A different XAPK hash intentionally stops the build for re-analysis.
 
 Game APKs are built from the supplied public download during CI; they are not source files. Build output is available in the workflow artifact for 14 days. Host tests cover typed callback filtering, Event score bounds, independent flags, failed capability checks, malformed IPC responses and APK merge integrity. **On-device startup, game integrity/login compatibility and gameplay effects remain unverified.**
 

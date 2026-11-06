@@ -1,6 +1,11 @@
 name: Build Android Player and Event preview
 on:
   workflow_dispatch:
+    inputs:
+      xapk_url:
+        description: Public direct XAPK link (optional; SHA-256 must match the analyzed 2.0.0 file)
+        required: false
+        default: ""
   push:
     branches: [android-player-event]
     paths: ['mobile/**', '.github/workflows/android-preview.yml']
@@ -34,6 +39,10 @@ jobs:
         with:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
+      - name: Download and verify the exact game source
+        env:
+          XAPK_URL: ${{ inputs.xapk_url }}
+        run: python mobile/tools/download_game.py /tmp/game.xapk
       - name: Install locked dependencies and run host checks
         run: |
           npm ci --prefix mobile --no-audit --no-fund
@@ -66,7 +75,6 @@ jobs:
         run: bash gradlew :app:assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a,x86_64
       - name: Assemble integration from the exact analyzed game package
         run: |
-          curl --fail --location --retry 2 --max-time 180 -o /tmp/game.xapk 'https://d.apkpure.com/b/XAPK/com.YoStarEN.StellaSora?version=latest'
           curl --fail --location --retry 2 --max-time 120 -o /tmp/apktool.jar 'https://github.com/iBotPeaches/Apktool/releases/download/v2.12.1/apktool_2.12.1.jar'
           echo '66cf4524a4a45a7f56567d08b2c9b6ec237bcdd78cee69fd4a59c8a0243aeafa  /tmp/apktool.jar' | sha256sum --check
           python mobile/tools/package_game.py --xapk /tmp/game.xapk --apktool /tmp/apktool.jar \
