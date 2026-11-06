@@ -154,7 +154,7 @@ function ControlPanel() {
             </View>
           </View>)}
       </View> : <View style={[styles.columns, width >= 720 && styles.wide]}>
-        <View style={[styles.panel, styles.grow, {backgroundColor: panelColor}]}>
+        <View style={[styles.panel, width >= 720 && styles.grow, {backgroundColor: panelColor}]}>
           <Text style={styles.heading}>{tab === 'Player' ? 'Player' : 'Bouncing Bumper Bash'}</Text>
           <Text style={styles.body}>{tab === 'Player' ? 'Combat controls' : 'Event controls · independent of Player'}</Text>
           {features.map(feature => {
@@ -170,7 +170,7 @@ function ControlPanel() {
             </View>;
           })}
         </View>
-        <View style={[styles.panel, styles.grow, {backgroundColor: panelColor}]}>
+        <View style={[styles.panel, width >= 720 && styles.grow, {backgroundColor: panelColor}]}>
           <Text style={styles.heading}>Tuning</Text>
           {tab === 'Player' ? <>
             {multiplier('Damage multiplier', 10, status.damage ?? 2, 2, 50)}

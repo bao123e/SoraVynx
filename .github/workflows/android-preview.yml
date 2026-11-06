@@ -4,6 +4,9 @@ on:
   push:
     branches: [android-player-event]
     paths: ['mobile/**', '.github/workflows/android-preview.yml']
+concurrency:
+  group: soravynx-android-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -98,8 +101,9 @@ jobs:
           disable-animations: true
           script: python mobile/tools/smoke_menu.py
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: SoraVynx-Android-0.1.0-preview.1-arm64
           path: mobile/dist/
           retention-days: 14
-          if-no-files-found: error
+          if-no-files-found: warn
