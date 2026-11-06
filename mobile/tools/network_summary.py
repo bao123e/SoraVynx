@@ -19,22 +19,36 @@ output.parent.mkdir(parents=True, exist_ok=True)
 if not capture.exists():
     output.write_text(json.dumps({'capture_available': False}))
     raise SystemExit(0)
+packet_count = dns_queries = dns_responses = decoded_ips = 0
+linktype = None
 with capture.open('rb') as stream:
     packets = dpkt.pcap.Reader(stream)
+    linktype = packets.datalink()
     while True:
         try:
             timestamp, packet = next(packets)
         except (StopIteration, dpkt.dpkt.NeedData, ValueError):
             break
+        packet_count += 1
         try:
-            frame = dpkt.ethernet.Ethernet(packet)
-            ip = frame.data
+            if linktype == 1:
+                ip = dpkt.ethernet.Ethernet(packet).data
+            elif linktype in (12, 101):
+                ip = dpkt.ip6.IP6(packet) if packet[0] >> 4 == 6 else dpkt.ip.IP(packet)
+            elif linktype == 113:
+                ip = dpkt.sll.SLL(packet).data
+            else:
+                continue
             if not isinstance(ip, (dpkt.ip.IP, dpkt.ip6.IP6)):
                 continue
+            decoded_ips += 1
             family = socket.AF_INET if isinstance(ip, dpkt.ip.IP) else socket.AF_INET6
             source, destination = socket.inet_ntop(family, ip.src), socket.inet_ntop(family, ip.dst)
             layer = ip.data
+            if isinstance(layer, dpkt.udp.UDP) and layer.dport == 53:
+                dns_queries += 1
             if isinstance(layer, dpkt.udp.UDP) and layer.sport == 53:
+                dns_responses += 1
                 response = dpkt.dns.DNS(layer.data)
                 relevant = [q.name for q in response.qd if 'stellasora' in q.name.lower() or 'yostar' in q.name.lower()]
                 for answer in response.an:
@@ -65,7 +79,8 @@ with capture.open('rb') as stream:
                     counters['possible_tls_alert_records'] += 1
         except (dpkt.dpkt.Error, ValueError, OSError):
             continue
-result = {'capture_available': True, 'game_hosts': [
+result = {'capture_available': True, 'linktype': linktype, 'packet_count': packet_count,
+          'decoded_ip_packets': decoded_ips, 'dns_queries': dns_queries, 'dns_responses': dns_responses, 'game_hosts': [
     {'address': address, 'names': sorted(hosts), 'traffic': dict(connections[address]),
      'flows': [dict(client_port=port, **stats) for (remote, port), stats in flows.items() if remote == address]}
     for address, hosts in sorted(names.items())
