@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 #include "backend.h"
 #include "controls.h"
+#include "bootstrap.h"
 #include <jni.h>
 #include <pthread.h>
 #include <dlfcn.h>
@@ -19,18 +20,16 @@ static void *initialize(void *unused){
  for(int attempt=0;attempt<600;attempt++){
   if(!module)module=dlopen("libil2cpp.so",RTLD_NOW|RTLD_NOLOAD);
   if(module&&bind_api(module)){
+   /* Do not invoke the lazy managed-domain getter while Unity is still
+    * initializing IL2CPP. It crashed both tested Android emulator versions. */
+   if(!hotfix_image&&!bootstrap_hotfix_loaded()){
+    InterlockedExchange(&phase,2);sleep(1);continue;
+   }
    void *domain=api.domain_get();
    if(domain){
     if(!thread)thread=api.thread_attach(domain);
     if(thread){
      InterlockedExchange(&phase,2);
-     if(!hotfix_image){
-      size_t count=0;const void **assemblies=api.domain_get_assemblies(domain,&count);
-      if(assemblies&&count<4096)for(size_t i=0;i<count;i++){
-       const void *image=api.assembly_get_image(assemblies[i]);const char *name=image?api.image_get_name(image):NULL;
-       if(name&&(!strcmp(name,"Hotfix.dll")||!strcmp(name,"Hotfix"))){hotfix_image=image;break;}
-      }
-     }
      if(hotfix_image&&initialize_backend()){
       InterlockedExchange(&phase,enabled_hook_count()?3:4);
       api.thread_detach(thread);return NULL;

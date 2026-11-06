@@ -5,6 +5,8 @@ Does not log in, claim rewards, enable cheats or click resource/download prompts
 Diagnostic output belongs to CI, not to either production APK.
 """
 import json
+import os
+from startup_health import healthy_start
 import subprocess
 import time
 from pathlib import Path
@@ -34,15 +36,18 @@ def launch(name):
     adb('logcat', '-c')
     started = adb('shell', 'am', 'start', '-W', '-n', COMPONENT, timeout=60)
     (OUT / (name + '-launch.json')).write_text(json.dumps(started, indent=2))
+    initial_pid = adb('shell', 'pidof', GAME)['stdout'].strip()
     samples = []
     for second in (10, 30, 60):
         time.sleep(10 if second == 10 else 20 if second == 30 else 30)
         pid = adb('shell', 'pidof', GAME)['stdout'].strip()
         samples.append({'after_seconds': second, 'pid': pid})
         screen(name + '-' + str(second))
-    (OUT / (name + '-runtime.txt')).write_text(adb('logcat', '-d', '-t', '2500')['stdout'])
+    runtime_text = adb('logcat', '-d', '-t', '8000')['stdout']
+    (OUT / (name + '-runtime.txt')).write_text(runtime_text)
     (OUT / (name + '-activity.txt')).write_text(adb('shell', 'dumpsys', 'activity', 'activities')['stdout'])
-    return {'launch': started, 'process_samples': samples,
+    return {'launch': started, 'initial_pid': initial_pid, 'process_samples': samples,
+            'stable_without_crash': healthy_start(initial_pid, samples, runtime_text),
             'survived_60_seconds': bool(samples[-1]['pid']),
             'meaning': 'Process survival is not proof of login, gameplay or feature functionality.'}
 
@@ -66,8 +71,8 @@ try:
     removed = adb('uninstall', GAME)
     if removed['code'] != 0:
         raise RuntimeError('Could not reset disposable game installation')
-    menu = adb('install', '-r', 'mobile/dist/SoraVynx-Menu-0.1.0-arm64-preview.apk', timeout=120)
-    modified = adb('install', '-r', 'mobile/dist/StellaSora-SoraVynx-2.0.0-arm64-preview.apk', timeout=120)
+    menu = adb('install', '-r', os.environ.get('MENU_APK', 'mobile/dist/SoraVynx-Menu-0.1.0-arm64-preview.apk'), timeout=120)
+    modified = adb('install', '-r', os.environ.get('MODIFIED_GAME_APK', 'mobile/dist/StellaSora-SoraVynx-2.0.0-arm64-preview.apk'), timeout=120)
     report['menu_install'], report['modified_install'] = menu, modified
     if menu['code'] != 0 or modified['code'] != 0 or 'Success' not in modified['stdout']:
         report['result'] = 'MODIFIED_INSTALL_FAILED'
@@ -76,8 +81,8 @@ try:
     adb('shell', 'am', 'start', '-W', '-n', 'com.soravynx.android/.MainActivity')
     time.sleep(8)
     screen('menu-after-game')
-    report['result'] = 'STARTUP_OBSERVED' if report['modified']['survived_60_seconds'] else 'MODIFIED_EXITED'
-    if report['result'] == 'MODIFIED_EXITED':
+    report['result'] = 'STARTUP_OBSERVED' if report['modified']['stable_without_crash'] else 'MODIFIED_CRASHED_OR_RESTARTED'
+    if report['result'] == 'MODIFIED_CRASHED_OR_RESTARTED':
         raise RuntimeError('Modified game process exited during startup; inspect captured evidence')
 finally:
     (OUT / 'report.json').write_text(json.dumps(report, indent=2))
