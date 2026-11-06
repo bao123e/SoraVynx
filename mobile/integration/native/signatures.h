@@ -1,37 +1,44 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 #pragma once
 #include <string.h>
-/* Native wrappers are allowed only for the exact scalar/reference shapes they
- * implement. An unrelated by-value struct must never be forwarded as a pointer. */
-static bool native_parameters_safe(const void *method){
- uint32_t count=api.method_get_param_count(method);if(count>9)return false;
- for(uint32_t i=0;i<count;i++){
-  const void *type=api.method_get_param(method,i);char *name=api.type_get_name(type);
-  if(!name)return false;
-  bool scalar=!strcmp(name,"System.Int32")||!strcmp(name,"System.Int64")||!strcmp(name,"System.Boolean");
-  bool byref=strchr(name,'&')!=NULL;
+/* AArch64 wrapper shapes: X = GPR64/reference, I = GPR32, B = bool, V = void.
+ * FP registers and unverified value aggregates cannot use these wrappers. */
+static char native_type_abi(const void *type){
+ char *name=api.type_get_name(type);if(!name)return '?';
+ char result='?';
+ if(!strcmp(name,"System.Void"))result='V';
+ else if(!strcmp(name,"System.Boolean"))result='B';
+ else if(!strcmp(name,"System.Int32")||!strcmp(name,"System.UInt32"))result='I';
+ else if(!strcmp(name,"System.Int64")||!strcmp(name,"System.UInt64")||!strcmp(name,"System.IntPtr")||!strcmp(name,"System.UIntPtr")||strchr(name,'&'))result='X';
+ else {
   bool fixed8=!strcmp(name,"TrueSync.FP")||!strcmp(name,"TrueSync.FDP");
-  api.free(name);
-  if(scalar||byref)continue;
-  void *klass=api.class_from_type(type);if(!klass)return false;
-  bool value_type=api.class_is_valuetype(klass);
-  if(fixed8&&!value_type)return false;
-  if(value_type){
-   uint32_t align=0;if(!fixed8||api.class_value_size(klass,&align)!=8)return false;
+  void *klass=api.class_from_type(type);
+  if(klass){
+   bool value=api.class_is_valuetype(klass);uint32_t align=0;
+   if(!value&&!fixed8)result='X';
+   else if(value&&fixed8&&api.class_value_size(klass,&align)==8&&align<=8)result='X';
   }
  }
- return true;
+ api.free(name);return result;
 }
-static bool type_equal(const void *a,const void *b){
- if(a==b)return true;
- char *x=api.type_get_name(a),*y=api.type_get_name(b);
- bool equal=x&&y&&!strcmp(x,y);if(x)api.free(x);if(y)api.free(y);return equal;
+static bool native_shape(const void *method,char shape[16]){
+ uint32_t n=api.method_get_param_count(method);if(n>9)return false;
+ size_t out=0;shape[out++]=native_type_abi(api.method_get_return_type(method));
+ if(shape[0]!='V'&&shape[0]!='B')return false;
+ if(!(api.method_get_flags(method,NULL)&0x10))shape[out++]='X';
+ for(uint32_t i=0;i<n;i++){
+  char argument=native_type_abi(api.method_get_param(method,i));
+  if(argument=='?'||argument=='V')return false;
+  shape[out++]=argument;
+ }
+ shape[out++]='X'; /* trailing MethodInfo */
+ shape[out]='\0';return true;
+}
+static bool native_parameters_safe(const void *method,int abi){
+ static const char *expected[]={"BXXIIXXXXBBX","VXX","VXIBX","VXIX","VXXX","BXXXXX","VXXBXX","BXX","VXXX"};
+ char shape[16];return abi>=0&&abi<9&&native_shape(method,shape)&&!strcmp(shape,expected[abi]);
 }
 static bool signature_equal(const void *a,const void *b){
  if(a==b)return true;
- uint32_t n=api.method_get_param_count(a);
- if(n>9||n!=api.method_get_param_count(b)||((api.method_get_flags(a,NULL)^api.method_get_flags(b,NULL))&0x10))return false;
- if(!type_equal(api.method_get_return_type(a),api.method_get_return_type(b)))return false;
- for(uint32_t i=0;i<n;i++)if(!type_equal(api.method_get_param(a,i),api.method_get_param(b,i)))return false;
- return true;
+ char x[16],y[16];return native_shape(a,x)&&native_shape(b,y)&&!strcmp(x,y);
 }

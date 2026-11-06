@@ -37,7 +37,7 @@ static void clear(void){
 }
 struct FakeMethod {void *entry;const char *result,*parameter;bool is_static;};
 static struct FakeMethod fake_known={(void*)0x1234,"System.Void","TrueSync.FP",false};
-static struct FakeMethod fake_foreign={(void*)0x1234,"System.Void","System.String",false};
+static struct FakeMethod fake_foreign={(void*)0x1234,"System.Void","System.Boolean",false};
 static const void *fake_assemblies[]={&fake_known};
 static const void **fake_domain_assemblies(void *domain,size_t *count){(void)domain;*count=1;return fake_assemblies;}
 static void *fake_domain(void){return &fake_known;}
@@ -91,11 +91,11 @@ int main(void){
  api.class_get_methods=fake_methods;api.method_get_param_count=fake_count;api.method_get_param=fake_parameter;
  api.method_get_return_type=fake_return;api.method_get_flags=fake_flags;api.type_get_name=fake_type_name;
  api.free=free;api.class_from_type=fake_class_from_type;api.class_is_valuetype=fake_value_type;
- assert(native_parameters_safe(&fake_known));
- fake_known.parameter="OtherStruct";assert(!native_parameters_safe(&fake_known));fake_known.parameter="TrueSync.FP";
+ assert(native_parameters_safe(&fake_known,A_VALUE8));
+ fake_known.parameter="OtherStruct";assert(!native_parameters_safe(&fake_known,A_VALUE8));fake_known.parameter="TrueSync.FP";
  groups[0].entry=fake_known.entry;groups[0].shape=&fake_known;
  assert(audit_shared_entries());assert(groups[0].conflict);
- groups[0].conflict=false;fake_foreign.parameter="TrueSync.FP";
+ groups[0].conflict=false;fake_foreign.parameter="System.String";
  assert(audit_shared_entries());assert(!groups[0].conflict);
  fake_foreign.is_static=true;assert(audit_shared_entries());assert(groups[0].conflict);
  puts("PASS unknown value structs and foreign/static shared-entry aliases cannot reach typed wrappers");

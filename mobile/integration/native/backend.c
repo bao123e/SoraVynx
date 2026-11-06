@@ -475,7 +475,7 @@ static int executable_segment(struct dl_phdr_info *info,size_t size,void *opaque
 }
 static bool executable(void *entry){struct ExecQuery q={(uintptr_t)entry,false};dl_iterate_phdr(executable_segment,&q);return q.valid;}
 static int add_group(const void *method,int abi) {
- if(!method||!native_parameters_safe(method))return -1;
+ if(!method||!native_parameters_safe(method,abi))return -1;
  void *entry=*(void *const*)method;if(!entry||!executable(entry))return -1;
  int g;
  for(g=0;g<group_count;g++)if(groups[g].entry==entry)break;
