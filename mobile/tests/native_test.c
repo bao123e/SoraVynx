@@ -44,7 +44,7 @@ int main(void){
  event_ready[2]=1;assert(apply_control(8,1,true));assert(event_flags[2]&&feature_flags[GOD_MODE]);
  assert(apply_control(-1,0,false));assert(!event_flags[2]&&!feature_flags[GOD_MODE]);
  puts("PASS unavailable/disconnected controls fail closed; tuning bounds and independent all-off");
- clear();targets[REAL_DAMAGE].method=&real_method;targets[REAL_DAMAGE].group=0;groups[0].original=(void*)original_damage;
+ clear();targets[REAL_DAMAGE].method=&real_method;targets[REAL_DAMAGE].group=0;groups[0].original=(dobby_dummy_func_t)original_damage;
  capabilities[GOD_MODE]=feature_flags[GOD_MODE]=1;
  damage_0(&player,30,false,NULL,&real_method);assert(calls==0);
  damage_0(&monster,40,false,NULL,&real_method);assert(calls==1&&damage_value==40);
@@ -53,14 +53,14 @@ int main(void){
  feature_flags[GOD_MODE]=0;damage_0(&player,70,false,NULL,&real_method);assert(calls==4&&damage_value==70);
  puts("PASS typed damage wrapper preserves monster, unrelated/null method and disabled paths");
  clear();targets[SET_ENERGY].method=&energy_method;targets[SET_ENERGY].group=0;
- groups[0].original=(void*)original_energy;total_energy=(void*)111;
+ groups[0].original=(dobby_dummy_func_t)original_energy;total_energy=(void*)111;
  capabilities[UNLIMITED_ENERGY]=feature_flags[UNLIMITED_ENERGY]=1;
  value_0(&player,5,&energy_method);assert(calls==1&&energy_value==full_energy);
  value_0(&player,6,&other_method);assert(energy_value==6);
  api.class_value_size=size16;value_0(&player,7,&energy_method);assert(energy_value==7);
  puts("PASS boxed FDP size validation and shared-entry passthrough");
  clear();event.add_score=&score_method;event_methods[3]=&score_method;event_groups[3]=0;
- groups[0].original=(void*)original_score;event_ready[2]=event_flags[2]=1;event_multiplier=100;
+ groups[0].original=(dobby_dummy_func_t)original_score;event_ready[2]=event_flags[2]=1;event_multiplier=100;
  int_0(&monster,20,&score_method);assert(delta_value==2000);
  int_0(&monster,-20,&score_method);assert(delta_value==-20);
  current_score=INT32_MAX-1;int_0(&monster,20,&score_method);assert(delta_value==1);
