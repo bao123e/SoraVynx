@@ -1,6 +1,9 @@
 name: Test and publish Android data backup helper
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['mobile/data-helper/**', 'mobile/tests/data_helper_test.ps1', '.github/workflows/android-data-helper.yml']
 permissions:
   contents: write
 jobs:
@@ -20,7 +23,12 @@ jobs:
               [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $file), [ref]$tokens, [ref]$errors) | Out-Null
               if ($errors.Count) { $errors | Format-List; throw 'PowerShell parse errors' }
           }
-          & ./mobile/tests/data_helper_test.ps1
+          try {
+              & ./mobile/tests/data_helper_test.ps1 *>&1 | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'helper-test-output.txt')
+          } catch {
+              $_ | Out-String | Add-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'helper-test-output.txt')
+              throw
+          }
           if ($LASTEXITCODE -ne 0) { throw 'Backup helper tests failed' }
       - name: Package only the helper source files and publish direct downloads
         shell: pwsh
@@ -34,3 +42,11 @@ jobs:
           Set-Content -LiteralPath ($archive + '.sha256') -Value ($checksum + '  ' + (Split-Path $archive -Leaf)) -Encoding ASCII
           gh release upload android-v0.1.0-preview.1 $archive ($archive + '.sha256') --repo $env:GITHUB_REPOSITORY --clobber
           if ($LASTEXITCODE -ne 0) { throw 'Helper upload failed' }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: data-helper-test-diagnostics
+          path: ${{ runner.temp }}/helper-test-output.txt
+          retention-days: 3
+          if-no-files-found: warn
