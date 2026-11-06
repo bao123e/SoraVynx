@@ -20,8 +20,8 @@ jobs:
     timeout-minutes: 45
     env:
       SORAVYNX_KEYSTORE: /tmp/soravynx-preview.jks
-      SORAVYNX_STORE_PASSWORD: android-preview-build
-      SORAVYNX_KEY_ALIAS: soravynx
+      SORAVYNX_STORE_PASSWORD: ${{ secrets.SORAVYNX_ANDROID_STORE_PASSWORD }}
+      SORAVYNX_KEY_ALIAS: ${{ secrets.SORAVYNX_ANDROID_KEY_ALIAS || 'soravynx' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,6 +39,22 @@ jobs:
         with:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
+      - name: Require the retained release signing identity
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.SORAVYNX_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          python - <<'PYKEY'
+          import base64, os
+          key = os.environ.get('SIGNING_KEY_BASE64', '')
+          password = os.environ.get('SORAVYNX_STORE_PASSWORD', '')
+          if not key or not password:
+              raise SystemExit('Configure the retained Android signing keystore and password in repository secrets. Refusing to create another disposable public-release key.')
+          data = base64.b64decode(''.join(key.split()), validate=True)
+          descriptor = os.open(os.environ['SORAVYNX_KEYSTORE'], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          with os.fdopen(descriptor, 'wb') as stream:
+              stream.write(data)
+          PYKEY
+          keytool -list -keystore "$SORAVYNX_KEYSTORE" -storepass:env SORAVYNX_STORE_PASSWORD -alias "$SORAVYNX_KEY_ALIAS"
       - name: Download and verify the exact game source
         env:
           XAPK_URL: ${{ inputs.xapk_url }}
@@ -52,10 +68,9 @@ jobs:
           python -m unittest discover -s mobile/tests -p '*_test.py'
           cc -D_GNU_SOURCE -std=c11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable -Imobile/tests/stubs mobile/tests/native_test.c -ldl -o /tmp/soravynx-native-test
           /tmp/soravynx-native-test
-      - name: Prepare Android build tools and per-build signing key
+      - name: Prepare Android build tools
         run: |
           sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
-          keytool -genkeypair -keystore "$SORAVYNX_KEYSTORE" -storepass "$SORAVYNX_STORE_PASSWORD" -keypass "$SORAVYNX_STORE_PASSWORD" -alias "$SORAVYNX_KEY_ALIAS" -keyalg RSA -keysize 3072 -validity 3650 -dname 'CN=SoraVynx Android Preview'
       - name: Build ARM64 runtime and signature-protected bridge
         run: |
           git init /tmp/Dobby
