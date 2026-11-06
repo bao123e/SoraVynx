@@ -52,7 +52,7 @@ def launch(name):
             'meaning': 'Process survival is not proof of login, gameplay or feature functionality.'}
 
 
-report = {'test': 'existing-release-game-startup', 'gameplay_verified': False}
+report = {'test': 'source-bootstrap-candidate-startup' if os.environ.get('MODIFIED_GAME_APK') else 'existing-release-game-startup', 'gameplay_verified': False}
 try:
     report['abi_list'] = adb('shell', 'getprop', 'ro.product.cpu.abilist')['stdout'].strip()
     report['native_bridge'] = adb('shell', 'getprop', 'ro.dalvik.vm.native.bridge')['stdout'].strip()
@@ -82,6 +82,9 @@ try:
     time.sleep(8)
     screen('menu-after-game')
     report['result'] = 'STARTUP_OBSERVED' if report['modified']['stable_without_crash'] else 'MODIFIED_CRASHED_OR_RESTARTED'
+    if report['result'] == 'STARTUP_OBSERVED' and not report['stock']['stable_without_crash']:
+        report['result'] = 'BASELINE_UNSTABLE'
+        raise RuntimeError('Modified process survived but stock baseline was unstable; comparison is inconclusive')
     if report['result'] == 'MODIFIED_CRASHED_OR_RESTARTED':
         raise RuntimeError('Modified game process exited during startup; inspect captured evidence')
 finally:
