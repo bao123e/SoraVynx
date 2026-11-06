@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Compare stock and released game startup on a fresh, disposable emulator.
+
+Does not log in, claim rewards, enable cheats or click resource/download prompts.
+Diagnostic output belongs to CI, not to either production APK.
+"""
+import json
+import subprocess
+import time
+from pathlib import Path
+
+OUT = Path('startup-results')
+OUT.mkdir(exist_ok=True)
+GAME = 'com.YoStarEN.StellaSora'
+COMPONENT = GAME + '/com.yostar.sdk.bridge.YostarSDKPlayerAct'
+
+
+def adb(*args, timeout=30):
+    result = subprocess.run(['adb', *args], capture_output=True, timeout=timeout)
+    return {'code': result.returncode, 'stdout': result.stdout.decode(errors='replace'),
+            'stderr': result.stderr.decode(errors='replace')}
+
+
+def screen(name):
+    result = subprocess.run(['adb', 'exec-out', 'screencap', '-p'], capture_output=True, timeout=20)
+    if result.returncode == 0 and result.stdout.startswith(b'\x89PNG'):
+        (OUT / (name + '.png')).write_bytes(result.stdout)
+    adb('shell', 'uiautomator', 'dump', '/sdcard/startup.xml', timeout=15)
+    xml = adb('exec-out', 'cat', '/sdcard/startup.xml')['stdout']
+    (OUT / (name + '.xml')).write_text(xml)
+
+
+def launch(name):
+    adb('logcat', '-c')
+    started = adb('shell', 'am', 'start', '-W', '-n', COMPONENT, timeout=60)
+    (OUT / (name + '-launch.json')).write_text(json.dumps(started, indent=2))
+    samples = []
+    for second in (10, 30, 60):
+        time.sleep(10 if second == 10 else 20 if second == 30 else 30)
+        pid = adb('shell', 'pidof', GAME)['stdout'].strip()
+        samples.append({'after_seconds': second, 'pid': pid})
+        screen(name + '-' + str(second))
+    (OUT / (name + '-runtime.txt')).write_text(adb('logcat', '-d', '-t', '2500')['stdout'])
+    (OUT / (name + '-activity.txt')).write_text(adb('shell', 'dumpsys', 'activity', 'activities')['stdout'])
+    return {'launch': started, 'process_samples': samples,
+            'survived_60_seconds': bool(samples[-1]['pid']),
+            'meaning': 'Process survival is not proof of login, gameplay or feature functionality.'}
+
+
+report = {'test': 'existing-release-game-startup', 'gameplay_verified': False}
+try:
+    report['abi_list'] = adb('shell', 'getprop', 'ro.product.cpu.abilist')['stdout'].strip()
+    report['native_bridge'] = adb('shell', 'getprop', 'ro.dalvik.vm.native.bridge')['stdout'].strip()
+    if 'arm64-v8a' not in report['abi_list'].split(','):
+        report['result'] = 'UNSUPPORTED_EMULATOR_ABI'
+        raise RuntimeError('This emulator cannot execute the supplied ARM64 game. No game result inferred.')
+    installed = adb('install-multiple', '-r', 'original/com.YoStarEN.StellaSora.apk',
+                    'original/config.arm64_v8a.apk', timeout=120)
+    report['stock_install'] = installed
+    if installed['code'] != 0 or 'Success' not in installed['stdout']:
+        report['result'] = 'STOCK_INSTALL_FAILED'
+        raise RuntimeError('Stock baseline installation failed')
+    report['stock'] = launch('stock')
+    adb('shell', 'am', 'force-stop', GAME)
+    # Uninstalls ONLY the stock baseline inside this freshly created emulator.
+    removed = adb('uninstall', GAME)
+    if removed['code'] != 0:
+        raise RuntimeError('Could not reset disposable game installation')
+    menu = adb('install', '-r', 'mobile/dist/SoraVynx-Menu-0.1.0-arm64-preview.apk', timeout=120)
+    modified = adb('install', '-r', 'mobile/dist/StellaSora-SoraVynx-2.0.0-arm64-preview.apk', timeout=120)
+    report['menu_install'], report['modified_install'] = menu, modified
+    if menu['code'] != 0 or modified['code'] != 0 or 'Success' not in modified['stdout']:
+        report['result'] = 'MODIFIED_INSTALL_FAILED'
+        raise RuntimeError('Released APK installation failed')
+    report['modified'] = launch('modified')
+    adb('shell', 'am', 'start', '-W', '-n', 'com.soravynx.android/.MainActivity')
+    time.sleep(8)
+    screen('menu-after-game')
+    report['result'] = 'STARTUP_OBSERVED' if report['modified']['survived_60_seconds'] else 'MODIFIED_EXITED'
+    if report['result'] == 'MODIFIED_EXITED':
+        raise RuntimeError('Modified game process exited during startup; inspect captured evidence')
+finally:
+    (OUT / 'report.json').write_text(json.dumps(report, indent=2))
+    print(json.dumps(report, indent=2))

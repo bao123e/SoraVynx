@@ -1,0 +1,60 @@
+name: Verify Android game startup
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [30, 35]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Download the existing APK pair and exact stock baseline
+        run: |
+          mkdir -p mobile/dist original startup-results
+          curl --fail --location --max-time 120 -o mobile/dist/SoraVynx-Menu-0.1.0-arm64-preview.apk 'https://github.com/bao123e/SoraVynx/releases/download/android-v0.1.0-preview.1/SoraVynx-Menu-0.1.0-arm64-preview.apk'
+          curl --fail --location --max-time 120 -o mobile/dist/StellaSora-SoraVynx-2.0.0-arm64-preview.apk 'https://github.com/bao123e/SoraVynx/releases/download/android-v0.1.0-preview.1/StellaSora-SoraVynx-2.0.0-arm64-preview.apk'
+          echo '352ca6e91c551e3ad23e24ee124292c9f38510d5d565008d45dadbdd3568c50b  mobile/dist/SoraVynx-Menu-0.1.0-arm64-preview.apk' | sha256sum --check
+          echo '7aa399af0bd818245a725fa1127deb9adce2ed88585acc5dde1df516401cfe58  mobile/dist/StellaSora-SoraVynx-2.0.0-arm64-preview.apk' | sha256sum --check
+          python mobile/tools/download_game.py /tmp/original.xapk
+          python - <<'PY'
+          from zipfile import ZipFile
+          with ZipFile('/tmp/original.xapk') as z:
+              for name in ('com.YoStarEN.StellaSora.apk','config.arm64_v8a.apk'):
+                  z.extract(name, 'original')
+          PY
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          profile: pixel_2
+          disable-animations: true
+          emulator-boot-timeout: 300
+          script: python mobile/tools/smoke_game_startup.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: game-startup-api-${{ matrix.api }}
+          path: startup-results/
+          if-no-files-found: warn
+          retention-days: 7
