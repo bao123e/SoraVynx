@@ -27,7 +27,7 @@ Build Windows x64; 22 nhóm kiểm thử native/Lua và hai test report Windows/
 
 Menu React Native dùng [`@react-native-menu/menu`](https://github.com/react-native-menu/menu), font Be Vietnam Pro và logo SoraVynx. Có Player, Event và Custom BG; **không có Auto Daily**. Backend nằm trong APK game đã tích hợp, không yêu cầu root; app menu riêng không điều khiển được game gốc.
 
-**[Tải bộ APK Android thử nghiệm](https://github.com/bao123e/SoraVynx/actions/runs/42197498869/artifacts/13493142410)** (đăng nhập GitHub; artifact giữ 14 ngày).
+**[Tải ZIP Android trực tiếp](https://github.com/bao123e/SoraVynx/releases/download/android-v0.1.0-preview.1/SoraVynx-Android-0.1.0-preview.1.zip)** · [Menu APK](https://github.com/bao123e/SoraVynx/releases/download/android-v0.1.0-preview.1/SoraVynx-Menu-0.1.0-arm64-preview.apk) · [Game APK](https://github.com/bao123e/SoraVynx/releases/download/android-v0.1.0-preview.1/StellaSora-SoraVynx-2.0.0-arm64-preview.apk). Không cần đăng nhập GitHub.
 
 [Source Android](mobile/) · [Cài đặt và giới hạn](mobile/INSTALL.vi.md) · [Build APK bằng Actions](https://github.com/bao123e/SoraVynx/actions/workflows/android-preview.yml).
 

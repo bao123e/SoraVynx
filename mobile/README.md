@@ -4,6 +4,8 @@ React Native menu + ARM64 integration preview for **Player/Event**. No Auto Dail
 
 The UI runs as a companion app; a signature-protected receiver connects to the backend inside the integrated game APK. It cannot control the stock game. Feature switches reflect runtime capability and acknowledgement. Windows interpreter offsets are never reused.
 
+[Download the APK pair directly](https://github.com/bao123e/SoraVynx/releases/download/android-v0.1.0-preview.1/SoraVynx-Android-0.1.0-preview.1.zip) · [Release and individual APKs](https://github.com/bao123e/SoraVynx/releases/tag/android-v0.1.0-preview.1). The release preserves the tested build's APK bytes and signing identity.
+
 ## Checks
 
 ```sh
