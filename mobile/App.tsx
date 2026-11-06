@@ -28,16 +28,21 @@ function ControlPanel() {
   const [appearance, setAppearance] = useState<Appearance>(defaults);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const pollingRef = useRef(false);
+  const generation = useRef(0);
   const [error, setError] = useState('');
   const {width} = useWindowDimensions();
   const panelColor = rgba('#102034', appearance.panelOpacity);
   const buttonColor = rgba('#24394D', appearance.buttonOpacity);
   const refresh = useCallback(async () => {
-    if (busyRef.current) {return;}
-    busyRef.current = true;
-    try {setStatus(parseStatus(await bridge.getStatus()));}
-    catch {setStatus({phase: -1});}
-    finally {busyRef.current = false;}
+    if (busyRef.current || pollingRef.current) {return;}
+    pollingRef.current = true;
+    const request = generation.current;
+    try {
+      const next = parseStatus(await bridge.getStatus());
+      if (request === generation.current) {setStatus(old => ({...next, enabled: next.enabled ?? old.enabled}));}
+    } catch {if (request === generation.current) {setStatus(old => ({phase: -1, enabled: old.enabled}));}}
+    finally {pollingRef.current = false;}
   }, []);
   useEffect(() => {
     let mounted = true;
@@ -53,11 +58,12 @@ function ControlPanel() {
 
   async function command(kind: number, value: number) {
     if (busyRef.current) {return;}
-    busyRef.current = true; setBusy(true); setError('');
+    busyRef.current = true; generation.current++; setBusy(true); setError('');
     try {
       const next = parseStatus(await bridge.command(kind, value));
-      setStatus(next);
-      if (!next.accepted) {setError('Backend chưa nhận thay đổi. Chức năng chưa được bật.');}
+      setStatus(old => ({...next, enabled: next.enabled ?? old.enabled}));
+      if (next.accepted === false) {setError('Backend từ chối thay đổi. Xem trạng thái chức năng gần nhất.');}
+      else if (next.accepted === undefined) {setError('Chưa xác nhận thay đổi. Kiểm tra lại khi game phản hồi.');}
     } catch {setError('Mất kết nối với game. Mở lại game rồi kiểm tra trạng thái.');}
     finally {busyRef.current = false; setBusy(false);}
   }
@@ -94,8 +100,8 @@ function ControlPanel() {
       resizeMode="contain" style={[StyleSheet.absoluteFill, {opacity: appearance.imageOpacity / 100}]} /></View> : null}
     <View style={styles.header}>
       <View style={styles.brand}>
-        <Image source={require('./assets/brand.png')} style={styles.logo} resizeMode="contain" />
-        <View><Text style={styles.title}>SoraVynx</Text><Text style={styles.eyebrow}>STELLA SORA · ANDROID</Text></View>
+        <Image accessible={false} source={require('./assets/brand.png')} style={styles.logo} resizeMode="contain" />
+        <View style={styles.brandText}><Text style={styles.title}>SoraVynx</Text><Text style={styles.eyebrow}>STELLA SORA · ANDROID</Text></View>
       </View>
       <MenuView isAnchoredToRight shouldOpenOnLongPress={false}
         actions={[{id: 'game', title: 'Mở game'}, {id: 'refresh', title: 'Kiểm tra kết nối'}, {id: 'off', title: 'Tắt tất cả'}, {id: 'about', title: 'Thông tin bản thử nghiệm'}]}
@@ -156,7 +162,7 @@ function ControlPanel() {
             const enabled = status.enabled?.[feature.id] === true;
             return <View key={feature.id} style={[styles.feature, {backgroundColor: buttonColor}]}>
               <View style={styles.featureText}><Text style={styles.settingLabel}>{feature.label}</Text>
-                <Text style={styles.muted}>{available ? (enabled ? 'ON · kiểm tra trong game' : 'OFF') : 'Chưa khả dụng'}</Text>
+                <Text style={styles.muted}>{available ? (enabled ? 'ON · kiểm tra trong game' : 'OFF') : status.enabled ? 'Trạng thái gần nhất · chưa nối được' : 'Chưa khả dụng'}</Text>
               </View>
               <Switch accessibilityLabel={feature.label} accessibilityHint={available ? 'Thay đổi chức năng trong game tích hợp' : 'Backend chưa nối được chức năng này'}
                 style={styles.switch} value={enabled} disabled={!available || busy} onValueChange={value => {void command(feature.id, value ? 1 : 0);}}
@@ -187,7 +193,7 @@ const styles = StyleSheet.create({
   root: {flex: 1, backgroundColor: '#09111E'},
   header: {padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12},
   brand: {flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1},
-  logo: {width: 36, height: 42}, title: {fontFamily: 'BeVietnamPro-Bold', fontSize: 27, color: mint},
+  brandText: {flexShrink: 1}, logo: {width: 36, height: 42}, title: {fontFamily: 'BeVietnamPro-Bold', fontSize: 27, color: mint},
   eyebrow: {fontFamily: 'BeVietnamPro-Regular', fontSize: 10, color: '#D5DEEC', letterSpacing: 1},
   tabs: {flexGrow: 0}, tabContent: {paddingHorizontal: 20, gap: 8, paddingBottom: 14},
   tab: {minHeight: 48, paddingHorizontal: 20, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: '#6A7E94'},

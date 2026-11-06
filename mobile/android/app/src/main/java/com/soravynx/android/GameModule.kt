@@ -104,7 +104,7 @@ class GameModule(private val context: ReactApplicationContext) : ReactContextBas
     preferences.edit().putInt(key, value).apply(); promise.resolve(null)
   }
   @ReactMethod fun pickBackground(promise: Promise) {
-    val activity = currentActivity
+    val activity = context.currentActivity
     if (activity == null || picker != null) { promise.reject("PICKER_BUSY", "Chưa thể mở bộ chọn ảnh."); return }
     picker = promise
     try {

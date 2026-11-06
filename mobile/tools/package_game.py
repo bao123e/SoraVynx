@@ -83,6 +83,8 @@ def merge_apk(base, split, native, helper, output):
                 destination.writestr(info, config.read(info.filename))
         destination.write(native, "lib/arm64-v8a/libsoravynx_game.so")
         destination.write(helper, dex_name)
+        for license_file in (ROOT / "integration/licenses").glob("*.txt"):
+            destination.write(license_file, "assets/soravynx/licenses/" + license_file.name)
     with ZipFile(output) as result:
         if result.testzip() is not None:
             raise ValueError("Bad merged ZIP")

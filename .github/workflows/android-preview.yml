@@ -44,9 +44,6 @@ jobs:
         run: |
           sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
           keytool -genkeypair -keystore "$SORAVYNX_KEYSTORE" -storepass "$SORAVYNX_STORE_PASSWORD" -keypass "$SORAVYNX_STORE_PASSWORD" -alias "$SORAVYNX_KEY_ALIAS" -keyalg RSA -keysize 3072 -validity 3650 -dname 'CN=SoraVynx Android Preview'
-      - name: Build React Native menu APK
-        working-directory: mobile/android
-        run: bash gradlew :app:assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a
       - name: Build ARM64 runtime and signature-protected bridge
         run: |
           git init /tmp/Dobby
@@ -61,6 +58,9 @@ jobs:
           mkdir -p /tmp/bridge-classes /tmp/bridge-dex
           javac --release 8 -classpath "$ANDROID_HOME/platforms/android-36/android.jar" -d /tmp/bridge-classes mobile/integration/java/com/soravynx/bridge/*.java
           find /tmp/bridge-classes -name '*.class' -print0 | xargs -0 "$ANDROID_HOME/build-tools/36.0.0/d8" --min-api 26 --lib "$ANDROID_HOME/platforms/android-36/android.jar" --output /tmp/bridge-dex
+      - name: Build React Native menu APK
+        working-directory: mobile/android
+        run: bash gradlew :app:assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a,x86_64
       - name: Assemble integration from the exact analyzed game package
         run: |
           curl --fail --location --retry 2 --max-time 180 -o /tmp/game.xapk 'https://d.apkpure.com/b/XAPK/com.YoStarEN.StellaSora?version=latest'
@@ -82,6 +82,20 @@ jobs:
           python mobile/tools/verify_build.py mobile/dist
           cd mobile/dist
           sha256sum *.apk > SHA256SUMS.txt
+      - name: Enable emulator KVM access
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Exercise release menu and native PopupMenu
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_2
+          disable-animations: true
+          script: python mobile/tools/smoke_menu.py
       - uses: actions/upload-artifact@v4
         with:
           name: SoraVynx-Android-0.1.0-preview.1-arm64
