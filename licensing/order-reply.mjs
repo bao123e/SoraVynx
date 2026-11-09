@@ -28,5 +28,5 @@ export async function orderQRReply(order,{fetcher=fetch}={}){
  try{const image=await qrImage(qr.href,fetcher);files=[{attachment:image,name:'soravynx-qr.png'}];embed.setImage('attachment://soravynx-qr.png');}
  catch{embed.setImage(qr.href);}
  const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel('Mở đơn / nhận key').setURL(checkout.href));
- return {content:'QR thanh toán của đơn này. Sau khi SePay xác nhận đúng tiền, mở nút bên dưới để nhận key. Gửi riêng link đơn cho khách; không đăng công khai.',embeds:[embed],components:[row],files,allowedMentions:{parse:[]}};
+ return {content:'Quét QR để thanh toán. Khi SePay xác nhận tiền và đăng ký xong, bot tự hiện key trong tin này. Nếu bot khởi động lại hoặc tin quá lâu, key được gửi qua DM riêng. Gửi riêng link đơn cho khách; không đăng công khai.',embeds:[embed],components:[row],files,allowedMentions:{parse:[]}};
 }
