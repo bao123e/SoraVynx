@@ -37,10 +37,18 @@ export function verifyShortReceipt(publicPem,receipt,key,now=Math.floor(Date.now
  if(a[3]!==hash||Number(a[1])>now+300||(Number(a[2])&&Number(a[2])<=Number(a[1]))||(Number(a[2])&&now>=Number(a[2])))return false;
  return verify('sha256',Buffer.from(a.slice(0,5).join('.')),{key:publicPem,dsaEncoding:'ieee-p1363'},Buffer.from(a[5],'hex'));
 }
-export async function publishShortLicense(record,token=process.env.GITHUB_TOKEN) {
+export async function publishShortLicense(record,token=process.env.GITHUB_TOKEN,{fetcher=fetch}={}) {
  if(!token)throw new Error('Missing GITHUB_TOKEN for publishing. Your short key has been saved locally.');
  const repo='bao123e/soravynx.github.io';
- const response=await fetch(`https://api.github.com/repos/${repo}/contents/licenses/${record.hash}.lic`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},body:JSON.stringify({message:'Register signed access key',branch:'main',content:Buffer.from(record.receipt+'\n').toString('base64')})});
+ const url=`https://api.github.com/repos/${repo}/contents/licenses/${record.hash}.lic`;
+ const headers={Authorization:`Bearer ${token}`,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'};
+ const response=await fetcher(url,{method:'PUT',redirect:'error',signal:AbortSignal.timeout(15000),headers,body:JSON.stringify({message:'Register signed access key',branch:'main',content:Buffer.from(record.receipt+'\n').toString('base64')})});
+ // A previous request may have committed before the connection dropped. Retry
+ // the exact record, never overwrite another record or generate a second key.
+ if(response.status===409||response.status===422){
+  const existing=await fetcher(url+'?ref=main',{headers,redirect:'error',signal:AbortSignal.timeout(15000)});
+  if(existing.ok){const file=await existing.json();if(file.encoding==='base64'&&Buffer.from(file.content,'base64').toString('utf8').trim()===record.receipt)return true;}
+ }
  if(!response.ok)throw new Error('Cannot publish short key: GitHub HTTP '+response.status+'. The key is saved locally; upload its .lic file before using it.');
  return true;
 }

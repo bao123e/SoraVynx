@@ -1,4 +1,10 @@
-# SoraVynx — key ngẫu nhiên 15 ký tự (v0.2)
+# SoraVynx — bộ cấu hình bot và key 15 ký tự (v0.3)
+
+**Bắt đầu tại [SEPAY.vi.md](SEPAY.vi.md).** Đã có bot Discord và SePay: mở `3-Setup-Bot.cmd`, điền theo từng dòng rồi mở `4-Start-Bot.cmd`. Bộ cài kiểm tra đúng khóa ký cũ trước khi lưu cấu hình. Không chạy lại Setup-Issuer.
+
+Có thêm `/order` tạo trang QR BIDV riêng, endpoint `/webhooks/sepay` xác thực API Key, database giữ đơn và chống cấp trùng. Chưa kết nối SePay thật hoặc triển khai backend công khai; cần làm các bước tunnel/host trong hướng dẫn trước khi nhận tiền tự động. Website cửa hàng hiện vẫn dùng liên hệ Discord.
+
+Các ghi chú bên dưới mô tả giao thức key; hướng dẫn cài bot, webhook và giới hạn bản mới nằm trong SEPAY.vi.md.
 
 ## Thay đổi
 
@@ -44,7 +50,7 @@ Bot có lệnh `/keycreate plan:...`, không cần machine code. Chỉ đúng ow
 
 ## QR BIDV thật
 
-Phần này chưa được bật. GitHub Pages không nhận webhook hoặc giữ secret được. Luồng tự động cần backend HTTPS + database: tạo đơn và giá ở server → QR BIDV đúng số tiền/mã đơn → SePay/payOS gửi webhook đã xác thực → kiểm tra đúng tài khoản/tiền vào/số tiền/mã đơn và chống giao dịch lặp → cấp một key cho đúng đơn → giao riêng cho người mua.
+Bộ v0.3 có backend mẫu đã kiểm thử mô phỏng, xem SEPAY.vi.md. Kết nối thật chưa được bật. GitHub Pages không nhận webhook hoặc giữ secret được. Luồng tự động cần backend HTTPS + database: tạo đơn và giá ở server → QR BIDV đúng số tiền/mã đơn → SePay/payOS gửi webhook đã xác thực → kiểm tra đúng tài khoản/tiền vào/số tiền/mã đơn và chống giao dịch lặp → cấp một key cho đúng đơn → giao riêng cho người mua.
 
 BIDV/SePay: https://sepay.vn/bidv.html và https://docs.sepay.vn/tich-hop-webhooks.html. Kiểm tra loại tài khoản/gói hỗ trợ với nhà cung cấp. Không cấp key dựa trên ảnh bill hoặc nút “đã thanh toán” của người mua. Khi triển khai thanh toán nhiều đơn, thay việc publish từng bản ghi bằng API có database; cần thêm kiểm soát số máy, thu hồi và giờ server nếu bán key thương mại.
 

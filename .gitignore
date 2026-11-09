@@ -18,6 +18,8 @@ licensing/secrets/
 licensing/node_modules/
 *.pem
 licensing/.env
+licensing/.env.*.tmp
+licensing/cloudflared.exe
 
 licensing/public-records/
 
