@@ -39,7 +39,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{
   if(Number(process.versions.node.split('.')[0])<24)throw new Error('Can Node.js 24 LTS.');
   if(!process.env.GITHUB_TOKEN)throw new Error('Chua co GITHUB_TOKEN. Mo 3-Setup-Bot.cmd.');
-  const store=new PaymentStore({file:resolve(directory,process.env.PAYMENT_DB_FILE||'secrets/payments.sqlite'),pem:matchingIssuer(process.env.LICENSE_PRIVATE_KEY_FILE||'secrets/issuer-private.pem'),account:process.env.SEPAY_ACCOUNT_NUMBER,gateway:process.env.SEPAY_GATEWAY||'BIDV'});
+  const store=new PaymentStore({file:resolve(directory,process.env.PAYMENT_DB_FILE||'secrets/payments.sqlite'),pem:matchingIssuer(process.env.LICENSE_PRIVATE_KEY_FILE||'secrets/issuer-private.pem'),account:process.env.SEPAY_ACCOUNT_NUMBER,gateway:process.env.SEPAY_GATEWAY||'BIDV',virtualAccount:process.env.SEPAY_VIRTUAL_ACCOUNT});
   const server=paymentServer({store,webhookKey:process.env.SEPAY_WEBHOOK_API_KEY,adminKey:process.env.PAYMENT_ADMIN_KEY,publicURL:process.env.PUBLIC_BASE_URL});
   server.requestTimeout=15000;server.headersTimeout=10000;
   server.listen(8787,'127.0.0.1',()=>console.log('SoraVynx webhook dang chay tai http://127.0.0.1:8787. Giu cua so nay mo. Huong dan: SEPAY.vi.md.'));
