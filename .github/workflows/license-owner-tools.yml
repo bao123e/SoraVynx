@@ -2,7 +2,7 @@ name: Publish owner key tools only
 on:
   workflow_dispatch:
   push:
-    branches: [feature/discord-setup, feature/key-recovery, feature/discord-qr, fix/bidv-virtual-account]
+    branches: [feature/discord-setup, feature/key-recovery, feature/discord-qr, fix/bidv-virtual-account, feature/discord-key-delivery]
     paths: ['source/license_public_key.h', 'licensing/**', '.github/workflows/license-owner-tools.yml']
 permissions:
   contents: read
@@ -50,19 +50,19 @@ jobs:
           names=['LICENSE.txt','source/license_public_key.h']
           names += [str(p.relative_to(root)) for p in sorted((root/'licensing').iterdir()) if p.is_file() and (p.suffix in ['.mjs','.cmd','.json','.md'] or p.name=='.env.example')]
           with ZipFile(out,'w',ZIP_DEFLATED) as z:
-              z.writestr('START-HERE.vi.txt','SORAVYNX OWNER TOOLS v0.3.4\n\nGiai nen vao THU MUC MOI. COPY licensing/secrets cu sang licensing/secrets moi, KHONG xoa ban goc. KHONG tao lai issuer.\nCan Node.js 24 LTS: https://nodejs.org/\n\n1. Mo licensing/3-Setup-Bot.cmd va lam theo tung dong.\n2. Mo licensing/4-Start-Bot.cmd. Dung /keycreate de cap key thu cong.\n3. Muon tu dong nhan tien SePay: doc licensing/SEPAY.vi.md.\n\nKhong gui token, .env hoac private PEM vao chat.\nKhong co EXE/DLL game trong bo nay, khong thay doi tool khach.\nWebhook da test mo phong tren Windows/Linux, chua xac minh voi tai khoan SePay that.\n')
+              z.writestr('START-HERE.vi.txt','SORAVYNX OWNER TOOLS v0.3.5\n\nGiai nen vao THU MUC MOI. COPY licensing/secrets cu sang licensing/secrets moi, KHONG xoa ban goc. KHONG tao lai issuer.\nCan Node.js 24 LTS: https://nodejs.org/\n\n1. Mo licensing/3-Setup-Bot.cmd va lam theo tung dong.\n2. Mo licensing/4-Start-Bot.cmd. Dung /keycreate de cap key thu cong.\n3. Muon tu dong nhan tien SePay: doc licensing/SEPAY.vi.md.\n\nKhong gui token, .env hoac private PEM vao chat.\nKhong co EXE/DLL game trong bo nay, khong thay doi tool khach.\nWebhook da test mo phong tren Windows/Linux, chua xac minh voi tai khoan SePay that.\n')
               for name in names:z.write(root/name,name)
           with ZipFile(out) as z:
               assert z.testzip() is None
               assert not any(n.endswith(('.pem','.exe','.dll','.sqlite')) or '/secrets/' in n or n.endswith('/.env') for n in z.namelist())
           Path(str(out)+'.sha256').write_text(hashlib.sha256(out.read_bytes()).hexdigest()+'  '+out.name+'\n')
-          Path(os.environ['RUNNER_TEMP'],'owner-notes.md').write_text('Owner Key Tools v0.3.4 (BIDV personal VA routing): guided Windows setup, matching-issuer validation, owner-only Discord /keycreate and /order, BIDV QR checkout, API-Key authenticated SePay webhook, SQLite payment deduplication and durable publishing retries.\n\nRequires Node.js 24 LTS and the existing private signing PEM on your own PC. No private keys, tokens or customer EXE/DLL are included. Only the supplied public key is bundled to check compatibility. Setup in licensing/SEPAY.vi.md.\n\nAutomated tests run on Linux and Windows using isolated test issuers. Browser checkout tested with a simulated incoming payment. Real Discord and SePay accounts have not been connected or verified; the public storefront remains manual. PC/tunnel setup requires the PC to stay on and tunnel URLs may change. No automatic refunds or device binding.\n')
-          patch=Path(os.environ['RUNNER_TEMP'])/'SoraVynx-BIDV-VA-Update.zip'
+          Path(os.environ['RUNNER_TEMP'],'owner-notes.md').write_text('Owner Key Tools v0.3.5 (automatic private Discord key delivery): guided Windows setup, matching-issuer validation, owner-only Discord /keycreate and /order, BIDV QR checkout, API-Key authenticated SePay webhook, SQLite payment deduplication and durable publishing retries.\n\nRequires Node.js 24 LTS and the existing private signing PEM on your own PC. No private keys, tokens or customer EXE/DLL are included. Only the supplied public key is bundled to check compatibility. Setup in licensing/SEPAY.vi.md.\n\nAutomated tests run on Linux and Windows using isolated test issuers. Browser checkout tested with a simulated incoming payment. Real Discord and SePay accounts have not been connected or verified; the public storefront remains manual. PC/tunnel setup requires the PC to stay on and tunnel URLs may change. No automatic refunds or device binding.\n')
+          patch=Path(os.environ['RUNNER_TEMP'])/'SoraVynx-Discord-Auto-Key-Update.zip'
           with ZipFile(patch,'w',ZIP_DEFLATED) as z:
-              for name in ['payment-store.mjs','payment-server.mjs','bidv-account.mjs','set-bidv-va.mjs','8-Set-BIDV-VA.cmd']:z.write(root/'licensing'/name,name)
-              z.writestr('BIDV-VA-UPDATE.vi.txt','Dung cho bo da setup.\n1. Ctrl+C trong cua so webhook (file 5). Giu bot va tunnel dang chay.\n2. Copy 5 file chuong trinh vao licensing hien tai, thay file chuong trinh cu. Khong xoa .env/secrets/database.\n3. Mo 8-Set-BIDV-VA.cmd; nhap VA BIDV ca nhan bat dau 96247 tu SePay.\n4. Mo lai 5-Start-Webhook.cmd DUNG MOT LAN. QR moi dung VA. Khong quet anh QR cu.\nSePay webhook phai nhan giao dich cua VA nay; neu loc ma thanh toan thi cau hinh tien to SVX.\nKhoan chuyen vao tai khoan goc truoc do khong tu vao SePay. Khong chuyen them de tra don cu.\n')
+              for name in ['discord-bot.mjs','order-reply.mjs','order-delivery.mjs']:z.write(root/'licensing'/name,name)
+              z.writestr('AUTO-KEY-UPDATE.vi.txt','Can bo v0.3.4 da cau hinh VA.\n1. Ctrl+C cua so BOT (file 4). Giu webhook/tunnel dang chay.\n2. Copy 3 file chuong trinh vao licensing hien tai, thay file chuong trinh cu.\n3. Mo lai 4-Start-Bot.cmd; dung /order tao don moi de theo doi tu dong.\nKey tu hien khi backend da xac nhan tien VA va dang ky key xong. Tin qua lau hoac bot khoi dong lai: gui key qua DM rieng cho chu. Cho phep DM tu bot.\nKhong setup lai; khong sua .env/secrets/database. Khong chuyen lai tien cho don cu.\n')
           with ZipFile(patch) as z:
-              assert z.testzip() is None and len(z.namelist())==6
+              assert z.testzip() is None and len(z.namelist())==4
           Path(str(patch)+'.sha256').write_text(hashlib.sha256(patch.read_bytes()).hexdigest()+'  '+patch.name+'\n')
           print('Owner ZIP verified; no private keys or customer binaries.')
           PY
@@ -70,4 +70,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create license-owner-tools-v0.3.4 "$RUNNER_TEMP/SoraVynx-Owner-Key-Tools.zip" "$RUNNER_TEMP/SoraVynx-Owner-Key-Tools.zip.sha256" "$RUNNER_TEMP/SoraVynx-BIDV-VA-Update.zip" "$RUNNER_TEMP/SoraVynx-BIDV-VA-Update.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Owner Key Tools v0.3.4 - fix BIDV VA payment routing" --notes-file "$RUNNER_TEMP/owner-notes.md" --prerelease --latest=false
+          gh release create license-owner-tools-v0.3.5 "$RUNNER_TEMP/SoraVynx-Owner-Key-Tools.zip" "$RUNNER_TEMP/SoraVynx-Owner-Key-Tools.zip.sha256" "$RUNNER_TEMP/SoraVynx-Discord-Auto-Key-Update.zip" "$RUNNER_TEMP/SoraVynx-Discord-Auto-Key-Update.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Owner Key Tools v0.3.5 - automatic Discord key delivery" --notes-file "$RUNNER_TEMP/owner-notes.md" --prerelease --latest=false

@@ -56,3 +56,11 @@ SePay chỉ đồng bộ tiền chuyển vào VA đối với BIDV cá nhân: ht
 Trong cấu hình webhook SePay, chọn tài khoản BIDV cùng VA tương ứng (hoặc chế độ nhận tất cả VA của tài khoản). Nếu bật “Chỉ gửi khi có mã thanh toán”, phải cấu hình nhận diện tiền tố SVX; hoặc tắt bộ lọc đó để backend tự đối chiếu mã đơn trong nội dung. Webhook vẫn cần API Key.
 
 Khoản đã chuyển thẳng vào tài khoản gốc không tự xuất hiện trên SePay sau khi sửa mã. Không chuyển thêm tiền để trả lại đơn cũ. Chủ shop chỉ cấp thủ công bằng /keycreate sau khi tự đối chiếu ngân hàng nhận đã cộng tiền; không đánh dấu đã trả từ ảnh biên lai. Đây không phải cơ chế hoàn tiền hoặc khôi phục lịch sử ngân hàng.
+
+## Tự hiện key trong Discord — v0.3.5
+
+Bản v0.3.5 theo dõi các đơn /order tạo sau khi cập nhật. Khi backend đã xác nhận tiền và đăng ký key xong, bot thay tin QR riêng của chủ bằng thông báo Đã thanh toán và key. Khi backend mới nhận tiền nhưng đang đăng ký, bot báo trạng thái và ẩn QR để tránh chuyển tiếp. Bot theo dõi trạng thái khoảng mỗi 5 giây; quá trình đăng ký còn phụ thuộc mạng/GitHub.
+
+Discord giới hạn thời gian sửa tin từ lệnh. Nếu tin quá 14 phút hoặc bot khởi động lại, bot gửi key qua DM cho đúng tài khoản chủ đã cấu hình. Bật cho phép tin nhắn riêng từ bot/server đó. Nếu DM bị chặn, bot giữ đơn để thử lại; trang đơn vẫn nhận key như trước. Đơn đang theo dõi được giữ riêng trong secrets/discord-delivery.sqlite, không chứa token tương tác Discord. Giữ cả thư mục secrets khi sao lưu. Bản này vẫn chỉ cho chủ tool dùng /order; chưa tự gửi cho khách khác vì chưa cấu hình danh tính người mua.
+
+Cập nhật bằng gói Auto-Key: Ctrl+C cửa sổ bot file 4; chép 3 file chương trình vào licensing; mở lại file 4. Giữ webhook/tunnel đang chạy, không setup lại. Dùng /order tạo đơn mới để bot bắt đầu theo dõi. Không tạo đơn hoặc chuyển tiền lại để xử lý khoản cũ đã chuyển vào tài khoản gốc.

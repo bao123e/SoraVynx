@@ -5,10 +5,14 @@ import {resolve} from 'node:path';
 import {directory,matchingIssuer} from './owner-config.mjs';
 import {createShortLicense,publishShortLicense} from './issuer.mjs';
 import {orderQRReply,orderTextReply} from './order-reply.mjs';
+import {OrderDelivery} from './order-delivery.mjs';
 for(const name of ['DISCORD_BOT_TOKEN','DISCORD_GUILD_ID','DISCORD_OWNER_ID','LICENSE_PRIVATE_KEY_FILE','GITHUB_TOKEN'])if(!process.env[name])throw new Error('Missing '+name);
 const pem=matchingIssuer(process.env.LICENSE_PRIVATE_KEY_FILE);
 const client=new Client({intents:[GatewayIntentBits.Guilds]});
-client.once('clientReady',()=>console.log('SoraVynx owner bot ready. /keycreate: manual payment check; /order: SePay webhook.'));
+const deliveries=new OrderDelivery({file:resolve(directory,'secrets/discord-delivery.sqlite'),owner:process.env.DISCORD_OWNER_ID,
+ fetchOrder:async id=>{const response=await fetch('http://127.0.0.1:8787/api/orders/'+id,{signal:AbortSignal.timeout(10000),cache:'no-store'});if(!response.ok)throw new Error('backend_not_ready');return response.json();},
+ sendDM:(id,message)=>client.users.send(id,message)});
+client.once('clientReady',()=>{console.log('SoraVynx owner bot ready. /order: SePay confirmation and automatic private key delivery.');deliveries.start();});
 client.on('interactionCreate',async interaction=>{
  if(!interaction.isChatInputCommand()||!['keycreate','order'].includes(interaction.commandName))return;
  if(interaction.guildId!==process.env.DISCORD_GUILD_ID||interaction.user.id!==process.env.DISCORD_OWNER_ID){await interaction.reply({content:'Only the configured tool owner can issue keys.',flags:MessageFlags.Ephemeral});return;}
@@ -19,8 +23,10 @@ client.on('interactionCreate',async interaction=>{
    const response=await fetch('http://127.0.0.1:8787/admin/orders',{method:'POST',signal:AbortSignal.timeout(10000),headers:{Authorization:'Bearer '+process.env.PAYMENT_ADMIN_KEY,'Content-Type':'application/json'},body:JSON.stringify({plan:interaction.options.getString('plan',true)})});
    if(!response.ok)throw new Error('payment_not_ready');
    const order=await response.json();
+   deliveries.track(order,interaction);
    const reply=await orderQRReply(order);
-   try{await interaction.editReply(reply);}catch{await interaction.editReply(orderTextReply(order));}return;
+   try{await interaction.editReply(reply);}catch{await interaction.editReply(orderTextReply(order));}
+   void deliveries.tick().catch(()=>{});return;
   }
   const record=createShortLicense(pem,interaction.options.getString('plan',true));
   const folder=resolve(directory,'secrets/manual-keys');mkdirSync(folder,{recursive:true,mode:0o700});
