@@ -18,9 +18,9 @@ readme='''SoraVynx — key 15 ký tự
 Giải nén cả thư mục và mở SoraVynx.exe. Nhập key đã được đăng ký rồi bấm Vào tool.
 Cửa sổ chỉ có ô nhập key và nút vào tool; Enter xác nhận, Esc đóng.
 Máy cần có Internet khi mở tool để tra bản ghi ký số tại soravynx.online.
-Chủ tool dùng Owner Key Tools v0.2, giữ nguyên private PEM cũ, chọn thời hạn để sinh key ngẫu nhiên 15 ký tự. Bản ghi .lic phải được đưa vào thư mục licenses/ của repo website trước khi dùng.
+Chủ tool dùng Owner Key Tools v0.3.2, giữ nguyên private PEM cũ, chọn thời hạn để sinh key ngẫu nhiên 15 ký tự. Bản ghi .lic phải được đưa vào thư mục licenses/ của repo website trước khi dùng.
 Key mới là mã truy cập có thể chia sẻ, không còn ràng buộc mã máy. Hạn tính từ lúc cấp. Không tự thu tiền hoặc xác nhận QR.
-Đã kiểm tra giao thức và UI Windows; chưa xác minh gameplay của bản mới. Không tạo log sản phẩm.
+Đã kiểm tra giao thức và UI Windows. Bộ khóa ký đã được đổi sang PEM chủ tool còn giữ; cần tạo/đăng ký key mới. Chưa kiểm tra một bản ghi thật ký bằng bộ khóa mới; chưa xác minh gameplay của bản mới. Không tạo log sản phẩm.
 ''' 
 checks=''.join(hashlib.sha256((build/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in ['SoraVynx.exe','SoraVynx.Runtime.dll'])
 with ZipFile(archive,'w',ZIP_DEFLATED,compresslevel=9) as z:
