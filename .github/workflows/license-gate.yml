@@ -29,14 +29,12 @@ jobs:
         run: |
           $fixtures = Join-Path $env:RUNNER_TEMP 'license-fixtures'
           node licensing/test/make-fixtures.mjs $fixtures
-          zig cc -target x86_64-windows-gnu -std=c11 -Wall -Wextra -Werror -Wno-unused-function -I $fixtures source/tests/license_verify.c -lbcrypt -lcrypt32 -ladvapi32 -luser32 -lgdi32 -o "$fixtures/verifier.exe"
+          zig cc -target x86_64-windows-gnu -std=c11 -Wall -Wextra -Werror -Wno-unused-function -I $fixtures source/tests/license_verify.c -lbcrypt -lcrypt32 -ladvapi32 -lwinhttp -luser32 -lgdi32 -o "$fixtures/verifier.exe"
           & "$fixtures/verifier.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Native signature verification failed' }
-          $device = & "$fixtures/verifier.exe" --device
-          node licensing/issuer.mjs issue --private "$fixtures/fixture-private.pem" --machine $device --plan week | Set-Content -NoNewline -Encoding ascii "$fixtures/ui-key.txt"
           $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'license-ui-data'
           New-Item -ItemType Directory -Force $env:LOCALAPPDATA | Out-Null
-          & "$fixtures/verifier.exe" --ui "$fixtures/ui-key.txt"
+          & "$fixtures/verifier.exe" --ui "$fixtures/ui-key.txt" "$fixtures/ui-record.txt"
           if ($LASTEXITCODE -ne 0) { throw 'Native activation gate UI test failed' }
       - name: Keep signing material private
         run: Write-Output 'Only public issuer data is compiled into the tool. No signing secrets or ephemeral test keys are uploaded.'
@@ -60,9 +58,9 @@ jobs:
         run: |
           tag="v$(python -c "import json; print(json.load(open('source/dist/build.json'))['version'])")"
           cat > "$RUNNER_TEMP/customer-notes.md" <<'NOTES'
-          Windows x64 preview compiled with the owner's supplied P-256 public key. Start SoraVynx.exe, copy the machine code, create a matching key using the existing Owner Key Tools, then activate.
+          Windows x64 preview compiled with the owner's supplied P-256 public key. Start SoraVynx.exe, enter a registered 15-character key. Use Owner Key Tools v0.2 with the existing private PEM; register its signed .lic record on soravynx.online before use.
 
-          Tested on Windows: native signature/expiry/machine/tamper checks; activation UI and DPAPI reload; actual customer launcher rejects a different issuer. No production private key is included. Gameplay of the new build is not verified. Offline license only; no automatic QR payments or online revocation. Keep the existing issuer-private.pem; do not regenerate the issuer.
+          Tested on Windows: native signature/expiry/machine/tamper checks; activation UI and DPAPI reload; actual customer launcher rejects a different issuer. No production private key is included. Gameplay of the new build is not verified. Internet is required at startup. Keys are bearer codes, not machine-bound. No automatic QR payments. Keep the existing issuer-private.pem; do not regenerate the issuer.
           NOTES
           gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - owner-key Windows preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
       - name: Upload owner-configured customer build only

@@ -6,5 +6,9 @@ if errorlevel 1 (
  pause
  exit /b 1
 )
-node licensing/issuer.mjs wizard
+if exist licensing\.env (
+ node --env-file=licensing/.env licensing/issuer.mjs wizard
+) else (
+ node licensing/issuer.mjs wizard
+)
 pause

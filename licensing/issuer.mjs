@@ -1,5 +1,5 @@
 /* Owner-side signing only. Never ship the private key with the customer tool. */
-import {generateKeyPairSync,createPrivateKey,createPublicKey,sign,verify,randomBytes} from 'node:crypto';
+import {generateKeyPairSync,createPrivateKey,createPublicKey,sign,verify,randomBytes,createHash} from 'node:crypto';
 import {readFileSync,writeFileSync,existsSync,mkdirSync} from 'node:fs';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -20,6 +20,29 @@ export function verifyLicense(publicPem,key,machine,now=Math.floor(Date.now()/10
  const a=key.split('.'),issued=Number(a[1]),expires=Number(a[2]);
  if(a[3]!==machine||issued>now+300||(expires&&expires<=issued)||(expires&&now>=expires))return false;
  return verify('sha256',Buffer.from(a.slice(0,5).join('.')),{key:publicPem,dsaEncoding:'ieee-p1363'},Buffer.from(a[5],'hex'));
+}
+export function createShortLicense(privatePem,plan,now=Math.floor(Date.now()/1000)) {
+ if(!Object.hasOwn(plans,plan))throw new Error('Invalid plan.');
+ const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+ const key=[...randomBytes(15)].map(b=>alphabet[b&31]).join('');
+ const hash=createHash('sha256').update(key).digest('hex');
+ const expiry=plans[plan]?now+plans[plan]*86400:0;
+ const body=`SV2.${now}.${String(expiry).padStart(10,'0')}.${hash}.${randomBytes(16).toString('hex')}`;
+ const receipt=body+'.'+sign('sha256',Buffer.from(body),{key:createPrivateKey(privatePem),dsaEncoding:'ieee-p1363'}).toString('hex');
+ return {key,hash,receipt,expires:expiry};
+}
+export function verifyShortReceipt(publicPem,receipt,key,now=Math.floor(Date.now()/1000)) {
+ if(!/^[A-HJ-NP-Z2-9]{15}$/.test(key)||!/^SV2\.\d{10}\.\d{10}\.[a-f0-9]{64}\.[a-f0-9]{32}\.[a-f0-9]{128}$/.test(receipt))return false;
+ const a=receipt.split('.'),hash=createHash('sha256').update(key).digest('hex');
+ if(a[3]!==hash||Number(a[1])>now+300||(Number(a[2])&&Number(a[2])<=Number(a[1]))||(Number(a[2])&&now>=Number(a[2])))return false;
+ return verify('sha256',Buffer.from(a.slice(0,5).join('.')),{key:publicPem,dsaEncoding:'ieee-p1363'},Buffer.from(a[5],'hex'));
+}
+export async function publishShortLicense(record,token=process.env.GITHUB_TOKEN) {
+ if(!token)throw new Error('Missing GITHUB_TOKEN for publishing. Your short key has been saved locally.');
+ const repo='bao123e/soravynx.github.io';
+ const response=await fetch(`https://api.github.com/repos/${repo}/contents/licenses/${record.hash}.lic`,{method:'PUT',headers:{Authorization:`Bearer ${token}`,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},body:JSON.stringify({message:'Register signed access key',branch:'main',content:Buffer.from(record.receipt+'\n').toString('base64')})});
+ if(!response.ok)throw new Error('Cannot publish short key: GitHub HTTP '+response.status+'. The key is saved locally; upload its .lic file before using it.');
+ return true;
 }
 export function publicHeader(publicPem) {
  const jwk=createPublicKey(publicPem).export({format:'jwk'});
@@ -42,11 +65,16 @@ async function cli(){
  }else if(command==='wizard'){
   const io=createInterface({input:process.stdin,output:process.stdout});
   try {
-   const machine=(await io.question('Paste customer machine code: ')).trim().toLowerCase();
    const choice=(await io.question('Plan (7 / 30 / 365 / lifetime): ')).trim();
    const plan=({'7':'week','30':'month','365':'year','lifetime':'lifetime'})[choice];
    const pem=readFileSync(option('private','licensing/secrets/issuer-private.pem'),'utf8');
-   console.log('\nCopy the complete key below and send privately to the customer:\n'+issueLicense(pem,machine,plan));
+   const result=createShortLicense(pem,plan);
+   const directory=resolve('licensing/public-records');mkdirSync(directory,{recursive:true});
+   const recordPath=resolve(directory,result.hash+'.lic');writeFileSync(recordPath,result.receipt+'\n',{flag:'wx'});
+   mkdirSync('licensing/secrets',{recursive:true});writeFileSync('licensing/secrets/last-short-key.txt',result.key,{mode:0o600});
+   console.log('\nACCESS KEY (15 characters): '+result.key+'\nRegistration file: '+recordPath);
+   if(process.env.GITHUB_TOKEN){await publishShortLicense(result);console.log('Registered. Wait for the website deployment before using the key.');}
+   else console.log('Upload ONLY this .lic file into the website repo licenses/ folder, or send it to your developer. Never send issuer-private.pem.');
   }finally{io.close();}
  }else if(command==='issue'){
   const file=option('private','licensing/secrets/issuer-private.pem'),machine=option('machine',''),plan=option('plan','');

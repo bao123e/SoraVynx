@@ -18,3 +18,8 @@ licensing/secrets/
 licensing/node_modules/
 *.pem
 licensing/.env
+
+licensing/public-records/
+
+__pycache__/
+*.pyc

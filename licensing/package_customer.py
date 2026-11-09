@@ -13,7 +13,15 @@ if os.environ.get('GITHUB_ACTIONS')=='true':
  metadata['verification_run']='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']
 metadata['gameplay_verified']=False
 out=Path(os.environ.get('RUNNER_TEMP',build));archive=out/('SoraVynx-'+metadata['version']+'-win64.zip')
-readme='''SoraVynx Windows — bản kiểm thử có khóa truy cập\n\n1. Giải nén cả thư mục, giữ SoraVynx.exe và SoraVynx.Runtime.dll cạnh nhau.\n2. Mở SoraVynx.exe. Nhấn Copy code để lấy mã máy.\n3. Chủ tool dùng licensing/2-Create-Key.cmd trong bộ Owner Key Tools đã thiết lập để cấp key đúng mã máy.\n4. Dán toàn bộ key SV1.… vào ô rồi Activate. Tool sẽ chuyển sang bước chọn StellaSora.exe.\n5. Lần sau kích hoạt được đọc lại từ LocalAppData/SoraVynx/license.dat, bảo vệ bằng Windows DPAPI.\n\nKhông chạy lại Setup-Issuer để tạo bộ khóa khác: bộ EXE/DLL này chỉ nhận key từ private key đi cùng public key bạn đã gửi.\n\nĐã kiểm thử native Windows cho giao thức key và cửa sổ khóa; chưa kiểm thử gameplay của bản mới. Đây là bản key offline, không có thu hồi trực tuyến hay thanh toán QR tự động. Thời hạn bắt đầu khi cấp key. Không tạo log sản phẩm; license.dat là dữ liệu kích hoạt.\n'''
+readme='''SoraVynx — key 15 ký tự
+
+Giải nén cả thư mục và mở SoraVynx.exe. Nhập key đã được đăng ký rồi bấm Vào tool.
+Cửa sổ chỉ có ô nhập key và nút vào tool; Enter xác nhận, Esc đóng.
+Máy cần có Internet khi mở tool để tra bản ghi ký số tại soravynx.online.
+Chủ tool dùng Owner Key Tools v0.2, giữ nguyên private PEM cũ, chọn thời hạn để sinh key ngẫu nhiên 15 ký tự. Bản ghi .lic phải được đưa vào thư mục licenses/ của repo website trước khi dùng.
+Key mới là mã truy cập có thể chia sẻ, không còn ràng buộc mã máy. Hạn tính từ lúc cấp. Không tự thu tiền hoặc xác nhận QR.
+Đã kiểm tra giao thức và UI Windows; chưa xác minh gameplay của bản mới. Không tạo log sản phẩm.
+''' 
 checks=''.join(hashlib.sha256((build/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in ['SoraVynx.exe','SoraVynx.Runtime.dll'])
 with ZipFile(archive,'w',ZIP_DEFLATED,compresslevel=9) as z:
  for name in ['SoraVynx.exe','SoraVynx.Runtime.dll']:z.write(build/name,name)

@@ -34,14 +34,16 @@ try:
  assert window,'Access-key window was not created'
  def text(handle):
   value=c.create_unicode_buffer(2048);u.GetWindowTextW(handle,value,2048);return value.value
- machine=text(u.GetDlgItem(window,10));assert re.fullmatch('[a-f0-9]{64}',machine),'Missing machine code'
+ assert not u.GetDlgItem(window,10),'Machine-code field must be absent'
+ assert not u.GetDlgItem(window,2),'Copy button must be absent'
+ assert u.GetDlgItem(window,11) and u.GetDlgItem(window,1),'Key input and submit button required'
  u.SetWindowTextW(u.GetDlgItem(window,11),wrong_key);u.SendMessageW(window,0x111,1,0)
- status=text(u.GetDlgItem(window,0)) # Static labels use ID 0; inspect all child text below instead.
+ time.sleep(2)
  assert process.poll() is None,'Wrong-issuer key exited the gate unexpectedly'
  assert u.GetDlgItem(window,11),'Wrong-issuer key bypassed the activation window'
  # No activation is saved for a key signed by the disposable test issuer.
- assert not (data/'SoraVynx/license.dat').exists(),'Wrong issuer saved activation'
+ assert not (data/'SoraVynx/license-short.dat').exists(),'Wrong issuer saved activation'
  u.PostMessageW(window,0x10,0,0);assert process.wait(timeout=10)==0
- print(json.dumps({'customer_launcher_gate':'passed','machine_code_format':'passed','wrong_issuer_blocked':True,'cancel_exits_without_launching_game':True,'gameplay_verified':False}))
+ print(json.dumps({'customer_launcher_gate':'passed','minimal_key_only_ui':True,'wrong_issuer_blocked':True,'cancel_exits_without_launching_game':True,'gameplay_verified':False}))
 finally:
  if process.poll() is None:process.kill();process.wait()

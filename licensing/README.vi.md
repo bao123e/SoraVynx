@@ -1,119 +1,53 @@
-# SoraVynx — key truy cập, bot Discord và QR BIDV
+# SoraVynx — key ngẫu nhiên 15 ký tự (v0.2)
 
-## Trạng thái của bản đầu
+## Thay đổi
 
-Đã thêm **license gate offline ký số P-256, ràng buộc mã máy** cho source Windows. Launcher yêu cầu key trước khi chọn/chạy game; DLL cũng kiểm tra riêng trước khi tạo UI hoặc khởi tạo tính năng. Key sai chữ ký, bị sửa, hết hạn hoặc cấp cho máy khác bị từ chối. Khi hết hạn trong phiên, UI tắt các lựa chọn và đóng. Activation được Windows DPAPI bảo vệ trong `%LOCALAPPDATA%\SoraVynx\license.dat`; đó là dữ liệu license, không phải log.
+Tool Windows v1.2.0-license-preview.2 chỉ có ô nhập key và nút **Vào tool** ở cửa sổ khóa. Không có mã máy, Copy code hoặc các dòng hướng dẫn. Enter xác nhận, Esc đóng. Cửa sổ tối, viền bo và nút mint cùng phong cách tool.
 
-Bản này không tự liên hệ ngân hàng, không tự thu tiền/cấp key từ website, không có thu hồi key online. Thời hạn offline dựa trên đồng hồ hệ điều hành, có kiểm tra lùi đồng hồ trong phiên và dùng thời gian monotonic; không thay thế giờ máy chủ đáng tin. Người có khả năng sửa binary/source hoặc thay đổi hệ thống có thể vượt bảo vệ local. Không quảng cáo đây là hệ thống chống crack hoặc license thương mại có thu hồi từ xa.
+Key là 15 ký tự ngẫu nhiên, không phân biệt chữ hoa/thường. Bỏ các ký tự I/O/0/1 để dễ đọc. Không nhúng chữ ký dài trong mã người dùng nhập. Tool tra SHA-256 của key qua HTTPS `soravynx.online/licenses/<hash>.lic`, rồi xác minh bản ghi bằng khóa công khai P-256 của chủ tool. Không có private key trong EXE/DLL hoặc JavaScript website.
 
-Repo hiện có mã nguồn mở AGPL; phải tiếp tục tuân thủ giấy phép khi phân phối. Bản EXE/DLL cũ đã phát hành không tự bị khóa; gate chỉ nằm trong bản build mới. Không có private issuer key hoặc key khách hàng trong Git.
+**Máy cần Internet khi mở tool.** Một mã chưa đăng ký lên website sẽ chưa dùng được, dù đã được tạo ở máy chủ tool. Key được nhớ bằng Windows DPAPI, nhưng mỗi lần mở vẫn tra bản ghi lại. Nếu DNS/mạng/website lỗi, giữ khóa và cho thử lại; không bỏ qua xác thực.
 
-## A. Thiết lập người cấp key (làm trên PC riêng của bạn)
+Key mới không ràng buộc máy. Người có mã có thể chia sẻ mã; cần backend có database để giới hạn số thiết bị/kích hoạt. Hạn 7/30/365 ngày hoặc vĩnh viễn bắt đầu từ lúc cấp. Đồng hồ máy và các can thiệp vào binary vẫn là giới hạn; đây không phải hệ thống chống crack.
 
-1. Cài Node.js bản LTS 22 trở lên từ https://nodejs.org/.
-2. Tải/clone source nhánh `feature/license-gate`. Trong thư mục gốc repo, chạy:
+## Chủ tool tạo key
 
-```powershell
-node licensing/issuer.mjs init
-```
+1. Giải nén Owner Key Tools v0.2 vào thư mục bộ tạo key cũ, thay các tệp mã chương trình; giữ nguyên thư mục `licensing/secrets/`.
+2. **Không chạy lại 1-Setup-Issuer.cmd nếu đã tạo khóa và gửi public key.** Giữ/sao lưu `issuer-private.pem`, không gửi nó vào chat hoặc upload GitHub.
+3. Mở `licensing/2-Create-Key.cmd`. Chỉ chọn `7`, `30`, `365` hoặc `lifetime`; không cần mã máy khách.
+4. Chương trình tạo một key 15 ký tự và một tệp `licensing/public-records/<hash>.lic`. Bản sao key gần nhất nằm trong secrets/last-short-key.txt, không đưa lên repo.
+5. Đăng ký tệp .lic theo một trong hai cách dưới đây. Đợi GitHub Pages cập nhật xong rồi đưa key cho khách.
 
-Lệnh tạo:
+### Đăng ký thủ công (không cần token)
 
-- `licensing/secrets/issuer-private.pem`: **khóa bí mật**, giữ riêng và sao lưu. Không upload GitHub, gửi khách, chụp màn hình nội dung hoặc đưa vào ZIP tool.
-- `licensing/secrets/issuer-public.pem`: khóa công khai.
-- `source/license_public_key.h`: khóa công khai dành cho tool.
+Vào repo https://github.com/bao123e/soravynx.github.io → thư mục `licenses/` → Add file → Upload files → chọn đúng tệp `.lic` vừa tạo → Commit changes. Có thể gửi tệp `.lic` này cho người hỗ trợ triển khai; nó là bản ghi ký số công khai, không phải private key. Chỉ gửi mã 15 ký tự riêng cho khách; không ghi mã đó vào repo.
 
-Lệnh không ghi đè bộ khóa đã tồn tại. Nếu mất private key, không thể tạo key mới tương thích bộ tool cũ; nếu đổi bộ khóa, key cũ không còn được bộ tool mới xác nhận.
+### Đăng ký tự động bằng bộ tạo key hoặc bot
 
-3. Chỉ đưa **source/license_public_key.h** đã tạo lên nhánh source tương ứng trên GitHub. File này là public, không phải secret. Build lại cả launcher và DLL bằng CI hoặc Zig 0.14.1:
-
-```powershell
-python source/build.py --zig zig
-```
-
-Trong Actions → Verify Windows license gate, khi source có issuer public key hợp lệ, artifact customer build sẽ chứa EXE/DLL tương ứng; chưa có xác minh gameplay cho bản build này. Build mặc định có SV_LICENSE_CONFIGURED=0 sẽ giữ tool khóa và không tạo artifact khách có thể dùng.
-
-4. Khách mở bản tool mới → Copy code → gửi mã máy 64 ký tự cho bạn qua Discord.
-5. Sau khi bạn xác nhận thanh toán thật, tạo key:
-
-```powershell
-node licensing/issuer.mjs issue --machine MA_MAY_64_KY_TU --plan week
-```
-
-Plan: `week` = 7 ngày, `month` = 30 ngày, `year` = 365 ngày, `lifetime` = không có hạn cuối. **Thời hạn bắt đầu lúc cấp key**, không phải lúc khách nhập key. Key dài do chứa chữ ký, khách sao chép toàn bộ SV1.… vào cửa sổ kích hoạt. Không thể tùy ý sửa hạn trong key.
-
-6. Gửi key riêng cho đúng khách. Khách nhập → Activate. Lần mở sau tool đọc activation DPAPI và kiểm tra lại; không lưu key vào config.ini hoặc log.
-
-Để bán key có kiểm tra trạng thái/thu hồi/thời gian đáng tin, cần giai đoạn backend online thay vì chỉ gate offline này.
-
-## B. Bot Discord cấp key bằng lệnh của chủ tool
-
-Bot source đã có ở `discord-bot.mjs`; bản đầu dùng **xác nhận tiền thủ công**, không coi việc gọi lệnh là bằng chứng ngân hàng.
-
-1. Mở https://discord.com/developers/applications → New Application → Bot → tạo token. Lưu token trong môi trường riêng của bot, không gửi chat và không commit.
-2. Lấy Application ID, Server/Guild ID và User ID của bạn (Discord Settings → Advanced → Developer Mode). Mời bot bằng OAuth2 URL Generator với scopes `bot` và `applications.commands`. Không cần Message Content Intent hay quyền Administrator cho bot.
-3. Trong thư mục licensing:
-
-```powershell
-npm ci
-Copy-Item .env.example .env
-```
-
-Điền `.env` trên PC/VPS riêng:
+Tạo fine-grained GitHub token tại https://github.com/settings/personal-access-tokens/new, chỉ chọn repo `bao123e/soravynx.github.io`, quyền Contents: Read and write. Lưu token riêng trong `licensing/.env`:
 
 ```dotenv
-DISCORD_BOT_TOKEN=TOKEN_LUU_RIENG
-DISCORD_APPLICATION_ID=APPLICATION_ID
-DISCORD_GUILD_ID=SERVER_ID
-DISCORD_OWNER_ID=USER_ID_CUA_BAN
-LICENSE_PRIVATE_KEY_FILE=./secrets/issuer-private.pem
+GITHUB_TOKEN=TOKEN_LUU_RIENG_TREN_PC_HOAC_HOST
 ```
 
-4. Đăng ký slash command và chạy bot:
+Không gửi token vào chat. CMD sẽ đọc .env nếu có; sau khi tạo key, chương trình tự đưa bản ghi ký số lên website. Chờ triển khai Pages trước khi dùng. Nếu đăng ký lỗi, bản ghi vẫn ở public-records/ để upload tay. GitHub Pages có độ trễ và giới hạn build; cách này phù hợp giai đoạn cấp thủ công ít đơn, không thay thế API/database thanh toán cho cửa hàng đông khách.
 
-```powershell
-npm run register
-npm run bot
-```
+## Bot Discord
 
-5. Sau khi tự kiểm tra tiền vào BIDV, bạn gọi `/keycreate machine:... plan:...`. Chỉ đúng DISCORD_OWNER_ID ở đúng server cấu hình mới dùng được, kể cả người khác có quyền admin server. Key trả về dạng ephemeral chỉ người gọi nhìn thấy; tự gửi riêng cho khách. Bot cần chạy liên tục trên PC hoặc VPS; khóa riêng lưu ở host, không có trên website.
+Bot có lệnh `/keycreate plan:...`, không cần machine code. Chỉ đúng owner ID ở server cấu hình được cấp key. Bot ký và đăng ký bản ghi rồi trả mã dạng ephemeral cho chủ tool. Chưa tự xác nhận thanh toán hoặc tự DM người mua.
 
-Chưa có chức năng tự duyệt bill, DM khách, nhận webhook thanh toán hoặc cấp key khi người dùng tự bấm “đã chuyển”. Các bước đó thuộc phần C.
+1. Tạo ứng dụng tại https://discord.com/developers/applications, lấy Bot Token/Application ID. Bật Developer Mode trong Discord để lấy Guild ID/User ID.
+2. Mời bot với scopes bot + applications.commands; không cần quyền Administrator cho bot hay Message Content Intent.
+3. Điền licensing/.env theo .env.example, gồm token GitHub giới hạn repo website và đường dẫn private PEM cũ.
+4. Trong thư mục licensing: `npm ci`, `npm run register`, `npm run bot`.
+5. Sau khi xác nhận tiền thật, chủ tool dùng `/keycreate plan:...`, chờ website cập nhật rồi gửi mã riêng cho khách.
 
-## C. QR BIDV có xác nhận tiền thật và tự cấp key
+## QR BIDV thật
 
-Số tài khoản và tên người nhận chưa được cấu hình. Không có QR thu tiền thật, cổng thanh toán hoặc bot live được bật trong lần thay đổi source này.
+Phần này chưa được bật. GitHub Pages không nhận webhook hoặc giữ secret được. Luồng tự động cần backend HTTPS + database: tạo đơn và giá ở server → QR BIDV đúng số tiền/mã đơn → SePay/payOS gửi webhook đã xác thực → kiểm tra đúng tài khoản/tiền vào/số tiền/mã đơn và chống giao dịch lặp → cấp một key cho đúng đơn → giao riêng cho người mua.
 
-### Luồng đúng
+BIDV/SePay: https://sepay.vn/bidv.html và https://docs.sepay.vn/tich-hop-webhooks.html. Kiểm tra loại tài khoản/gói hỗ trợ với nhà cung cấp. Không cấp key dựa trên ảnh bill hoặc nút “đã thanh toán” của người mua. Khi triển khai thanh toán nhiều đơn, thay việc publish từng bản ghi bằng API có database; cần thêm kiểm soát số máy, thu hồi và giờ server nếu bán key thương mại.
 
-Khách chọn gói + nhập mã máy → backend tạo đơn và chốt giá → hiển thị QR BIDV chứa đúng số tiền/mã đơn → khách chuyển tiền → ngân hàng/dịch vụ gửi webhook đã xác thực → backend đối chiếu → chỉ khi đúng mới tạo một key → hiển thị cho chủ đơn hoặc bot gửi riêng cho khách.
+## Key dài phiên bản cũ
 
-GitHub Pages chỉ phục vụ HTML/JS, không chạy được private signing code, nhận webhook hay giữ secret an toàn. Giữ website soravynx.online, thêm backend HTTPS riêng, ví dụ api.soravynx.online trên VPS hoặc nền tảng có database. Không nhét khóa ký/token SePay vào js/app.js.
-
-### Thiết lập BIDV qua SePay
-
-1. Đăng ký tại https://my.sepay.vn/ và liên kết tài khoản BIDV theo hướng dẫn chính thức https://sepay.vn/bidv.html. Kiểm tra đúng loại tài khoản, gói dịch vụ và điều kiện hỗ trợ của SePay/BIDV trước khi bật thu tiền. Không cần cung cấp thông tin đăng nhập BIDV cho người viết tool.
-2. Tạo webhook theo https://docs.sepay.vn/tich-hop-webhooks.html, chọn đúng tài khoản BIDV, chỉ giao dịch tiền vào, endpoint HTTPS của backend và phương thức xác thực có cấu hình secret riêng.
-3. Backend tạo đơn từ bảng giá phía server: 29.000 / 79.000 / 499.000 / 999.000 VNĐ. Không nhận giá/hạn license do JavaScript của khách gửi làm giá chuẩn.
-4. Sinh mã đơn khó đoán, có hạn thanh toán. Với API VA theo đơn hàng BIDV, dùng tài khoản định danh riêng cho đơn theo https://docs.sepay.vn/api-va-theo-don-hang-bidv.html nếu tài khoản/gói của bạn được hỗ trợ. Nếu dùng nội dung chuyển khoản, đối chiếu mã đơn chính xác.
-5. Ở webhook: kiểm tra xác thực; đúng BIDV/tài khoản nhận; tiền vào; đúng VND/số tiền/mã đơn; đơn chưa hết hạn/chưa xử lý. Dữ liệu JSON/ảnh bill từ trình duyệt không phải bằng chứng thanh toán.
-6. Dùng transaction database và unique transaction ID: webhook bị gửi lặp vẫn chỉ đánh dấu thanh toán và cấp **một key** cho đơn. Không để một giao dịch thanh toán nhiều đơn, không cấp lại thời hạn mới mỗi lần nhận webhook.
-7. Cất key đã cấp ở backend có kiểm soát quyền đọc; chỉ người sở hữu đơn xem được. Nếu gửi Discord, xác thực tài khoản khách bằng OAuth2 hoặc một quy trình liên kết một lần; không tin một Discord ID do trình duyệt tự khai.
-8. Kiểm thử giao dịch thật giá nhỏ trong tài khoản của bạn, bao gồm thiếu tiền, sai nội dung, giao dịch trùng, đơn hết hạn và webhook giả. Chỉ bật tự cấp khi các trường hợp này được xử lý.
-
-SePay có tài liệu hỗ trợ BIDV tại https://developer.sepay.vn/vi/sepay-webhooks/tai-khoan-ngan-hang. payOS cũng có tài liệu kết nối BIDV tại https://payos.vn/docs/huong-dan-su-dung/kenh-thu/ket-noi-tai-khoan/ngan-hang-bidv/; có thể cần mã VA Billing và thủ tục theo loại tài khoản. Không khẳng định mọi tài khoản BIDV cá nhân đều dùng được mọi gói của hai dịch vụ.
-
-### Điều cần chốt tiếp
-
-- Tài khoản BIDV đã liên kết thành công với SePay hay payOS chưa.
-- Nơi chạy backend + database + bot liên tục.
-- Chính sách đổi máy, hoàn tiền và bắt đầu tính hạn.
-- Nếu cần thu hồi key/kiểm tra online, nâng giao thức tool trước khi mở bán tự động.
-
-Các secret đặt trong bảng điều khiển/biến môi trường của host, không gửi vào chat hoặc repo.
-
-## Thao tác nhanh trên Windows
-
-Sau khi cài Node.js và giải nén source đúng nhánh, có thể nhấp đúp **licensing/1-Setup-Issuer.cmd** để tạo bộ khóa một lần. Sau đó chỉ upload file PUBLIC `source/license_public_key.h` lên nhánh này để build bộ tool đúng issuer. Để cấp key thủ công sau khi xác nhận tiền, nhấp **licensing/2-Create-Key.cmd**, dán mã máy và nhập `7`, `30`, `365` hoặc `lifetime`.
-
-Hai file CMD không đưa nội dung mã máy vào lệnh shell; phần nhập/kiểm tra dữ liệu nằm trong Node. Không chạy Setup lần nữa để đổi khóa nếu đang có khách dùng bộ tool cũ. Xem phần A để sao lưu khóa và hiểu quy trình build.
+SV1 gắn máy vẫn chỉ dùng cho bản v1.2.0-license-preview.1. Bản preview.2 dùng mã ngắn và giao thức SV2; không nhập key dài vào cửa sổ mới. Private/public key ký vẫn giữ nguyên.
