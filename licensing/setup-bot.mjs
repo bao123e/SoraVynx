@@ -3,6 +3,7 @@ import {randomBytes} from 'node:crypto';
 import {resolve} from 'node:path';
 import {directory,readOwnerEnv,saveOwnerEnv,matchingIssuer,serviceJSON} from './owner-config.mjs';
 import {commandData} from './command-data.mjs';
+import {bidvVA} from './bidv-account.mjs';
 if(Number(process.versions.node.split('.')[0])<24){console.error('Cai Node.js 24 LTS: https://nodejs.org/');process.exit(1);}
 const io=terminalPrompt(),ask=io.ask;
 const id=value=>/^\d{17,20}$/.test(value);
@@ -32,6 +33,8 @@ try{
  values.SEPAY_ACCOUNT_NUMBER=await ask('So tai khoan BIDV nhan tien',values.SEPAY_ACCOUNT_NUMBER);
  if(!/^\d{6,30}$/.test(values.SEPAY_ACCOUNT_NUMBER))throw new Error('So tai khoan phai gom 6-30 chu so.');
  values.SEPAY_GATEWAY='BIDV';
+ console.log('SePay > Tai khoan ngan hang > BIDV > Tai khoan ao (VA). QR phai nhan qua VA, khong phai tai khoan goc.');
+ values.SEPAY_VIRTUAL_ACCOUNT=bidvVA(await ask('Nhap VA BIDV bat dau 96247',values.SEPAY_VIRTUAL_ACCOUNT));
  values.SEPAY_WEBHOOK_API_KEY ||=randomBytes(32).toString('hex');
  values.PAYMENT_ADMIN_KEY ||=randomBytes(32).toString('hex');
  values.PUBLIC_BASE_URL=await ask('Link HTTPS backend (chua co: bam Enter)',values.PUBLIC_BASE_URL||'');

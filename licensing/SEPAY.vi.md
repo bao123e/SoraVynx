@@ -9,7 +9,7 @@ Bạn đã tạo bot và tài khoản SePay. Bộ này dùng Node.js **24 LTS** 
 3. Mở `licensing/3-Setup-Bot.cmd` và làm theo từng dòng. Bot Token lấy ở https://discord.com/developers/applications → chọn ứng dụng → Bot. Không dán Client Secret thay cho Bot Token.
 4. Bật Developer Mode trong Discord → sao chép Server ID và User ID của bạn. Chương trình tự lấy Application ID, tạo link mời bot và đăng ký lệnh. Bot không cần quyền Administrator hoặc Message Content Intent; tài khoản chủ dùng lệnh cần quyền Administrator theo mặc định của lệnh.
 5. Tạo fine-grained GitHub token chỉ cho `bao123e/soravynx.github.io`, Contents **Read and write**. Tên token, mật khẩu ngân hàng, token SePay User API không thay thế token này. Bộ cài kiểm tra truy cập repo; quyền ghi được xác nhận khi đăng ký key đầu tiên.
-6. Nhập số tài khoản BIDV **đã liên kết SePay**, gồm chữ số. Chưa có link backend thì Enter để trống. Bộ cài tự sinh hai khóa riêng cho webhook và quản trị đơn.
+6. Nhập số tài khoản BIDV gốc **đã liên kết SePay**, gồm chữ số, rồi nhập **VA đang hoạt động bắt đầu 96247** ở bước tiếp theo. Với BIDV cá nhân, QR bắt buộc dùng VA; tài khoản gốc chỉ để đối chiếu payload. Chưa có link backend thì Enter để trống. Bộ cài tự sinh hai khóa riêng cho webhook và quản trị đơn.
 7. Mở `4-Start-Bot.cmd`. Chương trình tự cài thư viện lần đầu. Đợi `SoraVynx owner bot ready`. Thử `/keycreate plan:7 ngày` trong server đã chọn: mã chỉ hiện cho bạn; gửi riêng cho khách sau khi tự kiểm tra tiền. Cách này chưa cần webhook.
 
 ## Mở webhook khi chưa có VPS
@@ -22,7 +22,7 @@ Bạn đã tạo bot và tài khoản SePay. Bộ này dùng Node.js **24 LTS** 
 6. Trong Discord dùng `/order plan:7 ngày`. Bot hiện ảnh QR ngay trong Discord, cùng số tiền, nội dung và nút **Mở đơn / nhận key**. Khách có thể quét ảnh QR trực tiếp; gửi **riêng** link trang đơn cho người trả tiền để nhận key sau thanh toán. Link có quyền xem key sau thanh toán, không đăng ở kênh công khai.
 7. Trang đơn hiện QR BIDV, số tiền và mã đơn `SVX...`. Sau khi SePay gửi đúng thông báo tiền vào, backend giữ một key duy nhất và đăng ký bản ghi lên website. Khách đợi tại trang đơn để lấy key. Không có nút tự nhận đã trả tiền.
 
-Webhook trả HTTP **201** và JSON `success:true` khi tiếp nhận, kể cả thông báo không khớp đơn. Chỉ cấp key khi đúng khóa xác thực, đúng BIDV/tài khoản, đúng số tiền, một mã đơn duy nhất và giao dịch trong thời hạn 30 phút của đơn. Gửi lặp cùng transaction ID không tạo thêm key. Tiền ra, chuyển thiếu/thừa, sai nội dung, đơn quá hạn hoặc tài khoản phụ không được cấu hình sẽ không tự cấp key; cần chủ xử lý thủ công.
+Webhook trả HTTP **201** và JSON `success:true` khi tiếp nhận, kể cả thông báo không khớp đơn. Chỉ cấp key khi đúng khóa xác thực, đúng BIDV/tài khoản, đúng số tiền, một mã đơn duy nhất và giao dịch trong thời hạn 30 phút của đơn. Gửi lặp cùng transaction ID không tạo thêm key. Tiền ra, chuyển thiếu/thừa, sai nội dung, đơn quá hạn hoặc VA không được cấu hình sẽ không tự cấp key; cần chủ xử lý thủ công.
 
 ## Trước khi nhận tiền thật
 
@@ -46,3 +46,13 @@ Webhook trả HTTP **201** và JSON `success:true` khi tiếp nhận, kể cả 
 | SePay thành công nhưng chưa có key | Kiểm tra đúng số tiền, nội dung mã đơn, BIDV/tài khoản và thời hạn; nếu trang đang đăng ký, kiểm tra GitHub token |
 
 Tài liệu chính thức: https://developer.sepay.vn/vi/sepay-webhooks/tich-hop-webhook và https://developer.sepay.vn/vi/sepay-webhooks/tao-qr-va-form-thanh-toan . Hỗ trợ xác thực API Key trong bộ này; chưa triển khai xác thực HMAC/OAuth hoặc hoàn tiền tự động.
+
+## Sửa BIDV cá nhân ở v0.3.4
+
+SePay chỉ đồng bộ tiền chuyển vào VA đối với BIDV cá nhân: https://docs.sepay.vn/ket-noi-bidv.html . Bản trước tạo QR bằng tài khoản gốc và từ chối mọi subAccount; hai phần này đã được sửa. QR dùng SEPAY_VIRTUAL_ACCOUNT, còn webhook phải đồng thời đúng accountNumber gốc và subAccount VA đã cấu hình. Không chấp nhận tùy ý mọi tài khoản ảo.
+
+Đã có bộ cài: dừng backend file 5, thay các file chương trình trong gói BIDV-VA-Update, mở 8-Set-BIDV-VA.cmd để điền VA đang hoạt động của chính bạn, rồi mở lại file 5 một lần. Giữ bot và tunnel đang chạy. Không tạo lại khóa, không đổi URL, không xóa database. Không quét lại ảnh QR cũ vì ảnh đã gửi không tự đổi.
+
+Trong cấu hình webhook SePay, chọn tài khoản BIDV cùng VA tương ứng (hoặc chế độ nhận tất cả VA của tài khoản). Nếu bật “Chỉ gửi khi có mã thanh toán”, phải cấu hình nhận diện tiền tố SVX; hoặc tắt bộ lọc đó để backend tự đối chiếu mã đơn trong nội dung. Webhook vẫn cần API Key.
+
+Khoản đã chuyển thẳng vào tài khoản gốc không tự xuất hiện trên SePay sau khi sửa mã. Không chuyển thêm tiền để trả lại đơn cũ. Chủ shop chỉ cấp thủ công bằng /keycreate sau khi tự đối chiếu ngân hàng nhận đã cộng tiền; không đánh dấu đã trả từ ảnh biên lai. Đây không phải cơ chế hoàn tiền hoặc khôi phục lịch sử ngân hàng.

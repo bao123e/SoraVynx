@@ -9,10 +9,20 @@ import {PaymentStore} from '../payment-store.mjs';
 import {paymentServer} from '../payment-server.mjs';
 import {verifyShortReceipt,publishShortLicense} from '../issuer.mjs';
 const pair=generateKeyPairSync('ec',{namedCurve:'prime256v1'}),pem=pair.privateKey.export({type:'pkcs8',format:'pem'});
-const now=1800000000,account='12345678901234';
-const make=(options={})=>new PaymentStore({file:':memory:',pem,account,now:()=>now,publish:async()=>{},...options});
+const now=1800000000,account='12345678901234',virtualAccount='96247TESTVA';
+const make=(options={})=>new PaymentStore({file:':memory:',pem,account,virtualAccount,now:()=>now,publish:async()=>{},...options});
 const date=seconds=>new Date((seconds+7*3600)*1000).toISOString().slice(0,19).replace('T',' ');
-const body=(order,overrides={})=>({id:123,gateway:'BIDV',accountNumber:account,transferType:'in',transferAmount:order.amount,code:null,content:order.code,transactionDate:date(now),...overrides});
+const body=(order,overrides={})=>({id:123,gateway:'BIDV',accountNumber:account,subAccount:virtualAccount,transferType:'in',transferAmount:order.amount,code:null,content:order.code,transactionDate:date(now),...overrides});
+test('BIDV QR must target the configured VA and webhook must match BOTH main account and VA',()=>{
+ const store=make();try{
+  const order=store.create('week'),url=new URL(order.qr);assert.equal(url.searchParams.get('acc'),virtualAccount);assert.notEqual(url.searchParams.get('acc'),account);
+  for(const changes of [{subAccount:''},{subAccount:null},{subAccount:'96247OTHER'},{accountNumber:'99999999999'},{accountNumber:virtualAccount}])assert.equal(store.webhook(body(order,changes)),'ignored');
+  assert.equal(store.webhook(body(order)),'accepted');assert.equal(store.webhook(body(order)),'duplicate');
+ }finally{store.close();}
+});
+test('missing or invalid BIDV VA prevents startup before opening the payment database',()=>{
+ for(const value of ['',account,'OTHERBANK','96247AB!'])assert.throws(()=>make({virtualAccount:value}),/tai khoan ao/);
+});
 test('only an exact incoming payment receives one verifiable key; duplicate delivery does not reissue',async()=>{
  const issued=[];const store=make({publish:async r=>issued.push(r)});
  try{
