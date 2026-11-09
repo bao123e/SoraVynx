@@ -36,3 +36,7 @@ Menu React Native dùng [`@react-native-menu/menu`](https://github.com/react-nat
 Chỉ dành cho Stella Sora **2.0.0 / 26093014 / ARM64**, Android 8 trở lên. Hai APK trong bộ build cần được cài cùng nhau. Backend kiểm tra hash, chữ ký hàm và ABI trước khi cho bật từng chức năng. Build/kiểm tra cấu trúc và menu không chứng minh hiệu quả Player/Event; khởi động, đăng nhập và gameplay trên điện thoại thật **chưa được xác minh**. APK dùng chữ ký mới; việc gỡ game có thể làm mất dữ liệu và phải tải lại 12 GB. Đọc hướng dẫn trước khi thay game.
 
 Đã qua build release, kiểm tra chữ ký/hash và 12 nhóm kiểm thử host; menu đã chạy trên giả lập Android 15 ở chế độ dọc/ngang, tablet và chữ lớn. Các kiểm tra này không xác minh khởi động/đăng nhập game hoặc hiệu quả Player/Event trên máy thật.
+
+## License gate Windows (nhánh phát triển)
+
+Source trên nhánh feature/license-gate có màn nhập key ký số gắn máy, kiểm tra ở launcher và DLL. Chưa thay các EXE/DLL phát hành cũ. Chủ tool phải tạo khóa ký trên PC riêng và build lại với public key; xem [hướng dẫn key, bot Discord và QR BIDV](licensing/README.vi.md). Bản đầu offline, chưa tự thu tiền, chưa có thu hồi key online hoặc xác nhận gameplay cho bản build mới.

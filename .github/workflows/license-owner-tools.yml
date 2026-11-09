@@ -1,0 +1,42 @@
+name: Publish owner key tools only
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/license-gate]
+    paths: ['.github/workflows/license-owner-tools.yml']
+permissions:
+  contents: write
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Package owner tools without signing secrets or customer binaries
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile,ZIP_DEFLATED
+          import hashlib,os
+          root=Path.cwd();out=Path(os.environ['RUNNER_TEMP'])/'SoraVynx-Owner-Key-Tools.zip'
+          names=['LICENSE.txt','licensing/1-Setup-Issuer.cmd','licensing/2-Create-Key.cmd','licensing/issuer.mjs','licensing/package.json','licensing/package-lock.json','licensing/discord-bot.mjs','licensing/register-commands.mjs','licensing/commands.mjs','licensing/.env.example','licensing/README.vi.md','source/license_public_key.h']
+          with ZipFile(out,'w',ZIP_DEFLATED) as z:
+              z.writestr('START-HERE.vi.txt','SoraVynx owner tools - KHONG co EXE/DLL khach hoac khoa bi mat.\nCai Node.js LTS. Neu da co khoa thi GIU NGUYEN licensing/secrets, KHONG chay lai Setup.\nGiu va sao luu licensing/secrets/issuer-private.pem; KHONG upload hoac gui file nay.\nChi gui file PUBLIC source/license_public_key.h de build tool dung issuer.\nMo licensing/2-Create-Key.cmd de sinh key 15 ky tu. Dang ky file .lic len website truoc khi dung.\nHuong dan bot va QR BIDV: licensing/README.vi.md.\nCan mang khi mo tool. Khong rang buoc ma may. Chua nhan webhook thanh toan.\n')
+              for name in names:z.write(root/name,name)
+          with ZipFile(out) as z:
+              assert z.testzip() is None
+              assert not any(n.endswith(('.pem','.exe','.dll')) or '/secrets/' in n for n in z.namelist())
+          Path(str(out)+'.sha256').write_text(hashlib.sha256(out.read_bytes()).hexdigest()+'  '+out.name+'\n')
+          Path(os.environ['RUNNER_TEMP'],'owner-notes.md').write_text('Owner-side key tools and a owner-only Discord issuing and signed-record publishing bot, plus BIDV QR integration instructions.\n\nContains NO customer EXE/DLL and NO production signing key. Create your issuer on your own PC, back up its private PEM, and supply only source/license_public_key.h to build the matching gated tool. Never upload the private PEM or secrets folder.\n\nImplementation: feature/license-gate, draft PR #1. Native Windows verification passed: signature/tamper/expiry/machine checks, activation UI and DPAPI reload. First-stage offline gate; automatic bank confirmation, online revocation and gameplay verification of the new build are not complete. Old tool/game releases are unchanged.\n')
+          print('Owner ZIP verified; no private keys or customer binaries.')
+          PY
+      - name: Publish isolated owner kit prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view license-owner-tools-v0.2.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create license-owner-tools-v0.2.0 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Owner Key Tools v0.2 - random 15-character keys" --notes-file "$RUNNER_TEMP/owner-notes.md" --prerelease --latest=false
+          fi
+          gh release upload license-owner-tools-v0.2.0 "$RUNNER_TEMP/SoraVynx-Owner-Key-Tools.zip" "$RUNNER_TEMP/SoraVynx-Owner-Key-Tools.zip.sha256" --repo "$GITHUB_REPOSITORY" --clobber

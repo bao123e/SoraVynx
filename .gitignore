@@ -12,3 +12,14 @@ mobile/**/__pycache__/
 mobile/data-helper/backups/
 mobile/data-helper/platform-tools/
 mobile/data-helper/platform-tools.zip
+
+# Owner signing secrets must never enter Git.
+licensing/secrets/
+licensing/node_modules/
+*.pem
+licensing/.env
+
+licensing/public-records/
+
+__pycache__/
+*.pyc

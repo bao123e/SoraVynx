@@ -1,0 +1,75 @@
+name: Verify Windows license gate
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/license-gate]
+    paths: ['source/**', 'licensing/**', '.github/workflows/license-gate.yml']
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: '0.14.1'
+      - name: Test owner issuer and compile the locked tool
+        run: |
+          node --test licensing/test/issuer.test.mjs
+          python source/build.py --zig zig
+      - name: Prepare ephemeral issuer and native verifier
+        shell: pwsh
+        run: |
+          $fixtures = Join-Path $env:RUNNER_TEMP 'license-fixtures'
+          node licensing/test/make-fixtures.mjs $fixtures
+          zig cc -target x86_64-windows-gnu -std=c11 -Wall -Wextra -Werror -Wno-unused-function -I $fixtures source/tests/license_verify.c -lbcrypt -lcrypt32 -ladvapi32 -lwinhttp -luser32 -lgdi32 -o "$fixtures/verifier.exe"
+          & "$fixtures/verifier.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Native signature verification failed' }
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'license-ui-data'
+          New-Item -ItemType Directory -Force $env:LOCALAPPDATA | Out-Null
+          & "$fixtures/verifier.exe" --ui "$fixtures/ui-key.txt" "$fixtures/ui-record.txt"
+          if ($LASTEXITCODE -ne 0) { throw 'Native activation gate UI test failed' }
+      - name: Keep signing material private
+        run: Write-Output 'Only public issuer data is compiled into the tool. No signing secrets or ephemeral test keys are uploaded.'
+      - name: Check production issuer configuration
+        id: issuer
+        shell: pwsh
+        run: |
+          $configured = (Get-Content source/license_public_key.h -Raw) -match '#define SV_LICENSE_CONFIGURED 1'
+          "configured=$($configured.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+      - name: Verify the actual customer launcher remains locked for a wrong issuer
+        if: steps.issuer.outputs.configured == 'true'
+        run: python licensing/test/customer_gate_windows.py source/dist/SoraVynx.exe "${{ runner.temp }}/license-fixtures/ui-key.txt"
+      - name: Package the customer binary pair
+        if: steps.issuer.outputs.configured == 'true'
+        run: python licensing/package_customer.py
+      - name: Publish owner-configured Windows preview
+        if: steps.issuer.outputs.configured == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(python -c "import json; print(json.load(open('source/dist/build.json'))['version'])")"
+          cat > "$RUNNER_TEMP/customer-notes.md" <<'NOTES'
+          Windows x64 preview compiled with the owner's supplied P-256 public key. Start SoraVynx.exe, enter a registered 15-character key. Use Owner Key Tools v0.2 with the existing private PEM; register its signed .lic record on soravynx.online before use.
+
+          Tested on Windows: native signature/expiry/machine/tamper checks; activation UI and DPAPI reload; actual customer launcher rejects a different issuer. No production private key is included. Gameplay of the new build is not verified. Internet is required at startup. Keys are bearer codes, not machine-bound. No automatic QR payments. Keep the existing issuer-private.pem; do not regenerate the issuer.
+          NOTES
+          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - owner-key Windows preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
+      - name: Upload owner-configured customer build only
+        if: steps.issuer.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SoraVynx-Windows-license-preview
+          path: |
+            source/dist/SoraVynx.exe
+            source/dist/SoraVynx.Runtime.dll
+            source/dist/build.json
+          if-no-files-found: error
