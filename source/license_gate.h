@@ -39,37 +39,47 @@ static int sv_short_hash(const char *key,char hex[65]) {
  for(int i=0;i<32;i++)snprintf(hex+2*i,3,"%02x",digest[i]);return 1;
 }
 #ifndef SV_LICENSE_CUSTOM_FETCH
-static int sv_fetch(const char hash[65],char receipt[SV_KEY_LENGTH+1]) {
- HINTERNET session=NULL,connection=NULL,request=NULL;int ok=0;DWORD status=0,size=sizeof(status),read=0,total=0;char bytes[SV_KEY_LENGTH+8];
- wchar_t path[100]=L"/licenses/";for(int i=0;i<64;i++)path[10+i]=(wchar_t)hash[i];wcscpy(path+74,L".lic");
- session=WinHttpOpen(L"SoraVynx/1.2",WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0);if(!session)goto done;
- WinHttpSetTimeouts(session,3000,5000,5000,5000);
- connection=WinHttpConnect(session,L"soravynx.online",INTERNET_DEFAULT_HTTPS_PORT,0);if(!connection)goto done;
- request=WinHttpOpenRequest(connection,L"GET",path,NULL,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE|WINHTTP_FLAG_REFRESH);if(!request)goto done;
- if(!WinHttpSendRequest(request,WINHTTP_NO_ADDITIONAL_HEADERS,0,WINHTTP_NO_REQUEST_DATA,0,0,0)||!WinHttpReceiveResponse(request,NULL))goto done;
- if(!WinHttpQueryHeaders(request,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,WINHTTP_HEADER_NAME_BY_INDEX,&status,&size,WINHTTP_NO_HEADER_INDEX)||status!=200)goto done;
- do {if(total>=sizeof(bytes)||!WinHttpReadData(request,bytes+total,(DWORD)sizeof(bytes)-total,&read))goto done;total+=read;}while(read);
+static int sv_fetch_host(const wchar_t *host,const wchar_t *prefix,const char hash[65],char receipt[SV_KEY_LENGTH+1]) {
+ HINTERNET session=NULL,connection=NULL,request=NULL;int ok=0;DWORD status=0,size=sizeof(status),read=0,total=0,error=ERROR_INVALID_DATA;char bytes[SV_KEY_LENGTH+8];
+ wchar_t path[180];wcscpy(path,prefix);size_t offset=wcslen(path);for(int i=0;i<64;i++)path[offset+i]=(wchar_t)hash[i];wcscpy(path+offset+64,L".lic");
+ session=WinHttpOpen(L"SoraVynx/1.2",WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0);if(!session)goto network_error;
+ WinHttpSetTimeouts(session,5000,10000,10000,10000);
+ connection=WinHttpConnect(session,host,INTERNET_DEFAULT_HTTPS_PORT,0);if(!connection)goto network_error;
+ request=WinHttpOpenRequest(connection,L"GET",path,NULL,WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,WINHTTP_FLAG_SECURE|WINHTTP_FLAG_REFRESH);if(!request)goto network_error;
+ if(!WinHttpSendRequest(request,WINHTTP_NO_ADDITIONAL_HEADERS,0,WINHTTP_NO_REQUEST_DATA,0,0,0)||!WinHttpReceiveResponse(request,NULL))goto network_error;
+ if(!WinHttpQueryHeaders(request,WINHTTP_QUERY_STATUS_CODE|WINHTTP_QUERY_FLAG_NUMBER,WINHTTP_HEADER_NAME_BY_INDEX,&status,&size,WINHTTP_NO_HEADER_INDEX))goto network_error;
+ if(status!=200){error=status==404?ERROR_FILE_NOT_FOUND:ERROR_BAD_NET_RESP;goto done;}
+ do {if(total>=sizeof(bytes))goto done;if(!WinHttpReadData(request,bytes+total,(DWORD)sizeof(bytes)-total,&read))goto network_error;total+=read;}while(read);
  while(total&&(bytes[total-1]=='\n'||bytes[total-1]=='\r'))total--;
- if(total!=SV_KEY_LENGTH)goto done;memcpy(receipt,bytes,total);receipt[total]=0;ok=1;
- done:if(request)WinHttpCloseHandle(request);if(connection)WinHttpCloseHandle(connection);if(session)WinHttpCloseHandle(session);return ok;
+ if(total!=SV_KEY_LENGTH)goto done;memcpy(receipt,bytes,total);receipt[total]=0;ok=1;goto done;
+ network_error:error=GetLastError();
+ done:if(request)WinHttpCloseHandle(request);if(connection)WinHttpCloseHandle(connection);if(session)WinHttpCloseHandle(session);SetLastError(ok?ERROR_SUCCESS:error);return ok;
+}
+static int sv_fetch(const char hash[65],char receipt[SV_KEY_LENGTH+1]) {
+ if(sv_fetch_host(L"soravynx.online",L"/licenses/",hash,receipt))return 1;
+ /* Same signed registry through GitHub if the custom domain cannot be reached. */
+ return sv_fetch_host(L"raw.githubusercontent.com",L"/bao123e/soravynx.github.io/main/licenses/",hash,receipt);
 }
 #else
 static int sv_fetch(const char hash[65],char receipt[SV_KEY_LENGTH+1]);
 #endif
 /* Strict fixed-format parser; never trust expiry or machine fields before signature verification. */
 static int sv_license_check(const char *key,const char *device,uint64_t now,uint64_t *issued_out,uint64_t *expires_out) {
+ SetLastError(ERROR_INVALID_DATA);
  if(!SV_LICENSE_CONFIGURED||strlen(key)!=SV_KEY_LENGTH||strncmp(key,"SV2.",4)||key[14]!='.'||key[25]!='.'||key[90]!='.'||key[123]!='.')return 0;
  uint64_t issued,expires;unsigned char signature[64],digest[32];
  if(!sv_decimal(key+4,&issued)||!sv_decimal(key+15,&expires)||!sv_hex(key+26,32,NULL)||!sv_hex(key+91,16,NULL)||!sv_hex(key+124,64,signature))return 0;
  struct {BCRYPT_ECCKEY_BLOB header;unsigned char xy[64];} blob={{BCRYPT_ECDSA_PUBLIC_P256_MAGIC,32},{0}};
  memcpy(blob.xy,sv_license_public_xy,64);
- BCRYPT_ALG_HANDLE algorithm=NULL;BCRYPT_KEY_HANDLE public_key=NULL;int valid=0;
+ BCRYPT_ALG_HANDLE algorithm=NULL;BCRYPT_KEY_HANDLE public_key=NULL;int valid=0,time_error=0;
  if(!sv_sha256(key,123,digest)||BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_ECDSA_P256_ALGORITHM,NULL,0)<0)goto done;
  if(BCryptImportKeyPair(algorithm,NULL,BCRYPT_ECCPUBLIC_BLOB,&public_key,(PUCHAR)&blob,sizeof(blob),0)<0)goto done;
  if(BCryptVerifySignature(public_key,NULL,digest,32,signature,64,0)<0)goto done;
- if(memcmp(key+26,device,64)||issued>now+300||(expires&&expires<=issued)||(expires&&now>=expires))goto done;
+ if(memcmp(key+26,device,64)||(expires&&expires<=issued))goto done;
+ if(issued>now+300){time_error=1;goto done;}
+ if(expires&&now>=expires){time_error=2;goto done;}
  *issued_out=issued;*expires_out=expires;valid=1;
- done:if(public_key)BCryptDestroyKey(public_key);if(algorithm)BCryptCloseAlgorithmProvider(algorithm,0);return valid;
+ done:if(public_key)BCryptDestroyKey(public_key);if(algorithm)BCryptCloseAlgorithmProvider(algorithm,0);SetLastError(valid?ERROR_SUCCESS:(time_error==1?ERROR_TIME_SKEW:(time_error==2?ERROR_PASSWORD_EXPIRED:ERROR_INVALID_DATA)));return valid;
 }
 static int sv_license_alive(void) {
  if(!InterlockedCompareExchange(&sv_license_authorized,0,0))return 0;
@@ -101,10 +111,14 @@ static int sv_cache(const char *key,int save,char output[SV_SHORT_LENGTH+1]) {
 }
 static HWND sv_key_edit,sv_gate_button;static HFONT sv_gate_font;static HINSTANCE sv_gate_module;static int sv_gate_accepted,sv_gate_busy;
 static HBRUSH sv_gate_bg,sv_gate_field;
-struct SvGateResult {HWND window;uint64_t issued,expires;int valid;char key[SV_SHORT_LENGTH+1];};
+struct SvGateResult {HWND window;uint64_t issued,expires;int valid,stage;DWORD error;char key[SV_SHORT_LENGTH+1];};
 static DWORD WINAPI sv_gate_worker(void *argument) {
  struct SvGateResult *r=argument;char hash[65],receipt[SV_KEY_LENGTH+1];
- r->valid=sv_short_hash(r->key,hash)&&sv_fetch(hash,receipt)&&sv_license_check(receipt,hash,sv_now(),&r->issued,&r->expires);
+ if(sv_short_hash(r->key,hash)){
+  r->stage=1;
+  if(sv_fetch(hash,receipt)){r->stage=2;r->valid=sv_license_check(receipt,hash,sv_now(),&r->issued,&r->expires);}
+  r->error=GetLastError();
+ }
  if(!PostMessageW(r->window,WM_APP+42,0,(LPARAM)r)){SecureZeroMemory(r,sizeof(*r));HeapFree(GetProcessHeap(),0,r);}return 0;
 }
 static LRESULT CALLBACK sv_gate_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
@@ -120,8 +134,15 @@ static LRESULT CALLBACK sv_gate_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
  if(msg==WM_APP+42){
   struct SvGateResult *r=(struct SvGateResult*)lp;sv_gate_busy=0;EnableWindow(sv_gate_button,TRUE);
   if(r->valid&&sv_cache(r->key,1,NULL)){sv_license_issued=r->issued;sv_license_expires=r->expires;sv_license_clock=sv_now();sv_license_started=GetTickCount64();InterlockedExchange(&sv_license_authorized,1);sv_gate_accepted=1;}
+  wchar_t message[100];
+  if(r->valid)wcscpy(message,L"Không lưu được key — kiểm tra quyền ghi");
+  else if(r->stage==1&&r->error==ERROR_FILE_NOT_FOUND)wcscpy(message,L"Key chưa đăng ký hoặc nhập sai");
+  else if(r->stage==1)swprintf(message,100,L"Lỗi kết nối %lu — thử lại",(unsigned long)r->error);
+  else if(r->error==ERROR_TIME_SKEW)wcscpy(message,L"Sai ngày giờ máy — bật đồng bộ giờ");
+  else if(r->error==ERROR_PASSWORD_EXPIRED)wcscpy(message,L"Key đã hết hạn");
+  else wcscpy(message,L"Key chưa khớp — tải bản tool mới");
   SecureZeroMemory(r,sizeof(*r));HeapFree(GetProcessHeap(),0,r);
-  if(sv_gate_accepted)DestroyWindow(hwnd);else SetWindowTextW(sv_gate_button,L"Chưa xác thực được — thử lại");return 0;
+  if(sv_gate_accepted)DestroyWindow(hwnd);else SetWindowTextW(sv_gate_button,message);return 0;
  }
  if(msg==WM_DRAWITEM){
   DRAWITEMSTRUCT *d=(DRAWITEMSTRUCT*)lp;if(d->CtlID==1){HBRUSH brush=CreateSolidBrush((d->itemState&ODS_DISABLED)?RGB(63,110,107):RGB(94,234,212));FillRect(d->hDC,&d->rcItem,brush);DeleteObject(brush);SetBkMode(d->hDC,TRANSPARENT);SetTextColor(d->hDC,RGB(9,30,35));SelectObject(d->hDC,sv_gate_font);wchar_t text[100];GetWindowTextW(sv_gate_button,text,100);DrawTextW(d->hDC,text,-1,&d->rcItem,DT_CENTER|DT_VCENTER|DT_SINGLELINE);if(d->itemState&ODS_FOCUS){RECT focus=d->rcItem;InflateRect(&focus,-4,-4);DrawFocusRect(d->hDC,&focus);}return TRUE;}

@@ -66,7 +66,7 @@ jobs:
         run: |
           tag="v$(python -c "import json; print(json.load(open('source/dist/build.json'))['version'])")"
           cat > "$RUNNER_TEMP/customer-notes.md" <<'NOTES'
-          Windows x64 preview compiled with the owner's supplied P-256 public key. Start SoraVynx.exe, enter a registered 15-character key. Use Owner Key Tools v0.2 with the existing private PEM; register its signed .lic record on soravynx.online before use.
+          Windows x64 preview with specific activation errors and a signed-registry fallback over HTTPS. Compiled with the owner's supplied P-256 public key. Start SoraVynx.exe, enter a registered 15-character key. Use Owner Key Tools v0.2 with the existing private PEM; register its signed .lic record on soravynx.online before use.
 
           Tested on Windows: native signature/expiry/machine/tamper checks; activation UI and DPAPI reload; actual customer launcher rejects a different issuer; production HTTPS lookup verifies an owner-signed record. No production private key is included. Gameplay of the new build is not verified. Internet is required at startup. Keys are bearer codes, not machine-bound. No automatic QR payments. Keep the existing issuer-private.pem; do not regenerate the issuer.
           NOTES
