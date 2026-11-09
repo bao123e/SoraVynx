@@ -5,7 +5,7 @@ on:
     branches: [feature/license-gate]
     paths: ['source/**', 'licensing/**', '.github/workflows/license-gate.yml']
 permissions:
-  contents: read
+  contents: write
 jobs:
   verify:
     runs-on: windows-latest
@@ -38,14 +38,33 @@ jobs:
           New-Item -ItemType Directory -Force $env:LOCALAPPDATA | Out-Null
           & "$fixtures/verifier.exe" --ui "$fixtures/ui-key.txt"
           if ($LASTEXITCODE -ne 0) { throw 'Native activation gate UI test failed' }
-      - name: No production signing key or customer binary is published
-        run: Write-Output 'Tests use a disposable issuer. Default customer build remains fail-closed until owner configures a public key. No issuer secrets or ephemeral test keys are uploaded.'
+      - name: Keep signing material private
+        run: Write-Output 'Only public issuer data is compiled into the tool. No signing secrets or ephemeral test keys are uploaded.'
       - name: Check production issuer configuration
         id: issuer
         shell: pwsh
         run: |
           $configured = (Get-Content source/license_public_key.h -Raw) -match '#define SV_LICENSE_CONFIGURED 1'
           "configured=$($configured.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+      - name: Verify the actual customer launcher remains locked for a wrong issuer
+        if: steps.issuer.outputs.configured == 'true'
+        run: python licensing/test/customer_gate_windows.py source/dist/SoraVynx.exe "${{ runner.temp }}/license-fixtures/ui-key.txt"
+      - name: Package the customer binary pair
+        if: steps.issuer.outputs.configured == 'true'
+        run: python licensing/package_customer.py
+      - name: Publish owner-configured Windows preview
+        if: steps.issuer.outputs.configured == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(python -c "import json; print(json.load(open('source/dist/build.json'))['version'])")"
+          cat > "$RUNNER_TEMP/customer-notes.md" <<'NOTES'
+          Windows x64 preview compiled with the owner's supplied P-256 public key. Start SoraVynx.exe, copy the machine code, create a matching key using the existing Owner Key Tools, then activate.
+
+          Tested on Windows: native signature/expiry/machine/tamper checks; activation UI and DPAPI reload; actual customer launcher rejects a different issuer. No production private key is included. Gameplay of the new build is not verified. Offline license only; no automatic QR payments or online revocation. Keep the existing issuer-private.pem; do not regenerate the issuer.
+          NOTES
+          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - owner-key Windows preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
       - name: Upload owner-configured customer build only
         if: steps.issuer.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
