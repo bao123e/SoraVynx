@@ -111,3 +111,9 @@ SePay có tài liệu hỗ trợ BIDV tại https://developer.sepay.vn/vi/sepay-
 - Nếu cần thu hồi key/kiểm tra online, nâng giao thức tool trước khi mở bán tự động.
 
 Các secret đặt trong bảng điều khiển/biến môi trường của host, không gửi vào chat hoặc repo.
+
+## Thao tác nhanh trên Windows
+
+Sau khi cài Node.js và giải nén source đúng nhánh, có thể nhấp đúp **licensing/1-Setup-Issuer.cmd** để tạo bộ khóa một lần. Sau đó chỉ upload file PUBLIC `source/license_public_key.h` lên nhánh này để build bộ tool đúng issuer. Để cấp key thủ công sau khi xác nhận tiền, nhấp **licensing/2-Create-Key.cmd**, dán mã máy và nhập `7`, `30`, `365` hoặc `lifetime`.
+
+Hai file CMD không đưa nội dung mã máy vào lệnh shell; phần nhập/kiểm tra dữ liệu nằm trong Node. Không chạy Setup lần nữa để đổi khóa nếu đang có khách dùng bộ tool cũ. Xem phần A để sao lưu khóa và hiểu quy trình build.
