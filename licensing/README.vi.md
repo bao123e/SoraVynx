@@ -1,4 +1,4 @@
-# SoraVynx — bộ cấu hình bot và key 15 ký tự (v0.3)
+# SoraVynx — bộ cấu hình bot và key 15 ký tự (v0.3.2)
 
 **Bắt đầu tại [SEPAY.vi.md](SEPAY.vi.md).** Đã có bot Discord và SePay: mở `3-Setup-Bot.cmd`, điền theo từng dòng rồi mở `4-Start-Bot.cmd`. Bộ cài kiểm tra đúng khóa ký cũ trước khi lưu cấu hình. Không chạy lại Setup-Issuer.
 
@@ -18,7 +18,7 @@ Key mới không ràng buộc máy. Người có mã có thể chia sẻ mã; c�
 
 ## Chủ tool tạo key
 
-1. Giải nén Owner Key Tools v0.2 vào thư mục bộ tạo key cũ, thay các tệp mã chương trình; giữ nguyên thư mục `licensing/secrets/`.
+1. Giải nén Owner Key Tools vào **thư mục mới**, COPY `licensing/secrets/` cũ sang bộ mới và giữ nguyên bộ cũ để sao lưu. Không giải nén đè hoặc di chuyển khóa duy nhất.
 2. **Không chạy lại 1-Setup-Issuer.cmd nếu đã tạo khóa và gửi public key.** Giữ/sao lưu `issuer-private.pem`, không gửi nó vào chat hoặc upload GitHub.
 3. Mở `licensing/2-Create-Key.cmd`. Chỉ chọn `7`, `30`, `365` hoặc `lifetime`; không cần mã máy khách.
 4. Chương trình tạo một key 15 ký tự và một tệp `licensing/public-records/<hash>.lic`. Bản sao key gần nhất nằm trong secrets/last-short-key.txt, không đưa lên repo.

@@ -4,7 +4,7 @@ Bạn đã tạo bot và tài khoản SePay. Bộ này dùng Node.js **24 LTS** 
 
 ## Chuẩn bị một lần
 
-1. Giải nén bộ mới **vào thư mục bộ tạo key cũ**, giữ nguyên `licensing/secrets/issuer-private.pem`. Nếu giải nén ở chỗ khác, nhập đường dẫn khóa cũ khi chương trình hỏi. Không chạy `1-Setup-Issuer.cmd`.
+1. Giải nén bộ mới **vào một thư mục mới riêng biệt**. **COPY**, không di chuyển/xóa, thư mục `licensing/secrets/` của bộ cũ sang `licensing/secrets/` của bộ mới. Giữ bộ cũ làm bản sao lưu. Nếu đã có `.env`, copy riêng file này sang thư mục `licensing/` mới. Không chạy `1-Setup-Issuer.cmd`. Bộ v0.3.2 dùng khóa công khai vừa xuất từ PEM bạn đang giữ.
 2. Cài Node.js 24 LTS tại https://nodejs.org/ nếu chưa có. Kiểm tra bằng `node --version` trong Terminal.
 3. Mở `licensing/3-Setup-Bot.cmd` và làm theo từng dòng. Bot Token lấy ở https://discord.com/developers/applications → chọn ứng dụng → Bot. Không dán Client Secret thay cho Bot Token.
 4. Bật Developer Mode trong Discord → sao chép Server ID và User ID của bạn. Chương trình tự lấy Application ID, tạo link mời bot và đăng ký lệnh. Bot không cần quyền Administrator hoặc Message Content Intent; tài khoản chủ dùng lệnh cần quyền Administrator theo mặc định của lệnh.

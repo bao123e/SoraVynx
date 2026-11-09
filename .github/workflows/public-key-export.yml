@@ -1,0 +1,51 @@
+name: Package public key export helper
+on:
+  push:
+    branches: [feature/key-recovery]
+    paths: ['licensing/Export-Public-Key.*', 'licensing/test/public-export.test.mjs', '.github/workflows/public-key-export.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test licensing/test/public-export.test.mjs
+  package:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Package only the two new helper files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile,ZIP_DEFLATED
+          import hashlib,os
+          p=Path(os.environ['RUNNER_TEMP'])/'SoraVynx-Public-Key-Export.zip'
+          with ZipFile(p,'w',ZIP_DEFLATED) as z:
+              for name in ['Export-Public-Key.cmd','Export-Public-Key.mjs']:z.write(Path('licensing')/name,name)
+              z.writestr('READ-ME.vi.txt','Dat 2 file Export-Public-Key vao thu muc licensing dang chua secrets/issuer-private.pem.\nMo Export-Public-Key.cmd. Chi gui PUBLIC-KEY-TO-SEND.h vua tao vao chat.\nKhong gui private PEM. Tien ich chi doc khoa cu, khong tao lai hay ghi de khoa.\n')
+          with ZipFile(p) as z:
+              assert z.testzip() is None and len(z.namelist())==3
+              assert not any(n.endswith(('.pem','.exe')) or '/secrets/' in n for n in z.namelist())
+          Path(str(p)+'.sha256').write_text(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.name+'\n')
+          PY
+      - name: Publish tested recovery helper
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create public-key-export-v1.0.0 "$RUNNER_TEMP/SoraVynx-Public-Key-Export.zip" "$RUNNER_TEMP/SoraVynx-Public-Key-Export.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'Public key export - keep your existing issuer' --notes 'Place both Export-Public-Key files in the existing licensing folder and run the CMD. Send only PUBLIC-KEY-TO-SEND.h. Never upload your private PEM. No key generation, private-file replacement or network calls. Tested with isolated P-256 keys on Windows and Linux.' --prerelease --latest=false

@@ -2,7 +2,7 @@ name: Verify Windows license gate
 on:
   workflow_dispatch:
   push:
-    branches: [feature/license-gate]
+    branches: [feature/license-gate, feature/key-recovery]
     paths: ['source/**', 'licensing/**', '.github/workflows/license-gate.yml']
 permissions:
   contents: write
@@ -44,14 +44,14 @@ jobs:
         run: |
           $configured = (Get-Content source/license_public_key.h -Raw) -match '#define SV_LICENSE_CONFIGURED 1'
           "configured=$($configured.ToString().ToLower())" >> $env:GITHUB_OUTPUT
-      - name: Verify published record over HTTPS with the actual owner key
+      - name: Verify HTTPS transport and rejection of the previous issuer
         if: steps.issuer.outputs.configured == 'true'
         shell: pwsh
         run: |
           $probe = Join-Path $env:RUNNER_TEMP 'owner-record-probe.exe'
           zig cc -target x86_64-windows-gnu -std=c11 -Wall -Wextra -Werror -Wno-unused-function source/tests/owner_record_probe.c -lbcrypt -lwinhttp -lcrypt32 -ladvapi32 -luser32 -lgdi32 -o $probe
-          & $probe '2d32d428884b06bd0f5c2be5245c640a75c477ef67c90de071b4188dd364dde1'
-          if ($LASTEXITCODE -ne 0) { throw 'Published owner record verification failed' }
+          & $probe --reject-old '2d32d428884b06bd0f5c2be5245c640a75c477ef67c90de071b4188dd364dde1'
+          if ($LASTEXITCODE -ne 0) { throw 'Previous issuer rejection or HTTPS transport verification failed' }
       - name: Verify the actual customer launcher remains locked for a wrong issuer
         if: steps.issuer.outputs.configured == 'true'
         run: python licensing/test/customer_gate_windows.py source/dist/SoraVynx.exe "${{ runner.temp }}/license-fixtures/ui-key.txt"
@@ -66,9 +66,9 @@ jobs:
         run: |
           tag="v$(python -c "import json; print(json.load(open('source/dist/build.json'))['version'])")"
           cat > "$RUNNER_TEMP/customer-notes.md" <<'NOTES'
-          Windows x64 preview with specific activation errors and a signed-registry fallback over HTTPS. Compiled with the owner's supplied P-256 public key. Start SoraVynx.exe, enter a registered 15-character key. Use Owner Key Tools v0.2 with the existing private PEM; register its signed .lic record on soravynx.online before use.
+          Windows x64 preview rebuilt to match the public key exported from the owner's retained private PEM; this only updates license verification. Compiled with the owner's supplied P-256 public key. Start SoraVynx.exe, enter a registered 15-character key. Use Owner Key Tools v0.3.2 with the retained private PEM; register its signed .lic record on soravynx.online before use.
 
-          Tested on Windows: native signature/expiry/machine/tamper checks; activation UI and DPAPI reload; actual customer launcher rejects a different issuer; production HTTPS lookup verifies an owner-signed record. No production private key is included. Gameplay of the new build is not verified. Internet is required at startup. Keys are bearer codes, not machine-bound. No automatic QR payments. Keep the existing issuer-private.pem; do not regenerate the issuer.
+          Tested on Windows: native signature/expiry/machine/tamper checks; activation UI and DPAPI reload; actual customer launcher rejects a different issuer; HTTPS registry access and rejection of the previous issuer. A new record signed by the retained owner key is still needed for a full production activation test. No production private key is included. Gameplay of the new build is not verified. Internet is required at startup. Keys are bearer codes, not machine-bound. No automatic QR payments. Keep the existing issuer-private.pem; do not regenerate the issuer.
           NOTES
           gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - owner-key Windows preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
       - name: Upload owner-configured customer build only
