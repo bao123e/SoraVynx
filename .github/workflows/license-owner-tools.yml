@@ -2,14 +2,40 @@ name: Publish owner key tools only
 on:
   workflow_dispatch:
   push:
-    branches: [feature/license-gate]
-    paths: ['.github/workflows/license-owner-tools.yml']
+    branches: [feature/discord-setup]
+    paths: ['licensing/**', '.github/workflows/license-owner-tools.yml']
 permissions:
-  contents: write
+  contents: read
 jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: licensing/package-lock.json
+      - name: Install and test owner setup and payment processing with isolated test keys
+        working-directory: licensing
+        run: |
+          npm ci --ignore-scripts
+          npm test
+          node --check setup-bot.mjs
+          node --check discord-bot.mjs
+          node --input-type=module -e "import {command} from './commands.mjs'; if(command.toJSON().name!=='keycreate')process.exit(1)"
   package:
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,22 +47,20 @@ jobs:
           from zipfile import ZipFile,ZIP_DEFLATED
           import hashlib,os
           root=Path.cwd();out=Path(os.environ['RUNNER_TEMP'])/'SoraVynx-Owner-Key-Tools.zip'
-          names=['LICENSE.txt','licensing/1-Setup-Issuer.cmd','licensing/2-Create-Key.cmd','licensing/issuer.mjs','licensing/package.json','licensing/package-lock.json','licensing/discord-bot.mjs','licensing/register-commands.mjs','licensing/commands.mjs','licensing/.env.example','licensing/README.vi.md','source/license_public_key.h']
+          names=['LICENSE.txt','source/license_public_key.h']
+          names += [str(p.relative_to(root)) for p in sorted((root/'licensing').iterdir()) if p.is_file() and (p.suffix in ['.mjs','.cmd','.json','.md'] or p.name=='.env.example')]
           with ZipFile(out,'w',ZIP_DEFLATED) as z:
-              z.writestr('START-HERE.vi.txt','SoraVynx owner tools - KHONG co EXE/DLL khach hoac khoa bi mat.\nCai Node.js LTS. Neu da co khoa thi GIU NGUYEN licensing/secrets, KHONG chay lai Setup.\nGiu va sao luu licensing/secrets/issuer-private.pem; KHONG upload hoac gui file nay.\nChi gui file PUBLIC source/license_public_key.h de build tool dung issuer.\nMo licensing/2-Create-Key.cmd de sinh key 15 ky tu. Dang ky file .lic len website truoc khi dung.\nHuong dan bot va QR BIDV: licensing/README.vi.md.\nCan mang khi mo tool. Khong rang buoc ma may. Chua nhan webhook thanh toan.\n')
+              z.writestr('START-HERE.vi.txt','SORAVYNX OWNER TOOLS v0.3\n\nGiu nguyen licensing/secrets/issuer-private.pem cu; KHONG tao lai issuer.\nCan Node.js 24 LTS: https://nodejs.org/\n\n1. Mo licensing/3-Setup-Bot.cmd va lam theo tung dong.\n2. Mo licensing/4-Start-Bot.cmd. Dung /keycreate de cap key thu cong.\n3. Muon tu dong nhan tien SePay: doc licensing/SEPAY.vi.md.\n\nKhong gui token, .env hoac private PEM vao chat.\nKhong co EXE/DLL game trong bo nay, khong thay doi tool khach.\nWebhook da test mo phong tren Windows/Linux, chua xac minh voi tai khoan SePay that.\n')
               for name in names:z.write(root/name,name)
           with ZipFile(out) as z:
               assert z.testzip() is None
-              assert not any(n.endswith(('.pem','.exe','.dll')) or '/secrets/' in n for n in z.namelist())
+              assert not any(n.endswith(('.pem','.exe','.dll','.sqlite')) or '/secrets/' in n or n.endswith('/.env') for n in z.namelist())
           Path(str(out)+'.sha256').write_text(hashlib.sha256(out.read_bytes()).hexdigest()+'  '+out.name+'\n')
-          Path(os.environ['RUNNER_TEMP'],'owner-notes.md').write_text('Owner-side key tools and a owner-only Discord issuing and signed-record publishing bot, plus BIDV QR integration instructions.\n\nContains NO customer EXE/DLL and NO production signing key. Create your issuer on your own PC, back up its private PEM, and supply only source/license_public_key.h to build the matching gated tool. Never upload the private PEM or secrets folder.\n\nImplementation: feature/license-gate, draft PR #1. Native Windows verification passed: signature/tamper/expiry/machine checks, activation UI and DPAPI reload. First-stage offline gate; automatic bank confirmation, online revocation and gameplay verification of the new build are not complete. Old tool/game releases are unchanged.\n')
+          Path(os.environ['RUNNER_TEMP'],'owner-notes.md').write_text('Owner Key Tools v0.3: guided Windows setup, matching-issuer validation, owner-only Discord /keycreate and /order, BIDV QR checkout, API-Key authenticated SePay webhook, SQLite payment deduplication and durable publishing retries.\n\nRequires Node.js 24 LTS and the existing private signing PEM on your own PC. No private keys, tokens or customer EXE/DLL are included. Only the supplied public key is bundled to check compatibility. Setup in licensing/SEPAY.vi.md.\n\nAutomated tests run on Linux and Windows using isolated test issuers. Browser checkout tested with a simulated incoming payment. Real Discord and SePay accounts have not been connected or verified; the public storefront remains manual. PC/tunnel setup requires the PC to stay on and tunnel URLs may change. No automatic refunds or device binding.\n')
           print('Owner ZIP verified; no private keys or customer binaries.')
           PY
       - name: Publish isolated owner kit prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view license-owner-tools-v0.2.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create license-owner-tools-v0.2.0 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Owner Key Tools v0.2 - random 15-character keys" --notes-file "$RUNNER_TEMP/owner-notes.md" --prerelease --latest=false
-          fi
-          gh release upload license-owner-tools-v0.2.0 "$RUNNER_TEMP/SoraVynx-Owner-Key-Tools.zip" "$RUNNER_TEMP/SoraVynx-Owner-Key-Tools.zip.sha256" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release create license-owner-tools-v0.3.0 "$RUNNER_TEMP/SoraVynx-Owner-Key-Tools.zip" "$RUNNER_TEMP/SoraVynx-Owner-Key-Tools.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "Owner Key Tools v0.3 - Discord setup and SePay webhook" --notes-file "$RUNNER_TEMP/owner-notes.md" --prerelease --latest=false

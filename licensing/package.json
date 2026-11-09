@@ -2,7 +2,7 @@
   "name":"soravynx-license-owner-tools",
   "private":true,
   "type":"module",
-  "engines":{"node":">=22"},
-  "scripts":{"test":"node --test test/*.test.mjs","bot":"node --env-file=.env discord-bot.mjs","register":"node --env-file=.env register-commands.mjs"},
+  "engines":{"node":">=24"},
+  "scripts":{"test":"node --test test/*.test.mjs","setup":"node setup-bot.mjs","payments":"node --env-file=.env payment-server.mjs","bot":"node --env-file=.env discord-bot.mjs","register":"node --env-file=.env register-commands.mjs"},
   "dependencies":{"discord.js":"^14.21.0"}
 }

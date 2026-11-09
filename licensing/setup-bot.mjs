@@ -1,0 +1,55 @@
+import {createInterface} from 'node:readline/promises';
+import {Writable} from 'node:stream';
+import {randomBytes} from 'node:crypto';
+import {resolve} from 'node:path';
+import {directory,readOwnerEnv,saveOwnerEnv,matchingIssuer,serviceJSON} from './owner-config.mjs';
+import {commandData} from './command-data.mjs';
+if(Number(process.versions.node.split('.')[0])<24){console.error('Cai Node.js 24 LTS: https://nodejs.org/');process.exit(1);}
+let muted=false;
+const output=new Writable({write(chunk,_encoding,done){if(!muted)process.stdout.write(chunk);done();}});
+const io=createInterface({input:process.stdin,output,terminal:!!process.stdin.isTTY});
+async function ask(label,current='',secret=false){
+ const hint=current?(secret?' [Enter: giu gia tri cu]':' ['+current+']'):'';
+ if(secret&&!process.stdin.isTTY)throw new Error('Mo 3-Setup-Bot.cmd truc tiep, khong chay qua pipe.');
+ process.stdout.write(label+hint+': ');muted=secret;
+ try{return (await io.question('')).trim()||current;}finally{muted=false;if(secret)process.stdout.write('\n');}
+}
+const id=value=>/^\d{17,20}$/.test(value);
+try{
+ console.log('\nSORAVYNX - CAU HINH BOT VA SEPAY\nToken chi luu trong .env tren may ban, khong gui vao chat.\nKHONG chay lai Setup-Issuer. Giu nguyen khoa ky cu.\n');
+ const values=readOwnerEnv();
+ values.LICENSE_PRIVATE_KEY_FILE=(await ask('Duong dan issuer-private.pem cu',values.LICENSE_PRIVATE_KEY_FILE||'./secrets/issuer-private.pem')).replace(/^"|"$/g,'');
+ matchingIssuer(values.LICENSE_PRIVATE_KEY_FILE);console.log('OK: khoa ky khop tool dang phat hanh.');
+ console.log('\nDiscord Developer Portal > ung dung cua ban > Bot > Reset Token/Copy.');
+ values.DISCORD_BOT_TOKEN=await ask('Dan Bot Token (khong hien ky tu)',values.DISCORD_BOT_TOKEN,true);
+ const app=await serviceJSON('https://discord.com/api/v10/oauth2/applications/@me',values.DISCORD_BOT_TOKEN);
+ values.DISCORD_APPLICATION_ID=app.id;console.log('Da nhan ung dung bot.');
+ console.log('Discord > User Settings > Advanced > bat Developer Mode.');
+ values.DISCORD_GUILD_ID=await ask('Chuot phai server > Copy Server ID',values.DISCORD_GUILD_ID);
+ values.DISCORD_OWNER_ID=await ask('Chuot phai tai khoan cua BAN > Copy User ID',values.DISCORD_OWNER_ID);
+ if(!id(values.DISCORD_GUILD_ID)||!id(values.DISCORD_OWNER_ID))throw new Error('Server ID/User ID phai la day 17-20 chu so, khong phai ten Discord.');
+ const invite='https://discord.com/oauth2/authorize?client_id='+app.id+'&scope=bot%20applications.commands&permissions=0&guild_id='+values.DISCORD_GUILD_ID;
+ console.log('\nMo link nay de them bot vao dung server (khong can Administrator cho bot):\n'+invite);
+ await ask('Them bot xong, bam Enter');
+ await serviceJSON('https://discord.com/api/v10/guilds/'+values.DISCORD_GUILD_ID,values.DISCORD_BOT_TOKEN);
+ await serviceJSON('https://discord.com/api/v10/guilds/'+values.DISCORD_GUILD_ID+'/members/'+values.DISCORD_OWNER_ID,values.DISCORD_BOT_TOKEN);
+ console.log('\nGitHub > Settings > Developer settings > Fine-grained personal access tokens.');
+ console.log('Chi chon bao123e/soravynx.github.io; Repository permissions > Contents: Read and write.');
+ values.GITHUB_TOKEN=await ask('GitHub token (khong hien ky tu)',values.GITHUB_TOKEN,true);
+ await serviceJSON('https://api.github.com/repos/bao123e/soravynx.github.io/contents/licenses',values.GITHUB_TOKEN,{scheme:'Bearer'});
+ console.log('\nSEPAY / BIDV: chi nhap so tai khoan nhan tien, khong nhap mat khau ngan hang.');
+ values.SEPAY_ACCOUNT_NUMBER=await ask('So tai khoan BIDV nhan tien',values.SEPAY_ACCOUNT_NUMBER);
+ if(!/^\d{6,30}$/.test(values.SEPAY_ACCOUNT_NUMBER))throw new Error('So tai khoan phai gom 6-30 chu so.');
+ values.SEPAY_GATEWAY='BIDV';
+ values.SEPAY_WEBHOOK_API_KEY ||=randomBytes(32).toString('hex');
+ values.PAYMENT_ADMIN_KEY ||=randomBytes(32).toString('hex');
+ values.PUBLIC_BASE_URL=await ask('Link HTTPS backend (chua co: bam Enter)',values.PUBLIC_BASE_URL||'');
+ if(values.PUBLIC_BASE_URL&&!/^https:\/\/[a-z\d.-]+(?::\d+)?$/i.test(values.PUBLIC_BASE_URL))throw new Error('Link backend phai co dang https://ten-mien, khong co dau / cuoi.');
+ values.PAYMENT_DB_FILE ||=resolve(directory,'secrets/payments.sqlite');
+ saveOwnerEnv(values);console.log('\nDa luu .env rieng tren may ban.');
+ for(const body of commandData)await serviceJSON('https://discord.com/api/v10/applications/'+app.id+'/guilds/'+values.DISCORD_GUILD_ID+'/commands',values.DISCORD_BOT_TOKEN,{method:'POST',body});
+ console.log('Da dang ky /keycreate va /order.');
+ console.log('\nTIEP THEO: mo 4-Start-Bot.cmd. Trong Discord go /keycreate de cap key thu cong.');
+ console.log('De dung SePay: mo 5-Start-Webhook.cmd, sau do lam theo SEPAY.vi.md.');
+ console.log('Khoa xac thuc webhook duoc luu trong .env: SEPAY_WEBHOOK_API_KEY. Khong gui file nay vao chat.');
+}catch(e){console.error('\nCHUA HOAN TAT: '+e.message);process.exitCode=1;}finally{io.close();}
