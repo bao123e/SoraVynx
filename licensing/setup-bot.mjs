@@ -1,19 +1,10 @@
-import {createInterface} from 'node:readline/promises';
-import {Writable} from 'node:stream';
+import {terminalPrompt} from './terminal-prompt.mjs';
 import {randomBytes} from 'node:crypto';
 import {resolve} from 'node:path';
 import {directory,readOwnerEnv,saveOwnerEnv,matchingIssuer,serviceJSON} from './owner-config.mjs';
 import {commandData} from './command-data.mjs';
 if(Number(process.versions.node.split('.')[0])<24){console.error('Cai Node.js 24 LTS: https://nodejs.org/');process.exit(1);}
-let muted=false;
-const output=new Writable({write(chunk,_encoding,done){if(!muted)process.stdout.write(chunk);done();}});
-const io=createInterface({input:process.stdin,output,terminal:!!process.stdin.isTTY});
-async function ask(label,current='',secret=false){
- const hint=current?(secret?' [Enter: giu gia tri cu]':' ['+current+']'):'';
- if(secret&&!process.stdin.isTTY)throw new Error('Mo 3-Setup-Bot.cmd truc tiep, khong chay qua pipe.');
- process.stdout.write(label+hint+': ');muted=secret;
- try{return (await io.question('')).trim()||current;}finally{muted=false;if(secret)process.stdout.write('\n');}
-}
+const io=terminalPrompt(),ask=io.ask;
 const id=value=>/^\d{17,20}$/.test(value);
 try{
  console.log('\nSORAVYNX - CAU HINH BOT VA SEPAY\nToken chi luu trong .env tren may ban, khong gui vao chat.\nKHONG chay lai Setup-Issuer. Giu nguyen khoa ky cu.\n');
