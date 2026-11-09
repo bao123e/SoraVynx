@@ -4,10 +4,11 @@ import {mkdirSync,writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {directory,matchingIssuer} from './owner-config.mjs';
 import {createShortLicense,publishShortLicense} from './issuer.mjs';
+import {orderQRReply,orderTextReply} from './order-reply.mjs';
 for(const name of ['DISCORD_BOT_TOKEN','DISCORD_GUILD_ID','DISCORD_OWNER_ID','LICENSE_PRIVATE_KEY_FILE','GITHUB_TOKEN'])if(!process.env[name])throw new Error('Missing '+name);
 const pem=matchingIssuer(process.env.LICENSE_PRIVATE_KEY_FILE);
 const client=new Client({intents:[GatewayIntentBits.Guilds]});
-client.once('clientReady',()=>console.log('SoraVynx owner bot ready. Payment confirmation is manual.'));
+client.once('clientReady',()=>console.log('SoraVynx owner bot ready. /keycreate: manual payment check; /order: SePay webhook.'));
 client.on('interactionCreate',async interaction=>{
  if(!interaction.isChatInputCommand()||!['keycreate','order'].includes(interaction.commandName))return;
  if(interaction.guildId!==process.env.DISCORD_GUILD_ID||interaction.user.id!==process.env.DISCORD_OWNER_ID){await interaction.reply({content:'Only the configured tool owner can issue keys.',flags:MessageFlags.Ephemeral});return;}
@@ -18,7 +19,8 @@ client.on('interactionCreate',async interaction=>{
    const response=await fetch('http://127.0.0.1:8787/admin/orders',{method:'POST',signal:AbortSignal.timeout(10000),headers:{Authorization:'Bearer '+process.env.PAYMENT_ADMIN_KEY,'Content-Type':'application/json'},body:JSON.stringify({plan:interaction.options.getString('plan',true)})});
    if(!response.ok)throw new Error('payment_not_ready');
    const order=await response.json();
-   await interaction.editReply({content:'Đơn '+order.code+' — '+new Intl.NumberFormat('vi-VN').format(order.amount)+'đ\nGửi riêng link này cho khách: '+order.url+'\nKey sẽ hiện tại link sau khi SePay xác nhận đúng tiền. Link chứa quyền nhận key; không đăng công khai.',allowedMentions:{parse:[]}});return;
+   const reply=await orderQRReply(order);
+   try{await interaction.editReply(reply);}catch{await interaction.editReply(orderTextReply(order));}return;
   }
   const record=createShortLicense(pem,interaction.options.getString('plan',true));
   const folder=resolve(directory,'secrets/manual-keys');mkdirSync(folder,{recursive:true,mode:0o700});
