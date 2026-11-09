@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include "launcher_path.h"
 #include "launcher_capture.h"
+#include "license_gate.h"
 
 /* Release build: do not create launcher logs. */
 static void loader_log(const wchar_t *format,...){(void)format;}
@@ -35,7 +36,7 @@ static int verify_tool_file(const wchar_t *path) {
  ok=!strcmp(hex,EXPECTED_DLL_SHA256);
  done:
  if(hash)BCryptDestroyHash(hash);if(algorithm)BCryptCloseAlgorithmProvider(algorithm,0);CloseHandle(file);
- if(!ok)fail(L"SoraVynx.Runtime.dll is not the matching SoraVynx build, or could not be verified. Download the DLL supplied with this launcher; do not use the original key-locked DLL.");
+ if(!ok)fail(L"SoraVynx.Runtime.dll is not the matching SoraVynx build, or could not be verified. Download the matching DLL supplied with this launcher.");
  return ok;
 }
 static int startup_poll;
@@ -69,6 +70,7 @@ static uintptr_t remote_export(DWORD pid,const char *name) {
  return base+(uintptr_t)address-(uintptr_t)owner;
 }
 static int load_tool(DWORD pid) {
+ if(!sv_license_alive())return fail(L"Access key expired. Restart SoraVynx and enter a valid key.");
  wchar_t dll[32768];
  DWORD length=GetModuleFileNameW(NULL,dll,32768);
  if(!length||length>=32768)return fail(L"Cannot locate launcher folder.");
@@ -144,6 +146,7 @@ static BOOL CALLBACK find_panel(HWND hwnd,LPARAM argument) {
  return TRUE;
 }
 static int restore_panel(DWORD pid) {
+ if(!sv_license_alive())return 0;
  if(!pid||pid==MAXDWORD)return 0;
  struct PanelSearch search={pid,NULL};EnumWindows(find_panel,(LPARAM)&search);
  if(!search.panel)return 0;
@@ -222,6 +225,7 @@ static LRESULT CALLBACK launcher_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp) {
 }
 int WINAPI wWinMain(HINSTANCE instance,HINSTANCE previous,LPWSTR command,int show) {
  (void)previous;(void)command;(void)show;
+ if(!sv_license_require(instance))return 0;
  DWORD n=GetModuleFileNameW(NULL,ini_path,32768);
  if(!n||n>=32768)return fail(L"Cannot locate launcher folder.");
  wchar_t *tail=wcsrchr(ini_path,L'\\');if(!tail||(size_t)(tail-ini_path)+24>=32768)return 1;

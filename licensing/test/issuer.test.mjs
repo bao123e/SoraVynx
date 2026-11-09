@@ -1,0 +1,12 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {generateKeyPairSync} from 'node:crypto';
+import {issueLicense,verifyLicense,publicHeader} from '../issuer.mjs';
+const {privateKey,publicKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});
+const privatePem=privateKey.export({type:'pkcs8',format:'pem'}),publicPem=publicKey.export({type:'spki',format:'pem'});
+const machine='a'.repeat(64),now=1800000000;
+test('all plans verify and have their exact lifetime',()=>{for(const [plan,days] of [['week',7],['month',30],['year',365],['lifetime',0]]){const key=issueLicense(privatePem,machine,plan,now);assert.equal(key.length,252);assert.equal(verifyLicense(publicPem,key,machine,now),true);assert.equal(Number(key.split('.')[2]),days?now+days*86400:0);}});
+test('reject expiry at the boundary, future issuance and another machine',()=>{const k=issueLicense(privatePem,machine,'week',now);assert.equal(verifyLicense(publicPem,k,machine,now+7*86400),false);assert.equal(verifyLicense(publicPem,k,machine,now-301),false);assert.equal(verifyLicense(publicPem,k,'b'.repeat(64),now),false);});
+test('payload and signature edits cannot extend a key',()=>{const k=issueLicense(privatePem,machine,'week',now);assert.equal(verifyLicense(publicPem,k.replace(String(now+7*86400),'9999999999'),machine,now),false);assert.equal(verifyLicense(publicPem,k.slice(0,-1)+(k.at(-1)==='a'?'b':'a'),machine,now),false);});
+test('reject malformed protocol and wrong issuer',()=>{const k=issueLicense(privatePem,machine,'week',now);for(const value of ['',k+'.extra',k.slice(1),k.toUpperCase()])assert.equal(verifyLicense(publicPem,value,machine,now),false);const other=generateKeyPairSync('ec',{namedCurve:'prime256v1'}).publicKey;assert.equal(verifyLicense(other,k,machine,now),false);});
+test('owner API validates input and exports only public bytes',()=>{assert.throws(()=>issueLicense(privatePem,'x','week',now));assert.throws(()=>issueLicense(privatePem,machine,'unknown',now));const h=publicHeader(publicPem);assert.ok(h.includes('SV_LICENSE_CONFIGURED 1'));assert.ok(!h.includes('PRIVATE'));assert.equal((h.match(/0x/g)||[]).length,64);});

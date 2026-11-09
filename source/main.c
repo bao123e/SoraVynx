@@ -12,6 +12,7 @@
 #include "ui_fonts.h"
 #include "daily_setup.h"
 #include "daily_lua_probe.h"
+#include "license_gate.h"
 
 /* Image, panel and button opacity are independent; text stays fully visible. */
 #define UI_BG RGB(9,17,30)
@@ -83,6 +84,7 @@ static DWORD WINAPI initialize(void *unused) {
  }
  if(!hotfix_image){log_line("Hotfix image not visible after 180 seconds; retry after the game reaches the main menu.");goto failed;}
  log_line("Hotfix image found. Binding verified signatures.");
+ if(!sv_license_alive())goto failed;
  if(!initialize_backend())goto failed;
  if(!install_frame_backend(game))goto failed;
  (void)daily_lua_install(game,self_module);
@@ -216,6 +218,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   return HTCLIENT;
  }
  case WM_COMMAND:{
+  if(!sv_license_alive()){disable_all();return 0;}
   int id=LOWORD(wp),notice=HIWORD(wp);
   if(notice==BN_CLICKED){
    if(id>=400&&id<=403){switch_page(id-400);return 0;}
@@ -250,6 +253,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   return 0;
  }
  case WM_HOTKEY:
+  if(!sv_license_alive()){disable_all();return 0;}
   if(wp==1)toggle_panel(hwnd);
   else if(wp>=6&&wp<=8){int i=(int)wp-6;if(read_atomic(&event_ready[i]))InterlockedExchange(&event_flags[i],!read_atomic(&event_flags[i]));refresh_status();}
   return 0;
@@ -266,6 +270,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  case WM_ERASEBKGND:return 1;
  case WM_PAINT:{PAINTSTRUCT paint;HDC dc=BeginPaint(hwnd,&paint);if(background_dc){RECT r;GetClientRect(hwnd,&r);BitBlt(dc,0,0,r.right,r.bottom,background_dc,0,0,SRCCOPY);}EndPaint(hwnd,&paint);return 0;}
  case WM_TIMER:
+  if(!sv_license_alive()){disable_all();for(int id=1;id<=8;id++)UnregisterHotKey(hwnd,id);KillTimer(hwnd,1);DestroyWindow(hwnd);MessageBoxW(NULL,L"Your access key has expired. Reopen SoraVynx to activate a new key.",L"SoraVynx access",MB_OK|MB_ICONINFORMATION);PostQuitMessage(0);return 0;}
   daily_lua_poll(hwnd);
   if(!global_hotkey){static bool previous;bool down=(GetAsyncKeyState(VK_F1)&0x8000)!=0;if(down&&!previous)toggle_panel(hwnd);previous=down;}
   refresh_status();return 0;
@@ -284,6 +289,7 @@ static HWND page_control(int page,const wchar_t *kind,const wchar_t *text,DWORD 
  HWND c=control(kind,text,style,x,y,w,h,id);if(c&&page_count[page]<16)page_controls[page][page_count[page]++]=c;return c;
 }
 static DWORD WINAPI run(void *unused) {
+ if(!sv_license_require(self_module))return 0;
  (void)unused;WNDCLASSW wc={0};wc.lpfnWndProc=procedure;wc.hInstance=self_module;wc.lpszClassName=L"SoraVynxRuntime";
  wc.hCursor=LoadCursorW(NULL,MAKEINTRESOURCEW(32512));
  brand_icon=LoadImageW(self_module,MAKEINTRESOURCEW(101),IMAGE_ICON,32,32,LR_DEFAULTCOLOR);wc.hIcon=brand_icon;
