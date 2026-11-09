@@ -3,16 +3,18 @@ import {DatabaseSync} from 'node:sqlite';
 import {mkdirSync,chmodSync} from 'node:fs';
 import {dirname} from 'node:path';
 export class OrderDelivery {
- constructor({file,owner,fetchOrder,sendDM,now=()=>Math.floor(Date.now()/1000)}){
+ constructor({file,owner,guild,allowBuyers=false,fetchOrder,sendDM,now=()=>Math.floor(Date.now()/1000)}){
   if(file!==':memory:')mkdirSync(dirname(file),{recursive:true,mode:0o700});
   this.db=new DatabaseSync(file);if(file!==':memory:')chmodSync(file,0o600);
   this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
    CREATE TABLE IF NOT EXISTS deliveries(order_id TEXT PRIMARY KEY,code TEXT NOT NULL,user_id TEXT NOT NULL,done INTEGER NOT NULL DEFAULT 0,next_try INTEGER NOT NULL DEFAULT 0,lease_until INTEGER NOT NULL DEFAULT 0);`);
-  Object.assign(this,{owner,fetchOrder,sendDM,now});this.live=new Map();this.working=false;
+  Object.assign(this,{owner,guild,allowBuyers,fetchOrder,sendDM,now});this.live=new Map();this.working=false;
  }
  track(order,interaction){
-  if(!/^[a-f0-9]{48}$/.test(order.id)||!/^SVX[A-F0-9]{16}$/.test(order.code)||interaction.user.id!==this.owner)throw new Error('invalid_delivery_recipient');
-  this.db.prepare('INSERT INTO deliveries(order_id,code,user_id) VALUES(?,?,?) ON CONFLICT(order_id) DO NOTHING').run(order.id,order.code,this.owner);
+  const buyer=interaction.user.id;
+  if(!/^[a-f0-9]{48}$/.test(order.id)||!/^SVX[A-F0-9]{16}$/.test(order.code)||!/^\d{17,20}$/.test(buyer)||(this.allowBuyers?interaction.guildId!==this.guild:buyer!==this.owner))throw new Error('invalid_delivery_recipient');
+  const existing=this.db.prepare('SELECT user_id FROM deliveries WHERE order_id=?').get(order.id);if(existing&&existing.user_id!==buyer)throw new Error('recipient_mismatch');
+  this.db.prepare('INSERT INTO deliveries(order_id,code,user_id) VALUES(?,?,?) ON CONFLICT(order_id) DO NOTHING').run(order.id,order.code,buyer);
   this.live.set(order.id,{interaction,until:Math.floor(interaction.createdTimestamp/1000)+14*60,state:'pending'});
  }
  async tick(){
@@ -24,7 +26,7 @@ export class OrderDelivery {
     if(!row)break;
     let delivered=false,delay=5;
     try{
-     if(row.user_id!==this.owner)throw new Error('recipient_mismatch');
+     if(!/^\d{17,20}$/.test(row.user_id)||(!this.allowBuyers&&row.user_id!==this.owner))throw new Error('recipient_mismatch');
      const order=await this.fetchOrder(row.order_id);
      if(order.id!==row.order_id||order.code!==row.code)throw new Error('order_mismatch');
      let live=this.live.get(row.order_id);
@@ -35,7 +37,7 @@ export class OrderDelivery {
       const reply={content,embeds:[],components:[],attachments:[],allowedMentions:{parse:[]}};
       if(live){try{await live.interaction.editReply(reply);delivered=true;}catch{this.live.delete(row.order_id);}}
       // Interaction tokens expire. A private DM also survives a bot restart.
-      if(!delivered){await this.sendDM(this.owner,{...reply,nonce:row.order_id.slice(0,24),enforceNonce:true});delivered=true;}
+      if(!delivered){await this.sendDM(row.user_id,{...reply,nonce:row.order_id.slice(0,24),enforceNonce:true});delivered=true;}
      }else if(order.state==='publishing'){
       if(live&&live.state!=='publishing'){
        try{await live.interaction.editReply({content:'**Đã nhận tiền — đang đăng ký key.**\nĐơn: `'+order.code+'`\nBot sẽ tự hiện key khi đăng ký xong. Không chuyển thêm tiền.',embeds:[],components:[],attachments:[],allowedMentions:{parse:[]}});live.state='publishing';}catch{this.live.delete(row.order_id);}

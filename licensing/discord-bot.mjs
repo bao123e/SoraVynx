@@ -6,19 +6,26 @@ import {directory,matchingIssuer} from './owner-config.mjs';
 import {createShortLicense,publishShortLicense} from './issuer.mjs';
 import {orderQRReply,orderTextReply} from './order-reply.mjs';
 import {OrderDelivery} from './order-delivery.mjs';
+import {canUseCommand} from './bot-policy.mjs';
 for(const name of ['DISCORD_BOT_TOKEN','DISCORD_GUILD_ID','DISCORD_OWNER_ID','LICENSE_PRIVATE_KEY_FILE','GITHUB_TOKEN'])if(!process.env[name])throw new Error('Missing '+name);
 const pem=matchingIssuer(process.env.LICENSE_PRIVATE_KEY_FILE);
 const client=new Client({intents:[GatewayIntentBits.Guilds]});
-const deliveries=new OrderDelivery({file:resolve(directory,'secrets/discord-delivery.sqlite'),owner:process.env.DISCORD_OWNER_ID,
+const buyerAttempts=new Map();
+const deliveries=new OrderDelivery({file:resolve(directory,'secrets/discord-delivery.sqlite'),owner:process.env.DISCORD_OWNER_ID,guild:process.env.DISCORD_GUILD_ID,allowBuyers:true,
  fetchOrder:async id=>{const response=await fetch('http://127.0.0.1:8787/api/orders/'+id,{signal:AbortSignal.timeout(10000),cache:'no-store'});if(!response.ok)throw new Error('backend_not_ready');return response.json();},
  sendDM:(id,message)=>client.users.send(id,message)});
 client.once('clientReady',()=>{console.log('SoraVynx owner bot ready. /order: SePay confirmation and automatic private key delivery.');deliveries.start();});
 client.on('interactionCreate',async interaction=>{
- if(!interaction.isChatInputCommand()||!['keycreate','order'].includes(interaction.commandName))return;
- if(interaction.guildId!==process.env.DISCORD_GUILD_ID||interaction.user.id!==process.env.DISCORD_OWNER_ID){await interaction.reply({content:'Only the configured tool owner can issue keys.',flags:MessageFlags.Ephemeral});return;}
+ if(!interaction.isChatInputCommand()||!['keycreate','order','buy'].includes(interaction.commandName))return;
+ if(!canUseCommand(interaction.commandName,interaction.guildId,interaction.user.id,{guild:process.env.DISCORD_GUILD_ID,owner:process.env.DISCORD_OWNER_ID})){await interaction.reply({content:'Lệnh quản trị chỉ dành cho chủ tool; khách dùng /buy trong server SoraVynx.',flags:MessageFlags.Ephemeral});return;}
+ if(interaction.commandName==='buy'){
+  const now=Date.now(),previous=buyerAttempts.get(interaction.user.id)||[];const recent=previous.filter(t=>now-t<3600000);
+  if(recent.length>=5){await interaction.reply({content:'Bạn đã tạo nhiều đơn. Vui lòng dùng lại đơn đang chờ hoặc thử lại sau.',flags:MessageFlags.Ephemeral});return;}
+  recent.push(now);buyerAttempts.set(interaction.user.id,recent);
+ }
  try{
   await interaction.deferReply({flags:MessageFlags.Ephemeral});
-  if(interaction.commandName==='order'){
+  if(['order','buy'].includes(interaction.commandName)){
    if(!process.env.PAYMENT_ADMIN_KEY)throw new Error('payment_not_configured');
    const response=await fetch('http://127.0.0.1:8787/admin/orders',{method:'POST',signal:AbortSignal.timeout(10000),headers:{Authorization:'Bearer '+process.env.PAYMENT_ADMIN_KEY,'Content-Type':'application/json'},body:JSON.stringify({plan:interaction.options.getString('plan',true)})});
    if(!response.ok)throw new Error('payment_not_ready');
@@ -33,6 +40,6 @@ client.on('interactionCreate',async interaction=>{
   writeFileSync(resolve(folder,record.hash+'.json'),JSON.stringify(record),{flag:'wx',mode:0o600});
   await publishShortLicense(record);
   await interaction.editReply({content:'Key: `'+record.key+'` — đã đăng ký. Đợi website cập nhật rồi gửi riêng cho khách. Hạn bắt đầu từ lúc cấp.',allowedMentions:{parse:[]}});
- }catch{const content=interaction.commandName==='order'?'Chưa tạo được đơn. Mở 5-Start-Webhook.cmd và kiểm tra PUBLIC_BASE_URL trong .env.':'Chưa đăng ký được key. Kiểm tra quyền Contents: Read and write của GitHub token. Bản sao được giữ riêng trong secrets/manual-keys.';if(interaction.deferred)await interaction.editReply({content});else await interaction.reply({content,flags:MessageFlags.Ephemeral});}
+ }catch{const content=['order','buy'].includes(interaction.commandName)?'Chưa tạo được đơn. Vui lòng thử lại sau hoặc liên hệ @vsc.plus; không chuyển tiền khi chưa thấy QR hợp lệ.':'Chưa đăng ký được key. Kiểm tra quyền Contents: Read and write của GitHub token. Bản sao được giữ riêng trong secrets/manual-keys.';if(interaction.deferred)await interaction.editReply({content});else await interaction.reply({content,flags:MessageFlags.Ephemeral});}
 });
 await client.login(process.env.DISCORD_BOT_TOKEN);

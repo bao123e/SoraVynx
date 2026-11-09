@@ -1,6 +1,8 @@
-# SoraVynx — bộ cấu hình bot và key 15 ký tự (v0.3.2)
+# SoraVynx — bộ cấu hình bot và key 15 ký tự (v0.4.0)
 
-**Bắt đầu tại [SEPAY.vi.md](SEPAY.vi.md).** Đã có bot Discord và SePay: mở `3-Setup-Bot.cmd`, điền theo từng dòng rồi mở `4-Start-Bot.cmd`. Bộ cài kiểm tra đúng khóa ký cũ trước khi lưu cấu hình. Không chạy lại Setup-Issuer.
+**Đã có bộ bot đang chạy: xem [WEB-STORE.vi.md](WEB-STORE.vi.md) để cập nhật web/đăng nhập/ví và lệnh /buy cho khách.**
+
+**Cài lần đầu: [SEPAY.vi.md](SEPAY.vi.md).** Đã có bot Discord và SePay: mở `3-Setup-Bot.cmd`, điền theo từng dòng rồi mở `4-Start-Bot.cmd`. Bộ cài kiểm tra đúng khóa ký cũ trước khi lưu cấu hình. Không chạy lại Setup-Issuer.
 
 Có thêm `/order` tạo trang QR BIDV riêng, endpoint `/webhooks/sepay` xác thực API Key, database giữ đơn và chống cấp trùng. Chưa kết nối SePay thật hoặc triển khai backend công khai; cần làm các bước tunnel/host trong hướng dẫn trước khi nhận tiền tự động. Website cửa hàng hiện vẫn dùng liên hệ Discord.
 
