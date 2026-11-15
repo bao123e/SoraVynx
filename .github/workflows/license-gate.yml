@@ -2,7 +2,7 @@ name: Verify Windows license gate
 on:
   workflow_dispatch:
   push:
-    branches: [feature/license-gate, feature/key-recovery]
+    branches: [feature/license-gate, feature/key-recovery, fix/startup-compatibility-report]
     paths: ['source/**', 'licensing/**', '.github/workflows/license-gate.yml']
 permissions:
   contents: write
@@ -24,6 +24,12 @@ jobs:
         run: |
           node --test licensing/test/issuer.test.mjs
           python source/build.py --zig zig
+      - name: Verify startup status and clipboard on Windows without game execution
+        shell: pwsh
+        run: |
+          zig cc -target x86_64-windows-gnu -O2 -UNDEBUG -std=c11 -Wall -Wextra -Werror -Wno-unused-function source/tests/startup_windows_test.c source/api.c source/backend.c source/vendor/minhook/src/hook.c source/vendor/minhook/src/buffer.c source/vendor/minhook/src/trampoline.c source/vendor/minhook/src/hde/hde64.c source/dist/ui.res -Isource/vendor/minhook/include -lgdiplus -lcomdlg32 -lmsimg32 -luser32 -lgdi32 -lkernel32 -lbcrypt -lwinhttp -lcrypt32 -ladvapi32 -o "$env:RUNNER_TEMP/startup-test.exe"
+          & "$env:RUNNER_TEMP/startup-test.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Startup status/clipboard regression failed' }
       - name: Prepare ephemeral issuer and native verifier
         shell: pwsh
         run: |
@@ -66,11 +72,13 @@ jobs:
         run: |
           tag="v$(python -c "import json; print(json.load(open('source/dist/build.json'))['version'])")"
           cat > "$RUNNER_TEMP/customer-notes.md" <<'NOTES'
-          Windows x64 preview rebuilt to match the public key exported from the owner's retained private PEM; this only updates license verification. Compiled with the owner's supplied P-256 public key. Start SoraVynx.exe, enter a registered 15-character key. Use Owner Key Tools v0.3.2 with the retained private PEM; register its signed .lic record on soravynx.online before use.
+          Windows x64 startup diagnostic preview for the reported game 2.1.0 update. Replaces the generic unsupported message with distinct startup failure codes and adds Copy startup report, available after startup stops. The report contains no license key, account, addresses or paths and creates no log files. Binary hash and signature checks remain unchanged.
 
-          Tested on Windows: native signature/expiry/machine/tamper checks; activation UI and DPAPI reload; actual customer launcher rejects a different issuer; HTTPS registry access and rejection of the previous issuer. A new record signed by the retained owner key is still needed for a full production activation test. No production private key is included. Gameplay of the new build is not verified. Internet is required at startup. Keys are bearer codes, not machine-bound. No automatic QR payments. Keep the existing issuer-private.pem; do not regenerate the issuer.
+          Keep the existing issuer-private.pem and existing registered key. Extract into a new folder and use the EXE/DLL pair together. Enter the game main menu, wait for initialization to end (WAIT_HOTFIX can take up to 180 seconds), then Copy startup report and send its contents. No new issuer or bot/SePay setup is required.
+
+          Verified: native mock backend failure paths and bounded report formatting; actual Windows status label/clipboard; license signature/expiry/tamper checks and activation UI. Gameplay after the game update is unverified. This is a diagnostic build, not a confirmed gameplay repair or anti-ban update.
           NOTES
-          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - owner-key Windows preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
+          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - startup diagnostic preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
       - name: Upload owner-configured customer build only
         if: steps.issuer.outputs.configured == 'true'
         uses: actions/upload-artifact@v4

@@ -1,3 +1,11 @@
+## Chẩn đoán bản game 2.1.0 — startup-preview.1
+
+GameAssembly SHA256 người dùng cung cấp vẫn khớp profile cũ (`6adc5de8…32e06dd8`); global-metadata.dat cũng không đổi. hotfix.arch mới khớp MD5 trong file_versions.dat, chứa Hotfix theo định dạng CDPH. Chưa xác định được bước khởi tạo bị dừng trên máy thật; chưa có cơ sở thay offset hay bỏ kiểm tra phiên bản.
+
+Bản mới hiển thị mã lỗi riêng ở thanh trạng thái và có **Copy startup report** ở chân cửa sổ, dùng được sau khi khởi tạo thất bại. Mở tool như trước, vào màn chính game, chờ kết thúc kết nối (WAIT_HOTFIX tối đa 180 giây), bấm nút và gửi nội dung. Báo cáo không chứa key/tài khoản/đường dẫn, không tạo tệp log. Giữ nguyên issuer/private PEM; đây là bản chẩn đoán, chưa xác nhận gameplay sau cập nhật.
+
+Các mã chính: HOTFIX_TIMEOUT (chưa thấy image), PLAYER_CLASS_MISSING/MONSTER_CLASS_MISSING (thiếu lớp), FRAME_PROFILE_MISMATCH (entry trong RAM không khớp), MINHOOK_INIT_FAILED/FRAME_CREATE_FAILED/FRAME_ENABLE_FAILED (thư viện hook, kèm mã trạng thái). Không ghi đè bộ tool cũ đang mở; EXE và DLL mới phải cùng một cặp.
+
 # SoraVynx — mã nguồn Windows x64
 
 SoraVynx là tên mới của toolkit Stella Sora. Launcher **SoraVynx.exe**, thư viện **SoraVynx.Runtime.dll** luôn phải cùng một build. Đóng game trước khi chuyển từ bản cũ; không đổi tên hoặc trộn EXE/DLL giữa hai bản. config.ini vẫn giữ các tùy chọn nền đã lưu.

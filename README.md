@@ -6,6 +6,8 @@ SoraVynx is a Windows x64 toolkit for Stella Sora, with an experimental Android 
 
 ## Windows
 
+**[Bản chẩn đoán startup-preview.1](https://github.com/bao123e/SoraVynx/releases/tag/v1.2.1-startup-preview.1)**: dùng cho lỗi “Startup stopped” sau cập nhật game 2.1.0. Đã đối chiếu hash GameAssembly vẫn khớp; chưa xác định bước lỗi trên máy thật. Giải nén cặp EXE/DLL mới, mở tool như trước, vào màn chính, chờ kết nối kết thúc rồi bấm **Copy startup report**. Không tạo log, không đổi issuer/key hoặc cấu hình thanh toán. Đây là bản chẩn đoán, chưa xác nhận các chức năng hoạt động lại sau cập nhật. [Chi tiết](source/README.vi.md).
+
 **[Download v1.1.0 preview.10](https://github.com/bao123e/SoraVynx/releases/tag/v1.1.0-preview.10)** · [Source & build](source/README.vi.md)
 
 - **Player:** God Mode, Damage x2–x50, No Cooldown, Unlimited Energy, Mob Vacuum.

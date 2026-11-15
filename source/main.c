@@ -35,7 +35,7 @@ static HBRUSH background_brush,background_pattern;
 static HFONT body_font,button_font,title_font,section_font,daily_font;
 static HDC background_dc;static HBITMAP background_bitmap;
 static HGDIOBJ background_original;
-static volatile LONG init_state;
+static volatile LONG init_state,startup_code=SV_STARTING,binary_check,hotfix_found,startup_hook_status;
 static const wchar_t *labels[FEATURE_COUNT]={L"Instant Break",L"God Mode",L"Damage Multiplier",L"No Cooldown",L"Unlimited Energy",L"Mob Vacuum"};
 /* Release build: diagnostics do not create files. */
 void log_line(const char *format,...){(void)format;}
@@ -63,17 +63,24 @@ static bool verify_game(HMODULE game) {
  if(hash)BCryptDestroyHash(hash);if(algorithm)BCryptCloseAlgorithmProvider(algorithm,0);
  free(buffer);CloseHandle(file);return ok;
 }
+#define STARTUP_STOP(reason) do { InterlockedExchange(&startup_code,(reason));goto failed; } while(0)
 static DWORD WINAPI initialize(void *unused) {
  (void)unused;void *thread=NULL;HMODULE game=NULL;
  HMODULE other=GetModuleHandleW(L"SoraVynx.Runtime.dll");
- if(other&&other!=self_module){log_line("Another SoraVynx.Runtime.dll is loaded. Restart with only this DLL.");goto failed;}
+ if(other&&other!=self_module){log_line("Another SoraVynx.Runtime.dll is loaded. Restart with only this DLL.");STARTUP_STOP(SV_DUPLICATE_RUNTIME);}
+ InterlockedExchange(&startup_code,SV_WAIT_MODULE);
  for(int i=0;i<120;i++){game=GetModuleHandleW(L"GameAssembly.dll");if(game)break;Sleep(1000);}
- if(!game||!verify_game(game)||!bind_api(game))goto failed;
+ if(!game)STARTUP_STOP(SV_MODULE_TIMEOUT);
+ bool verified=verify_game(game);InterlockedExchange(&binary_check,verified?1:-1);
+ if(!verified)STARTUP_STOP(SV_BINARY_CHECK_FAILED);
+ if(!bind_api(game))STARTUP_STOP(SV_API_EXPORT_MISSING);
  log_line("GameAssembly loaded base: %p",(void*)game);
+ InterlockedExchange(&startup_code,SV_WAIT_DOMAIN);
  void *domain=NULL;
  for(int i=0;i<120;i++){domain=api.domain_get();if(domain)break;Sleep(1000);}
- if(!domain){log_line("IL2CPP domain timeout.");goto failed;}
- thread=api.thread_attach(domain);if(!thread)goto failed;
+ if(!domain){log_line("IL2CPP domain timeout.");STARTUP_STOP(SV_DOMAIN_TIMEOUT);}
+ thread=api.thread_attach(domain);if(!thread)STARTUP_STOP(SV_THREAD_ATTACH_FAILED);
+ InterlockedExchange(&startup_code,SV_WAIT_HOTFIX);
  for(int attempt=0;attempt<180;attempt++) {
   size_t count=0;const void **assemblies=api.domain_get_assemblies(domain,&count);
   if(assemblies&&count<4096)for(size_t i=0;i<count;i++) {
@@ -82,16 +89,35 @@ static DWORD WINAPI initialize(void *unused) {
   }
   if(hotfix_image)break;Sleep(1000);
  }
- if(!hotfix_image){log_line("Hotfix image not visible after 180 seconds; retry after the game reaches the main menu.");goto failed;}
+ if(!hotfix_image){log_line("Hotfix image not visible after 180 seconds; retry after the game reaches the main menu.");STARTUP_STOP(SV_HOTFIX_TIMEOUT);}
  log_line("Hotfix image found. Binding verified signatures.");
- if(!sv_license_alive())goto failed;
- if(!initialize_backend())goto failed;
- if(!install_frame_backend(game))goto failed;
+ InterlockedExchange(&hotfix_found,1);
+ if(!sv_license_alive())STARTUP_STOP(SV_LICENSE_EXPIRED);
+ InterlockedExchange(&startup_code,SV_BIND_BACKEND);
+ if(!initialize_backend()){InterlockedExchange(&startup_hook_status,backend_hook_status());STARTUP_STOP(backend_startup_error());}
+ if(!install_frame_backend(game)){InterlockedExchange(&startup_hook_status,backend_hook_status());STARTUP_STOP(backend_startup_error());}
  (void)daily_lua_install(game,self_module);
- api.thread_detach(thread);InterlockedExchange(&init_state,1);PostMessageW(window,WM_APP+1,0,0);return 0;
+ api.thread_detach(thread);InterlockedExchange(&startup_code,SV_READY);InterlockedExchange(&init_state,1);PostMessageW(window,WM_APP+1,0,0);return 0;
  failed:
  if(thread)api.thread_detach(thread);
  InterlockedExchange(&init_state,-1);PostMessageW(window,WM_APP+1,0,0);return 1;
+}
+
+#undef STARTUP_STOP
+
+static void copy_startup_report(HWND owner) {
+ LONG state=read_atomic(&init_state);
+ if(!state){MessageBoxW(owner,L"Still connecting. Enter the game main menu and wait for startup to finish.",L"SoraVynx",MB_OK|MB_ICONINFORMATION);return;}
+ int player=0,events=0;
+ if(state==1){for(int i=0;i<FEATURE_COUNT;i++)if(read_atomic(&capabilities[i]))player++;for(int i=0;i<3;i++)if(read_atomic(&event_ready[i]))events++;}
+ char report[1024];
+ int n=startup_report_format(report,sizeof(report),(int)read_atomic(&startup_code),(int)read_atomic(&binary_check),(int)read_atomic(&hotfix_found),(int)read_atomic(&startup_hook_status),player,events);
+ if(n<0||(size_t)n>=sizeof(report))return;
+ HGLOBAL memory=GlobalAlloc(GMEM_MOVEABLE,(size_t)n+1);bool copied=false;
+ if(memory){char *data=GlobalLock(memory);if(data){memcpy(data,report,(size_t)n+1);GlobalUnlock(memory);
+  if(OpenClipboard(owner)){if(EmptyClipboard())copied=SetClipboardData(CF_TEXT,memory)!=NULL;CloseClipboard();}}
+  if(!copied)GlobalFree(memory);}
+ MessageBoxW(owner,copied?L"Compatibility report copied. Send this text for the update. No file was created.":L"Clipboard unavailable. Try again.",L"SoraVynx",MB_OK|(copied?MB_ICONINFORMATION:MB_ICONERROR));
 }
 
 static void update_text(HWND hwnd,const wchar_t *text) {
@@ -107,10 +133,11 @@ static void refresh_status(void) {
  for(int i=0;i<FEATURE_COUNT;i++)if(checks[i]){BOOL on=state==1&&read_atomic(&capabilities[i]);EnableWindow(checks[i],on);if(on)player++;}
  for(int i=0;i<3;i++){BOOL on=state==1&&read_atomic(&event_ready[i]);if(event_checks[i]){EnableWindow(event_checks[i],on);InvalidateRect(event_checks[i],NULL,FALSE);}if(on)events++;}
  wchar_t text[256];
- if(state<0)wcscpy(text,L"Startup stopped. Game version unsupported or runtime unavailable.");
- else if(!state)wcscpy(text,L"Connecting to the game... enter the main menu.");
+ if(state<0)swprintf(text,256,L"Startup stopped: %hs",startup_code_name((int)read_atomic(&startup_code)));
+ else if(!state)swprintf(text,256,L"Connecting: %hs / enter the main menu",startup_code_name((int)read_atomic(&startup_code)));
  else swprintf(text,256,L"READY   /   Player %d of 5   /   Event %d of 3",player,events);
  update_text(status_label,text);
+ EnableWindow(GetDlgItem(window,433),state!=0);
  if(daily_report){LONG pending=InterlockedCompareExchange(&daily_lua_state,0,0);EnableWindow(daily_report,state==1&&!pending);update_text(daily_report,pending&&!daily_lua_kind?L"Inspecting Lua names...":L"Copy Lua name report");}
  LONG pending_action=InterlockedCompareExchange(&daily_lua_state,0,0);
  EnableWindow(GetDlgItem(window,432),state==1&&!pending_action&&(daily_selection&(1u<<7)));
@@ -222,6 +249,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   int id=LOWORD(wp),notice=HIWORD(wp);
   if(notice==BN_CLICKED){
    if(id>=400&&id<=403){switch_page(id-400);return 0;}
+   if(id==433){copy_startup_report(hwnd);return 0;}
    if(id==430){daily_lua_request(hwnd);return 0;}
    if(id==431){daily_copy_setup(hwnd);return 0;}
    if(id==432){if(read_atomic(&init_state)==1&&(daily_selection&(1u<<7))){daily_lua_tower_request(hwnd);if(daily_lua_kind==1&&InterlockedCompareExchange(&daily_lua_state,0,0)==1)daily_lua_return_to_game(hwnd);}return 0;}
@@ -353,11 +381,13 @@ static DWORD WINAPI run(void *unused) {
  page_control(3,L"BUTTON",L"Tower reward / status",BS_OWNERDRAW|WS_TABSTOP,648,460,312,32,432);
  control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,48,200);
  status_label=control(L"STATIC",L"Connecting to game...",0,208,516,752,24,0);
- footer=control(L"STATIC",L"",0,208,552,752,24,0);
+ footer=control(L"STATIC",L"",0,208,552,528,24,0);
+ control(L"BUTTON",L"Copy startup report",BS_OWNERDRAW|WS_TABSTOP,752,546,208,32,433);
+ EnableWindow(GetDlgItem(window,433),FALSE);
  for(int i=6;i<=8;i++)RegisterHotKey(window,i,MOD_NOREPEAT,VK_F6+i-6);
  global_hotkey=RegisterHotKey(window,1,MOD_NOREPEAT,VK_F1)!=0;
  switch_page(0);refresh_background();SetTimer(window,1,global_hotkey?500:50,NULL);ShowWindow(window,SW_SHOWNOACTIVATE);
- HANDLE thread=CreateThread(NULL,0,initialize,NULL,0,NULL);if(thread)CloseHandle(thread);else InterlockedExchange(&init_state,-1);
+ HANDLE thread=CreateThread(NULL,0,initialize,NULL,0,NULL);if(thread)CloseHandle(thread);else {InterlockedExchange(&startup_code,SV_INIT_THREAD_FAILED);InterlockedExchange(&init_state,-1);}
  MSG msg;while(GetMessageW(&msg,NULL,0,0)>0){if(!IsDialogMessageW(window,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}
  return 0;
 }

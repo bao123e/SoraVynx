@@ -1,6 +1,7 @@
 /* Native mock integration tests: actual callbacks, no Windows/game execution. */
 #include <assert.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include "../backend.c"
 struct RuntimeAPI api;
 const void *hotfix_image;
@@ -110,7 +111,37 @@ static void reset(void){
  group_count=1;groups[0].entry_calls=groups[0].null_methods=0;groups[0].sample_method=NULL;
  api.object_get_class=object_class;api.class_is_assignable_from=assignable;api.class_value_size=value_size;api.object_unbox=unbox;api.field_static_get_value=static_value;api.field_get_value=field_value;
 }
+static int hook_creates,hook_enables;
+static MH_STATUS create_status=MH_ERROR_UNSUPPORTED_FUNCTION,enable_status=MH_ERROR_MEMORY_PROTECT;
+MH_STATUS WINAPI MH_Initialize(void){return MH_OK;}
+const char * WINAPI MH_StatusToString(MH_STATUS status){(void)status;return "mock";}
+MH_STATUS WINAPI MH_CreateHook(void *target,void *detour,void **original){
+ (void)target;(void)detour;hook_creates++;*original=(void*)orig_void;return create_status;
+}
+MH_STATUS WINAPI MH_EnableHook(void *target){(void)target;hook_enables++;return enable_status;}
+static void startup_failure_tests(void){
+ assert(!initialize_backend());assert(backend_startup_error()==SV_PLAYER_CLASS_MISSING);
+ player_class=(void*)1;monster_class=(void*)2;
+ unsigned char *image=calloc(1,0x64e1c0+32);assert(image);
+ assert(!install_frame_backend(image));assert(backend_startup_error()==SV_FRAME_PROFILE_MISMATCH);
+ assert(hook_creates==0&&hook_enables==0);
+ const unsigned char prologue[]={0x48,0x89,0x5c,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x48,0x89,0x7c,0x24,0x18,0x41,0x56};
+ memcpy(image+0x64e1c0,prologue,sizeof(prologue));
+ assert(!install_frame_backend(image));assert(backend_startup_error()==SV_FRAME_CREATE_FAILED);
+ assert(backend_hook_status()==MH_ERROR_UNSUPPORTED_FUNCTION&&hook_enables==0);
+ create_status=MH_OK;
+ assert(!install_frame_backend(image));assert(backend_startup_error()==SV_FRAME_ENABLE_FAILED);
+ assert(backend_hook_status()==MH_ERROR_MEMORY_PROTECT&&hook_enables==1);
+ for(int i=0;i<FEATURE_COUNT;i++)assert(!feature_flags[i]&&!capabilities[i]);
+ char report[1024];int n=startup_report_format(report,sizeof(report),SV_FRAME_PROFILE_MISMATCH,1,1,0,0,0);
+ assert(n>0&&(size_t)n<sizeof(report));assert(strstr(report,"Startup: FRAME_PROFILE_MISMATCH"));
+ assert(strstr(report,"allowlist: matched"));assert(strstr(report,"Player signatures ready: 0/5"));
+ char small[8];volatile size_t small_size=sizeof(small);assert(startup_report_format(small,small_size,-1,0,0,0,0,0)>=(int)sizeof(small));
+ assert(small[7]==0&&!strcmp(startup_code_name(-1),"UNKNOWN"));
+ free(image);puts("PASS startup class/prologue/create/enable failures stay distinct and fail closed; bounded report");
+}
 int main(void){
+ startup_failure_tests();
  reset();groups[0].original=(void*)orig_void;
  void_dispatch(0,player,&mi_clear);assert(calls==1);
  feature_flags[UNLIMITED_ENERGY]=1;void_dispatch(0,player,&mi_clear);assert(calls==1);

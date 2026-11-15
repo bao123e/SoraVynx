@@ -6,6 +6,10 @@
 #include <stdio.h>
 volatile LONG feature_flags[FEATURE_COUNT],capabilities[FEATURE_COUNT];
 volatile LONG multi_count=2,vacuum_distance=3;
+static enum StartupCode backend_error=SV_STARTING;
+static int hook_status;
+enum StartupCode backend_startup_error(void){return backend_error;}
+int backend_hook_status(void){return hook_status;}
 LONG read_atomic(volatile LONG *value){return InterlockedCompareExchange(value,0,0);}
 static bool on(enum Feature f){return read_atomic(&capabilities[f])&&read_atomic(&feature_flags[f]);}
 
@@ -277,13 +281,15 @@ static void *enter_frame_hook(void *group,const void *method,void *args) {
 bool install_frame_backend(HMODULE game) {
  static const unsigned char signature[]={0x48,0x89,0x5c,0x24,0x08,0x48,0x89,0x74,0x24,0x10,0x48,0x89,0x7c,0x24,0x18,0x41,0x56};
  unsigned char *entry=(unsigned char*)game+0x64e1c0;
- if(memcmp(entry,signature,sizeof(signature))){log_line("FRAME backend profile mismatch");return false;}
+ if(memcmp(entry,signature,sizeof(signature))){backend_error=SV_FRAME_PROFILE_MISMATCH;log_line("FRAME backend profile mismatch");return false;}
  void *original=NULL;MH_STATUS status=MH_CreateHook(entry,(void*)enter_frame_hook,&original);
- if(status!=MH_OK){log_line("FRAME hook create failed: %s",MH_StatusToString(status));return false;}
+ hook_status=(int)status;
+ if(status!=MH_OK){backend_error=SV_FRAME_CREATE_FAILED;log_line("FRAME hook create failed: %s",MH_StatusToString(status));return false;}
  memcpy(&enter_frame_original,&original,sizeof(original));
  status=MH_EnableHook(entry);
+ hook_status=(int)status;
  log_line("FRAME backend: %s; energy, damage, cooldown reset and vacuum; new effects unverified",MH_StatusToString(status));
- if(status!=MH_OK)return false;
+ if(status!=MH_OK){backend_error=SV_FRAME_ENABLE_FAILED;return false;}
  /* Existing native bridge coverage was unsuccessful in the supplied runtime logs. */
  for(int i=0;i<FEATURE_COUNT;i++)InterlockedExchange(&capabilities[i],0);
  InterlockedExchange(&capabilities[UNLIMITED_ENERGY],targets[SET_ENERGY].method&&total_energy);
@@ -301,7 +307,7 @@ static bool executable(void *entry) {
 }
 bool initialize_backend(void) {
  player_class=find_class("","PlayerAdventureActor");monster_class=find_class("","MonsterAdventureActor");
- if(!player_class||!monster_class){log_line("Player/monster class not found; no hooks installed.");return false;}
+ if(!player_class||!monster_class){backend_error=!player_class?SV_PLAYER_CLASS_MISSING:SV_MONSTER_CLASS_MISSING;log_line("Player/monster class not found; no hooks installed.");return false;}
  void *skill=find_class("","SkillInfo"),*tough=find_class("","MonsterToughnessInfo");
  total_energy=method0(skill,"get_totalEnergy","TrueSync.FDP");
  toughness_value=method0(tough,"get_toughness","System.Int64");
@@ -331,7 +337,7 @@ bool initialize_backend(void) {
   } else if(groups[g].abi!=t->abi)groups[g].conflict=true;
   t->group=g;log_line("RESOLVED %s.%s: MethodInfo=%p entry=%p group=%d",t->type,t->name,t->method,entry,g);
  }
- MH_STATUS status=MH_Initialize();if(status!=MH_OK){log_line("MinHook init failed: %s",MH_StatusToString(status));return false;}
+ MH_STATUS status=MH_Initialize();hook_status=(int)status;if(status!=MH_OK){backend_error=SV_MINHOOK_INIT_FAILED;log_line("MinHook init failed: %s",MH_StatusToString(status));return false;}
  (void)vacuum_supported;
  log_line("Native bridge hooks omitted; gameplay uses internal frame backend.");
  return true;
