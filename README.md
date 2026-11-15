@@ -6,9 +6,11 @@ SoraVynx is a Windows x64 toolkit for Stella Sora, with an experimental Android 
 
 ## Windows
 
-**[Bản chẩn đoán startup-preview.1](https://github.com/bao123e/SoraVynx/releases/tag/v1.2.1-startup-preview.1)**: dùng cho lỗi “Startup stopped” sau cập nhật game 2.1.0. Đã đối chiếu hash GameAssembly vẫn khớp; chưa xác định bước lỗi trên máy thật. Giải nén cặp EXE/DLL mới, mở tool như trước, vào màn chính, chờ kết nối kết thúc rồi bấm **Copy startup report**. Không tạo log, không đổi issuer/key hoặc cấu hình thanh toán. Đây là bản chẩn đoán, chưa xác nhận các chức năng hoạt động lại sau cập nhật. [Chi tiết](source/README.vi.md).
+**[Tải tool Windows mới nhất](https://github.com/bao123e/SoraVynx/releases/download/v1.2.1-startup-preview.1/SoraVynx-1.2.1-startup-preview.1-win64.zip)** · [Release](https://github.com/bao123e/SoraVynx/releases/tag/v1.2.1-startup-preview.1) · [Source & build](source/README.vi.md)
 
-**[Download v1.1.0 preview.10](https://github.com/bao123e/SoraVynx/releases/tag/v1.1.0-preview.10)** · [Source & build](source/README.vi.md)
+**Game 2.1.0:** chủ tool đã gửi báo cáo READY, Player 5/5, Event 3/3 và xác nhận **cả 5 chức năng Player hoạt động**. Event chỉ mới khớp chữ ký, **chưa thử gameplay vì sự kiện đã kết thúc**; chờ event mới để kiểm tra. Auto Daily chưa được xác nhận. [Bản ghi kiểm chứng và SHA256](source/verification.json).
+
+**Key truy cập:** nhập key ngẫu nhiên 15 ký tự đã được cấp để vào tool; cần Internet khi xác thực. Bản mới dùng nguyên bộ khóa ký hiện tại, không yêu cầu tạo lại key hay chạy lại Setup-Issuer. Repo chỉ chứa public key; private PEM/token bot không được đưa lên GitHub. [Bộ tạo key/bot dành cho chủ tool](https://github.com/bao123e/SoraVynx/releases/tag/license-owner-tools-v0.4.0) · [Hướng dẫn](licensing/README.vi.md).
 
 - **Player:** God Mode, Damage x2–x50, No Cooldown, Unlimited Energy, Mob Vacuum.
 - **Event:** cooldown/energy riêng và Score x2–x100.
@@ -23,7 +25,7 @@ Giao diện bo góc, logo SoraVynx và font **Be Vietnam Pro** nhúng sẵn. Kh�
 
 Repo chính thức: **[bao123e/SoraVynx](https://github.com/bao123e/SoraVynx)**. Repo chứa đầy đủ EXE, DLL, giấy phép và thư mục source; ZIP chỉ ở Releases.
 
-Build Windows x64; 22 nhóm kiểm thử native/Lua và hai test report Windows/Wine đạt; 13 nhóm UI Wine đạt. Player/Event giữ backend đã được kiểm tra trước đó; Tower có lệnh gửi yêu cầu thử nghiệm; Shop bị bỏ qua và 10 nhiệm vụ khác chưa thực hiện. [AGPL-3.0-or-later, MinHook BSD, font SIL OFL](LICENSE.txt).
+Build Windows x64; 22 nhóm kiểm thử native/Lua và hai test report Windows/Wine đạt; 13 nhóm UI Wine đạt. Player đã được chủ tool xác nhận chạy đủ 5 chức năng trên game 2.1.0; Event chờ sự kiện mới để thử; Tower có lệnh gửi yêu cầu thử nghiệm; Shop bị bỏ qua và 10 nhiệm vụ khác chưa thực hiện. [AGPL-3.0-or-later, MinHook BSD, font SIL OFL](LICENSE.txt).
 
 ## Android Player/Event preview
 

@@ -1,3 +1,11 @@
+## Bản Windows hiện tại — xác nhận Player trên game 2.1.0
+
+Bản `1.2.1-startup-preview.1` đã được chủ tool chạy: READY, Player 5/5, Event 3/3; **cả 5 chức năng Player hoạt động**. Event chưa được thử vì sự kiện đã kết thúc; chữ ký khớp không có nghĩa gameplay Event đã được xác minh. Auto Daily chưa được xác nhận.
+
+Cặp EXE/DLL ở gốc repo được lấy nguyên từ ZIP đã qua Windows CI và đã được người dùng thử; không build lại hoặc thay hành vi sau xác nhận. `source/build.json` ghi metadata của lần build; `source/verification.json` ghi kết quả thử bổ sung theo người dùng và hash cặp file. ZIP ở Releases.
+
+Key 15 ký tự và public key hiện tại được giữ nguyên. Không chạy lại Setup-Issuer, không đưa private PEM/token/.env lên repo. Nếu gặp lỗi khởi tạo, dùng Copy startup report; không tạo file log.
+
 ## Chẩn đoán bản game 2.1.0 — startup-preview.1
 
 GameAssembly SHA256 người dùng cung cấp vẫn khớp profile cũ (`6adc5de8…32e06dd8`); global-metadata.dat cũng không đổi. hotfix.arch mới khớp MD5 trong file_versions.dat, chứa Hotfix theo định dạng CDPH. Chưa xác định được bước khởi tạo bị dừng trên máy thật; chưa có cơ sở thay offset hay bỏ kiểm tra phiên bản.

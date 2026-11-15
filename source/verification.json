@@ -1,0 +1,22 @@
+{
+  "build": "1.2.1-startup-preview.1",
+  "game_version": "2.1.0",
+  "gameassembly_sha256": "6adc5de8d2ed85ee752be80b38aff0e5e85d21e6efb6133c262c9f2632e06dd8",
+  "launcher_sha256": "6d339ddb5e95d345388bf7ae3735ba1be54be461a8449783f098fdf082a55197",
+  "runtime_sha256": "2fdd5afbd3ea6f1ace3d088a66657b85a840c0677ef5f614f3fbfebde2b86222",
+  "startup": "READY",
+  "player_signatures_ready": "5/5",
+  "player_gameplay_status": "owner-confirmed-all-five-working",
+  "player_features": [
+    "God Mode",
+    "Damage Multiplier",
+    "No Cooldown",
+    "Unlimited Energy",
+    "Mob Vacuum"
+  ],
+  "event_signatures_ready": "3/3",
+  "event_gameplay_status": "not-tested-event-ended",
+  "auto_daily_status": "not-verified",
+  "confirmation_source": "Owner supplied compatibility report and confirmed all five Player features work; Event unavailable until a new event.",
+  "no_anti_ban_claim": true
+}

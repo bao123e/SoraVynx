@@ -1,18 +1,26 @@
 {
   "product": "SoraVynx",
-  "version": "1.1.0-preview.10",
+  "version": "1.2.1-startup-preview.1",
+  "license_gate": true,
+  "license_mode": "short-code-signed-web-record",
+  "license_ready": false,
+  "owner_signed_record_verified": false,
+  "license_issuer_configured": true,
+  "issuer_public_xy_sha256": "79436f4ead42388aed9c20a6c10d507614ae7d745e30c8eccbdd0cbdf662c6b4",
   "auto_daily_ready": false,
   "daily_supported_actions": [
     "tower_daily_reward_request"
   ],
-  "sha256": "8fda7fee7be311125e313cf499537cacb07455269ce11f3e24450ebacdfbc72f",
-  "bytes": 821760,
-  "launcher_sha256": "9f166c211abb78afefa930fbe4946f971d95779c3e59163baa87c85e6a36c4f0",
+  "sha256": "2fdd5afbd3ea6f1ace3d088a66657b85a840c0677ef5f614f3fbfebde2b86222",
+  "bytes": 835584,
+  "launcher_sha256": "6d339ddb5e95d345388bf7ae3735ba1be54be461a8449783f098fdf082a55197",
   "launcher_runtime_tested": false,
   "tool_upstream_commit": "30f67811411dca754f1b876b4d4dbf6a001e0a20",
   "minhook_commit": "8af6b4acae5a9388fd742b56fa79ece89d96f823",
   "compiler": "Zig 0.14.1 / Clang Windows x64 GNU",
   "gameassembly_sha256": "6adc5de8d2ed85ee752be80b38aff0e5e85d21e6efb6133c262c9f2632e06dd8",
   "windows_runtime_tested": false,
-  "gameplay_verified": false
+  "gameplay_verified": false,
+  "license_gate_windows_tested": true,
+  "verification_run": "https://github.com/bao123e/SoraVynx/actions/runs/43705169060"
 }
