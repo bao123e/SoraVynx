@@ -13,15 +13,16 @@ if os.environ.get('GITHUB_ACTIONS')=='true':
  metadata['verification_run']='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']
 metadata['gameplay_verified']=False
 out=Path(os.environ.get('RUNNER_TEMP',build));archive=out/('SoraVynx-'+metadata['version']+'-win64.zip')
-readme='''SoraVynx — key 15 ký tự
+readme="""SoraVynx — bản chẩn đoán khởi tạo
 
-Giải nén cả thư mục và mở SoraVynx.exe. Nhập key đã được đăng ký rồi bấm Vào tool.
-Cửa sổ chỉ có ô nhập key và nút vào tool; Enter xác nhận, Esc đóng.
-Máy cần có Internet khi mở tool để tra bản ghi ký số tại soravynx.online.
-Chủ tool dùng Owner Key Tools v0.3.2, giữ nguyên private PEM cũ, chọn thời hạn để sinh key ngẫu nhiên 15 ký tự. Bản ghi .lic phải được đưa vào thư mục licenses/ của repo website trước khi dùng.
-Key mới là mã truy cập có thể chia sẻ, không còn ràng buộc mã máy. Hạn tính từ lúc cấp. Không tự thu tiền hoặc xác nhận QR.
-Đã kiểm tra giao thức và UI Windows. Bộ khóa ký đã được đổi sang PEM chủ tool còn giữ; cần tạo/đăng ký key mới. Chưa kiểm tra một bản ghi thật ký bằng bộ khóa mới; chưa xác minh gameplay của bản mới. Không tạo log sản phẩm.
-''' 
+Thoát game và tool cũ. Giải nén vào thư mục mới, dùng cùng cặp SoraVynx.exe và SoraVynx.Runtime.dll.
+Giữ nguyên issuer-private.pem, key truy cập và cấu hình bot/SePay; không chạy lại Setup-Issuer.
+Mở tool như trước, vào màn chính game, chờ kết nối kết thúc rồi bấm Copy startup report và gửi nội dung báo cáo.
+Nếu đang WAIT_HOTFIX, có thể cần chờ tối đa 3 phút kể từ bước này.
+Báo cáo chỉ ở clipboard: không có key/tài khoản/đường dẫn, không tạo file log.
+Bản này bổ sung mã lỗi để xác định nguyên nhân dừng. Chưa xác minh gameplay sau cập nhật game.
+Kiểm tra hash và chữ ký vẫn giữ nguyên. Không phải bản sửa chống ban hoặc cam kết các chức năng đã chạy lại.
+"""
 checks=''.join(hashlib.sha256((build/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in ['SoraVynx.exe','SoraVynx.Runtime.dll'])
 with ZipFile(archive,'w',ZIP_DEFLATED,compresslevel=9) as z:
  for name in ['SoraVynx.exe','SoraVynx.Runtime.dll']:z.write(build/name,name)
