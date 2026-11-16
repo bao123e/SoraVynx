@@ -88,7 +88,7 @@ function Read-Image($bitmap){
    foreach($word in $line.Words){$b=$word.BoundingRect;$left=[Math]::Min($left,$b.X);$top=[Math]::Min($top,$b.Y);$right=[Math]::Max($right,$b.X+$b.Width);$bottom=[Math]::Max($bottom,$b.Y+$b.Height)}
    if($right -gt $left){[pscustomobject]@{Text=$line.Text;X=$left/$copy.Width;Y=$top/$copy.Height;W=($right-$left)/$copy.Width;H=($bottom-$top)/$copy.Height}}
   })
-  return [pscustomobject]@{Lines=$lines;Bitmap=$copy};$copy=$null
+  $result=[pscustomobject]@{Lines=$lines;Bitmap=$copy};$copy=$null;return $result
  }finally{if($software){$software.Dispose()};if($writer){$writer.Dispose()};if($copy){$copy.Dispose()}}
 }
 function Normal([string]$text){return [regex]::Replace($text.ToLowerInvariant(),'[^a-z0-9]','')}
