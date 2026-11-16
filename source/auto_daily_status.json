@@ -1,0 +1,16 @@
+{
+  "tower": {
+    "status": "owner-confirmed-reward-and-daily-complete",
+    "tested_build": "1.2.2-dorm-preview.2",
+    "mode": "user-marked-one-shot-click"
+  },
+  "dispatch": {
+    "status": "awaiting-live-test",
+    "build": "1.2.3-dispatch-preview.1",
+    "mode": "user-marked-start-button-with-current-commission-and-team"
+  },
+  "automatic_navigation": false,
+  "automatic_task_selection": false,
+  "automatic_quest_verification": false,
+  "complete_auto_daily_chain": false
+}

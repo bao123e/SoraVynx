@@ -1,3 +1,11 @@
+## Dispatch preview — 1.2.3-dispatch-preview.1
+
+Tower nhận quà và daily Complete đã được chủ tool xác nhận ở preview.2. Tiếp theo thử nút START DISPATCH bằng cách đánh dấu F9, giữ commission/đội đang chọn. Thêm **Target: Tower / Dispatch** trong Auto Daily; mỗi target có điểm, trạng thái và giới hạn một lượt riêng. Không chuyển target giữa lúc input chờ/chuột đang giữ. Disable all hủy/nhả chuột của cả hai target.
+
+Mở Dispatch, chọn commission/đội, chưa bấm bắt đầu. Trong tool chọn Target: Dispatch và để Dispatch 1 commission ở USE. F1 -> rê lên START DISPATCH + F9 (không bấm tay) -> F1 -> DISPATCH POINT MARKED -> Dispatch / status. Kiểm tra commission bắt đầu chạy và daily Complete. Nếu có hộp xác nhận mới, giữ nguyên và gửi ảnh; không tự nối thêm click chưa được kiểm chứng. Không cần làm lại Tower.
+
+Đây vẫn là kiểm thử từng hành động; chưa tự điều hướng, chọn commission/đội, truy vấn tiến độ daily hoặc chạy toàn chuỗi. Report v5 cho thấy ReqApplyAgent(agentList, agentData, callback) là hàm không có self; không suy ra dữ liệu gửi từ tên hàm, nên dùng nút UI game với lựa chọn hiện tại. Player/Event backend và issuer giữ nguyên; Dispatch chưa được kiểm chứng trong game thật.
+
 ## Claim Gifts đánh dấu bằng F9 — 1.2.2-dorm-preview.2
 
 Ảnh thực tế của preview.1 trả `DORM_DISCOVERY_LIMIT` trước khi gọi handler. Preview.2 bỏ hẳn luồng Lua đó cho hành động nhận quà; giữ script cũ ở trạng thái chỉ trả hướng dẫn, không quét hoặc gửi request. Bộ test Lua cũ cho discovery được thay bằng kiểm thử helper click native Windows.

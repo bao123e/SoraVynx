@@ -30,7 +30,7 @@ static unsigned daily_selection=4095;
 static HICON brand_icon;
 static HWND multiplier_hint,event_hint,section_title,section_caption,footer;
 static HWND background_name,background_mode;
-static HWND page_controls[4][16];static int page_count[4],active_page;
+static HWND page_controls[4][20];static int page_count[4],active_page;
 static bool global_hotkey,claim_hotkey;
 static HBRUSH background_brush,background_pattern;
 static HFONT body_font,button_font,title_font,section_font,daily_font;
@@ -125,7 +125,7 @@ static void update_text(HWND hwnd,const wchar_t *text) {
  if(!hwnd)return;wchar_t old[512]={0};GetWindowTextW(hwnd,old,512);if(wcscmp(old,text))SetWindowTextW(hwnd,text);
 }
 static void disable_all(void) {
- daily_lua_cancel_queued();claim_cancel(window);
+ daily_lua_cancel_queued();claim_cancel_all(window);
  for(int i=0;i<3;i++){InterlockedExchange(&event_flags[i],0);if(event_checks[i])InvalidateRect(event_checks[i],NULL,TRUE);}
  for(int i=0;i<FEATURE_COUNT;i++){InterlockedExchange(&feature_flags[i],0);if(checks[i])InvalidateRect(checks[i],NULL,TRUE);}
 }
@@ -140,8 +140,10 @@ static void refresh_status(void) {
  update_text(status_label,text);
  EnableWindow(GetDlgItem(window,433),state!=0);
  if(daily_report){LONG pending=InterlockedCompareExchange(&daily_lua_state,0,0);EnableWindow(daily_report,state==1&&!pending);update_text(daily_report,pending&&!daily_lua_kind?L"Inspecting Lua names...":L"Copy Lua name report");}
- EnableWindow(GetDlgItem(window,432),state==1&&!claim_click.phase&&(daily_selection&(1u<<7)));
- update_text(GetDlgItem(window,432),claim_click.phase?L"Return to the game...":L"Claim Gifts / status");
+ EnableWindow(GetDlgItem(window,432),state==1&&!claim_click.phase&&(daily_selection&(1u<<(claim_selected?9:7))));
+ update_text(GetDlgItem(window,432),claim_click.phase?L"Return to the game...":claim_selected?L"Dispatch / status":L"Claim Gifts / status");
+ EnableWindow(GetDlgItem(window,435),!claim_click.phase&&!claim_click.held);
+ update_text(GetDlgItem(window,435),claim_selected?L"Target: Dispatch / change":L"Target: Tower / change");
  update_text(GetDlgItem(window,434),claim_hotkey?claim_click_hint():L"F9 is unavailable.\r\nClose the app using F9,\r\nthen restart the tool.");
  swprintf(text,256,L"Damage Multiplier  (x%ld / 2 - 50)",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
  swprintf(text,256,L"Score Multiplier  (x%ld / 2 - 100)",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
@@ -251,11 +253,12 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   if(notice==BN_CLICKED){
    if(id>=400&&id<=403){switch_page(id-400);return 0;}
    if(id==433){copy_startup_report(hwnd);return 0;}
+   if(id==435){if(claim_select(!claim_selected))refresh_status();return 0;}
    if(id==430){daily_lua_request(hwnd);return 0;}
    if(id==431){daily_copy_setup(hwnd);return 0;}
-   if(id==432){if(read_atomic(&init_state)==1&&(daily_selection&(1u<<7))){if(!claim_start(hwnd)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,claim_click_message(),L"SoraVynx - Claim Gifts / status",MB_OK|MB_ICONINFORMATION);}}return 0;}
+   if(id==432){if(read_atomic(&init_state)==1&&(daily_selection&(1u<<(claim_selected?9:7)))){if(!claim_start(hwnd)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,claim_click_message(),claim_action_title(),MB_OK|MB_ICONINFORMATION);}}return 0;}
    if(id==610)return 0;
-   if(id>=600&&id<612){daily_selection^=1u<<(id-600);if(id==607&&!(daily_selection&(1u<<7)))claim_cancel(hwnd);if(id==607&&!(daily_selection&(1u<<7))&&daily_lua_kind==1)daily_lua_cancel_queued();wchar_t value[16];swprintf(value,16,L"%u",daily_selection);if(!WritePrivateProfileStringW(L"AutoDaily",L"Tasks",value,ui_config_path)||!WritePrivateProfileStringW(L"AutoDaily",L"TaskCount",L"12",ui_config_path))MessageBoxW(hwnd,L"Daily task selection could not be saved.",L"SoraVynx",MB_OK|MB_ICONWARNING);InvalidateRect(GetDlgItem(hwnd,id),NULL,TRUE);return 0;}
+   if(id>=600&&id<612){daily_selection^=1u<<(id-600);if((id==607&&claim_selected==0&&!(daily_selection&(1u<<7)))||(id==609&&claim_selected==1&&!(daily_selection&(1u<<9))))claim_cancel(hwnd);wchar_t value[16];swprintf(value,16,L"%u",daily_selection);if(!WritePrivateProfileStringW(L"AutoDaily",L"Tasks",value,ui_config_path)||!WritePrivateProfileStringW(L"AutoDaily",L"TaskCount",L"12",ui_config_path))MessageBoxW(hwnd,L"Daily task selection could not be saved.",L"SoraVynx",MB_OK|MB_ICONWARNING);InvalidateRect(GetDlgItem(hwnd,id),NULL,TRUE);return 0;}
    if(id==410){ShowWindow(hwnd,SW_HIDE);return 0;}
    if(id==411){SendMessageW(hwnd,WM_CLOSE,0,0);return 0;}
    if(id==420){if(choose_background(hwnd))refresh_background();return 0;}
@@ -284,7 +287,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  case WM_HOTKEY:
   if(!sv_license_alive()){disable_all();return 0;}
   if(wp==1)toggle_panel(hwnd);
-  else if(wp==9&&active_page==3&&read_atomic(&init_state)==1&&(daily_selection&(1u<<7))){bool marked=claim_mark();MessageBeep(marked?MB_OK:MB_ICONWARNING);refresh_status();}
+  else if(wp==9&&active_page==3&&read_atomic(&init_state)==1&&(daily_selection&(1u<<(claim_selected?9:7)))){bool marked=claim_mark();MessageBeep(marked?MB_OK:MB_ICONWARNING);refresh_status();}
   else if(wp>=6&&wp<=8){int i=(int)wp-6;if(read_atomic(&event_ready[i]))InterlockedExchange(&event_flags[i],!read_atomic(&event_flags[i]));refresh_status();}
   return 0;
  case WM_DRAWITEM:{DRAWITEMSTRUCT *item=(DRAWITEMSTRUCT*)lp;
@@ -301,7 +304,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  case WM_PAINT:{PAINTSTRUCT paint;HDC dc=BeginPaint(hwnd,&paint);if(background_dc){RECT r;GetClientRect(hwnd,&r);BitBlt(dc,0,0,r.right,r.bottom,background_dc,0,0,SRCCOPY);}EndPaint(hwnd,&paint);return 0;}
  case WM_TIMER:
   if(!sv_license_alive()){disable_all();for(int id=1;id<=9;id++)UnregisterHotKey(hwnd,id);KillTimer(hwnd,1);DestroyWindow(hwnd);MessageBoxW(NULL,L"Your access key has expired. Reopen SoraVynx to activate a new key.",L"SoraVynx access",MB_OK|MB_ICONINFORMATION);PostQuitMessage(0);return 0;}
-  if(wp==3){int result=claim_tick(hwnd);if(result<0){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,claim_click_message(),L"SoraVynx - Claim Gifts / status",MB_OK|MB_ICONINFORMATION);}refresh_status();return 0;}
+  if(wp==3){int result=claim_tick(hwnd);if(result<0){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,claim_click_message(),claim_action_title(),MB_OK|MB_ICONINFORMATION);}refresh_status();return 0;}
   daily_lua_poll(hwnd);
   if(!global_hotkey){static bool previous;bool down=(GetAsyncKeyState(VK_F1)&0x8000)!=0;if(down&&!previous)toggle_panel(hwnd);previous=down;}
   refresh_status();return 0;
@@ -317,7 +320,7 @@ static HWND control(const wchar_t *kind,const wchar_t *text,DWORD style,int x,in
  if(c)SendMessageW(c,WM_SETFONT,(WPARAM)(id>=600&&id<612?daily_font:!wcscmp(kind,L"BUTTON")?button_font:body_font),TRUE);return c;
 }
 static HWND page_control(int page,const wchar_t *kind,const wchar_t *text,DWORD style,int x,int y,int w,int h,int id){
- HWND c=control(kind,text,style,x,y,w,h,id);if(c&&page_count[page]<16)page_controls[page][page_count[page]++]=c;return c;
+ HWND c=control(kind,text,style,x,y,w,h,id);if(c&&page_count[page]<20)page_controls[page][page_count[page]++]=c;return c;
 }
 static DWORD WINAPI run(void *unused) {
  if(!sv_license_require(self_module))return 0;
@@ -378,7 +381,8 @@ static DWORD WINAPI run(void *unused) {
  const wchar_t *daily_labels[]={L"Tier-up Trial: 1 battle",L"Ascension: 1 run",L"Upgrade Disc once",L"Upgrade Trekker once",L"Battle stages: 5 clears",L"Spend 100 Vigor",L"Interact with home Trekker",L"Claim Tyrant's Tower rewards",L"Send 1 Heartlink gift",L"Dispatch 1 commission",L"Shop daily gift (skipped)",L"Daily login"};
  for(int i=0;i<12;i++)page_control(3,L"BUTTON",daily_labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+25*i,416,24,600+i);
  EnableWindow(GetDlgItem(window,610),FALSE);
- page_control(3,L"STATIC",claim_click_hint(),0,648,180,312,170,434);
+ page_control(3,L"BUTTON",L"Target: Tower / change",BS_OWNERDRAW|WS_TABSTOP,648,180,312,32,435);
+ page_control(3,L"STATIC",claim_click_hint(),0,648,224,312,136,434);
  daily_report=page_control(3,L"BUTTON",L"Copy Lua name report",BS_OWNERDRAW|WS_TABSTOP,648,368,312,44,430);
  page_control(3,L"BUTTON",L"Copy API metadata",BS_OWNERDRAW|WS_TABSTOP,648,420,312,32,431);
  page_control(3,L"BUTTON",L"Claim Gifts / status",BS_OWNERDRAW|WS_TABSTOP,648,460,312,32,432);

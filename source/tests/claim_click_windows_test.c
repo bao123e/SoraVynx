@@ -51,7 +51,7 @@ static UINT WINAPI fake_input(UINT count,LPINPUT input,int size){
 #define KillTimer fake_kill
 #define SendInput fake_input
 #include "../claim_click.h"
-static void reset(void){memset(&f,0,sizeof(f));memset(&claim_click,0,sizeof(claim_click));f.foreground=game;f.cursor=(POINT){600,450};f.width=1000;f.height=600;f.exists=true;}
+static void reset(void){memset(&f,0,sizeof(f));memset(claim_slots,0,sizeof(claim_slots));claim_selected=0;f.foreground=game;f.cursor=(POINT){600,450};f.width=1000;f.height=600;f.exists=true;}
 static void marked(void){reset();assert(claim_mark());assert(claim_click.marked&&!f.inputs);}
 int main(void){
  marked();assert(claim_click.point.x==500&&claim_click.point.y==370);
@@ -75,5 +75,14 @@ int main(void){
  reset();f.covered=true;assert(!claim_mark()&&!f.inputs);
  reset();f.user_held=true;assert(!claim_mark()&&!f.inputs);
  reset();f.cursor=(POINT){-1,-1};assert(!claim_mark()&&!f.inputs);
+ /* Separate calibration/attempt state; switching while a press is pending is forbidden. */
+ marked();assert(claim_select(1)&&!claim_click.marked);assert(!claim_start(tool)&&!f.inputs);
+ f.cursor=(POINT){800,500};assert(claim_mark());assert(claim_click.point.x==700);
+ assert(claim_start(tool));assert(!claim_select(0)&&claim_selected==1);claim_tick(tool);
+ assert(!claim_select(0));claim_cancel_all(tool);assert(!claim_click.held&&f.ups==1);
+ assert(claim_select(0)&&claim_click.marked&&!claim_click.attempted&&claim_click.point.x==500);
+ assert(claim_start(tool));claim_tick(tool);claim_tick(tool);assert(f.inputs==4);
+ assert(claim_select(1)&&claim_click.attempted&&!claim_start(tool));assert(!claim_select(-1)&&!claim_select(2));
+ puts("PASS independent Tower/Dispatch marks and attempt caps; target switching blocked until mouse release");
  puts("PASS marked Claim Gifts: hover never clicks, correct window/client point, delayed down/up, focus/resize/cover/mouse guards, cancel releases press, cursor preservation and no duplicate attempts");return 0;
 }
