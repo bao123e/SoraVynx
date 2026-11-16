@@ -13,20 +13,19 @@ if os.environ.get('GITHUB_ACTIONS')=='true':
  metadata['verification_run']='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']
 metadata['gameplay_verified']=False
 out=Path(os.environ.get('RUNNER_TEMP',build));archive=out/('SoraVynx-'+metadata['version']+'-win64.zip')
-readme="""SoraVynx — Claim Gifts đánh dấu bằng F9 (preview.2)
+readme="""SoraVynx — Auto Daily Dispatch preview
 
-Giữ quà chưa nhận. Không bấm Claim Gifts bằng tay.
-Thoát game/tool cũ. Giải nén cặp EXE/DLL mới vào thư mục mới; dùng key hiện tại.
-1. Vào Hall, để Claim Gifts hiện rõ; chờ tool READY.
-2. Auto Daily -> Claim Tyrant's Tower rewards: USE.
-3. F1 ẩn tool. Để game có focus, rê chuột lên chính nút Claim Gifts và nhấn F9 (CHỈ ĐÁNH DẤU, KHÔNG CLICK).
-4. F1 hiện tool. Thấy POINT MARKED rồi bấm Claim Gifts / status một lần. Tool tự nhấn điểm đã đánh dấu.
-5. Kiểm tra bảng nhận vật phẩm và daily có lên 1/1 không. F1 hiện lại tool; bấm lại chỉ xem trạng thái.
-Không đổi trang game hoặc kích thước cửa sổ sau khi đánh dấu. Nếu cần, đánh dấu lại trước khi gửi thao tác đầu tiên.
-Mỗi phiên game chỉ một lần gửi thử; Disable all hủy thao tác chờ và nhả chuột nếu đã gửi nhấn.
-Điểm chỉ lưu trong bộ nhớ, không ghi file. Không quét Lua hay gọi InfinityTower/Shop cho thao tác này.
-Nếu F9 bị ứng dụng khác giữ, đóng ứng dụng đó rồi khởi động lại tool.
-Không tạo log, không đổi key/private PEM hay bot/SePay. Chưa xác minh click này trong game thật.
+Tower đã được chủ tool xác nhận nhận quà và daily Complete ở bản trước. Không cần làm lại Tower.
+Thoát game/tool cũ, giải nén cặp EXE/DLL mới vào thư mục mới, dùng key hiện tại.
+1. Mở Dispatch trong game, chọn commission và đội muốn dùng; CHƯA bấm nút bắt đầu.
+2. Auto Daily -> bấm Target để chọn Dispatch. Để Dispatch 1 commission ở USE.
+3. F1 ẩn tool. Rê chuột lên nút START DISPATCH trong game, nhấn F9 (chỉ đánh dấu, không click).
+4. F1 hiện tool, thấy DISPATCH POINT MARKED -> bấm Dispatch / status một lần.
+5. Kiểm tra commission bắt đầu chạy và daily có Complete không. Nếu hiện hộp xác nhận khác, giữ nguyên và gửi ảnh trước khi thao tác tiếp.
+Tower/Dispatch có điểm đánh dấu và một lượt thử riêng; không dùng lại tọa độ Tower cho Dispatch.
+Không đổi trang/kích thước cửa sổ sau khi đánh dấu. Disable all hủy input chờ và nhả chuột đang giữ.
+Chưa tự mở các trang, chọn commission/đội hoặc chạy toàn chuỗi Auto Daily. Bản Dispatch mới chưa thử trong game thật.
+Không tạo log, không đổi public/private issuer, key hoặc cấu hình bot/SePay.
 """
 checks=''.join(hashlib.sha256((build/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in ['SoraVynx.exe','SoraVynx.Runtime.dll'])
 with ZipFile(archive,'w',ZIP_DEFLATED,compresslevel=9) as z:
