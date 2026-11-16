@@ -46,6 +46,14 @@ public static class CommissionDesktop {
   int w=r.R-r.L,h=r.B-r.T;if(w<320||h<180)throw new Exception("SIZE");
   if(Width!=0&&(w!=Width||h!=Height))throw new Exception("RESIZED");Width=w;Height=h;return r;
  }
+ public static Bitmap PromptCrop(Bitmap source,bool invert){
+  int w=Math.Max(1,(int)(source.Width*0.28)),h=Math.Max(1,(int)(source.Height*0.18));
+  var output=new Bitmap(w*2,h*2,PixelFormat.Format32bppArgb);
+  using(var g=Graphics.FromImage(output))using(var attributes=new ImageAttributes()){
+   if(invert)attributes.SetColorMatrix(new ColorMatrix(new float[][]{new float[]{-1,0,0,0,0},new float[]{0,-1,0,0,0},new float[]{0,0,-1,0,0},new float[]{0,0,0,1,0},new float[]{1,1,1,0,1}}));
+   g.DrawImage(source,new Rectangle(0,0,w*2,h*2),0,0,w,h,GraphicsUnit.Pixel,attributes);
+  }return output;
+ }
  public static Bitmap Capture(){
   Rect r=View();Point p=new Point();if(!ClientToScreen(Window,ref p))throw new Exception("CONTEXT");
   var bitmap=new Bitmap(Width,Height,PixelFormat.Format32bppArgb);
@@ -101,8 +109,9 @@ function Cyan-Button($bitmap,$line){
  }
  return $hits -ge 2
 }
-function Observe($lines,$bitmap){
+function Observe($lines,$bitmap,[string]$promptTokens=''){
  $top=@($lines | Where-Object {$_.X -lt .25 -and $_.Y -lt .18} | ForEach-Object {Normal $_.Text}) -join ''
+ $top+=$promptTokens
  $bottom=@($lines | Where-Object {$_.X -gt .65 -and $_.Y -gt .8} | ForEach-Object {Normal $_.Text}) -join ''
  if($top.Contains('esc') -and $top.Contains('skip') -and $bottom.Contains('space') -and $bottom.Contains('next')){return [pscustomobject]@{State='STORY';X=0.0;Y=0.0}}
  $items=@($lines | Where-Object {(Normal $_.Text).Contains('itemsobtained') -and $_.Y -lt .5})
@@ -117,6 +126,22 @@ function Observe($lines,$bitmap){
  $commissionHome=@($lines | Where-Object {(Normal $_.Text) -eq 'commission' -and $_.X -gt .7 -and $_.Y -lt .3})
  if($commissionHome.Count -eq 1){$p=$commissionHome[0];return [pscustomobject]@{State='HOME';X=$p.X+$p.W/2;Y=$p.Y+$p.H/2}}
  return [pscustomobject]@{State='UNKNOWN';X=0.0;Y=0.0}
+}
+function Read-Observation($bitmap){
+ $read=Read-Image $bitmap
+ try {
+  $tokens=''
+  $top=@($read.Lines | Where-Object {$_.X -lt .25 -and $_.Y -lt .18} | ForEach-Object {Normal $_.Text}) -join ''
+  $bottom=@($read.Lines | Where-Object {$_.X -gt .65 -and $_.Y -gt .8} | ForEach-Object {Normal $_.Text}) -join ''
+  if($bottom.Contains('space') -and $bottom.Contains('next') -and !($top.Contains('esc') -and $top.Contains('skip'))){
+   foreach($invert in @($false,$true)){
+    $crop=[CommissionDesktop]::PromptCrop($bitmap,$invert);$detail=$null
+    try{$detail=Read-Image $crop;$tokens+=(@($detail.Lines | ForEach-Object {Normal $_.Text}) -join '')}finally{$crop.Dispose();if($detail){$detail.Bitmap.Dispose()}}
+    if(($top+$tokens).Contains('esc') -and ($top+$tokens).Contains('skip')){break}
+   }
+  }
+  return Observe $read.Lines $read.Bitmap $tokens
+ }finally{$read.Bitmap.Dispose()}
 }
 function New-Session {return @{Entry=0;Claim=0;Skip=0;Items=0;Again=0;Last=0;Unknown=0;Actions=0;Commission=$false}}
 function Next-Action($session,$observation,[long]$now){
@@ -139,8 +164,7 @@ if($SelfTest){
   $g.Clear([Drawing.Color]::FromArgb(25,35,48));$font=[Drawing.Font]::new('Segoe UI',32,[Drawing.FontStyle]::Regular,[Drawing.GraphicsUnit]::Pixel)
   $g.DrawString('Commission Complete!',$font,[Drawing.Brushes]::White,320,70)
   $g.FillRectangle([Drawing.Brushes]::Turquoise,660,550,390,90);$g.DrawString('Dispatch Again',$font,[Drawing.Brushes]::White,675,565)
-  $read=Read-Image $bitmap
-  try{$o=Observe $read.Lines $read.Bitmap;Check ($o.State -eq 'RESULT') ('Real OCR recognition failed: '+$o.State)}finally{$read.Bitmap.Dispose()}
+  $o=Read-Observation $bitmap;Check ($o.State -eq 'RESULT') ('Real OCR recognition failed: '+$o.State)
   foreach($kind in @('STORY','ITEMS','CLAIM','HOME')){
    $g.Clear([Drawing.Color]::FromArgb(25,35,48))
    switch($kind){
@@ -150,8 +174,13 @@ if($SelfTest){
     'HOME' {$g.DrawString('Commission',$font,[Drawing.Brushes]::White,1010,110)}
    }
    $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
-   $read=Read-Image $bitmap
-   try{$o=Observe $read.Lines $read.Bitmap;if($o.State -ne $kind){$diagnostic=[IO.MemoryStream]::new();try{$bitmap.Save($diagnostic,[Drawing.Imaging.ImageFormat]::Png);[Console]::Out.WriteLine('FIXTURE_PNG|'+[Convert]::ToBase64String($diagnostic.ToArray()))}finally{$diagnostic.Dispose()};if($env:RUNNER_TEMP){$bitmap.Save([IO.Path]::Combine($env:RUNNER_TEMP,('ocr-fixture-'+$kind+'.png')),[Drawing.Imaging.ImageFormat]::Png)};foreach($line in $read.Lines){[Console]::Out.WriteLine(('FIXTURE {0}: {1} at {2:N3},{3:N3}' -f $kind,$line.Text,$line.X,$line.Y))}};Check ($o.State -eq $kind) ('Real OCR screen recognition failed: '+$kind+' -> '+$o.State)}finally{$read.Bitmap.Dispose()}
+   $o=Read-Observation $bitmap
+   if($o.State -ne $kind){
+    if($env:RUNNER_TEMP){$bitmap.Save([IO.Path]::Combine($env:RUNNER_TEMP,('ocr-fixture-'+$kind+'.png')),[Drawing.Imaging.ImageFormat]::Png)}
+    $diagnostic=Read-Image $bitmap
+    try{foreach($line in $diagnostic.Lines){[Console]::Out.WriteLine(('FIXTURE {0}: {1} at {2:N3},{3:N3}' -f $kind,$line.Text,$line.X,$line.Y))}}finally{$diagnostic.Bitmap.Dispose()}
+   }
+   Check ($o.State -eq $kind) ('Real OCR screen recognition failed: '+$kind+' -> '+$o.State)
   }
   $session=New-Session;$story=[pscustomobject]@{State='STORY'};$items=[pscustomobject]@{State='ITEMS'};$result=[pscustomobject]@{State='RESULT'}
   Check ((Next-Action $session ([pscustomobject]@{State='CLAIM'}) 2000) -eq 'CLAIM') 'Claim missing'
@@ -176,8 +205,8 @@ if($SelfTest){
 try {
  [CommissionDesktop]::Init($GameWindow,$GamePid);$session=New-Session;$clock=[Diagnostics.Stopwatch]::StartNew();Signal 'READY'
  while($clock.ElapsedMilliseconds -lt 90000){
-  $bitmap=[CommissionDesktop]::Capture();$read=$null
-  try{$read=Read-Image $bitmap;$observation=Observe $read.Lines $read.Bitmap}finally{$bitmap.Dispose();if($read){$read.Bitmap.Dispose()}}
+  $bitmap=[CommissionDesktop]::Capture()
+  try{$observation=Read-Observation $bitmap}finally{$bitmap.Dispose()}
   $action=Next-Action $session $observation $clock.ElapsedMilliseconds
   Signal ('STATE_'+$observation.State)
   if($action -eq 'DONE' -or $action -eq 'NO_REWARDS'){Signal $action;exit 0}
