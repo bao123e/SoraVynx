@@ -2,7 +2,7 @@ name: Verify Windows license gate
 on:
   workflow_dispatch:
   push:
-    branches: [feature/license-gate, feature/key-recovery, fix/startup-compatibility-report, fix/dorm-claim-gifts, fix/claim-gifts-marked-click, feature/daily-dispatch-preview, feature/commission-ui-steps, fix/claim-all-double-click]
+    branches: [feature/license-gate, feature/key-recovery, fix/startup-compatibility-report, fix/dorm-claim-gifts, fix/claim-gifts-marked-click, feature/daily-dispatch-preview, feature/commission-ui-steps, fix/claim-all-double-click, feature/commission-vision]
     paths: ['source/**', 'licensing/**', '.github/workflows/license-gate.yml']
 permissions:
   contents: write

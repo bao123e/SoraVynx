@@ -1,8 +1,5 @@
 name: Commission vision capability
 on:
-  push:
-    branches: [feature/commission-vision]
-    paths: ['source/vision/**']
   workflow_dispatch:
 permissions:
   contents: read
