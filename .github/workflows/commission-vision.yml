@@ -15,3 +15,6 @@ jobs:
       - name: Probe built-in English OCR
         shell: powershell
         run: ./source/vision/probe.ps1
+      - name: Test real OCR and Commission state transitions without desktop input
+        shell: powershell
+        run: ./source/vision/commission.ps1 -SelfTest
