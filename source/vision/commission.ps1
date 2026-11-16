@@ -54,6 +54,15 @@ public static class CommissionDesktop {
    g.DrawImage(source,new Rectangle(0,0,w*2,h*2),0,0,w,h,GraphicsUnit.Pixel,attributes);
   }return output;
  }
+ public static Bitmap HomeCrop(Bitmap source,bool invert){
+  int x=(int)(source.Width*0.68),y=(int)(source.Height*0.10);
+  int w=source.Width-x,h=Math.Max(1,(int)(source.Height*0.20));
+  var output=new Bitmap(w*3,h*3,PixelFormat.Format32bppArgb);
+  using(var g=Graphics.FromImage(output))using(var attributes=new ImageAttributes()){
+   if(invert)attributes.SetColorMatrix(new ColorMatrix(new float[][]{new float[]{-1,0,0,0,0},new float[]{0,-1,0,0,0},new float[]{0,0,-1,0,0},new float[]{0,0,0,1,0},new float[]{1,1,1,0,1}}));
+   g.DrawImage(source,new Rectangle(0,0,w*3,h*3),x,y,w,h,GraphicsUnit.Pixel,attributes);
+  }return output;
+ }
  public static Bitmap Capture(){
   Rect r=View();Point p=new Point();if(!ClientToScreen(Window,ref p))throw new Exception("CONTEXT");
   var bitmap=new Bitmap(Width,Height,PixelFormat.Format32bppArgb);
@@ -92,12 +101,12 @@ function Read-Image($bitmap){
   $software.CopyFromBuffer($buffer)
   $task=$asTask.MakeGenericMethod([Windows.Media.Ocr.OcrResult]).Invoke($null,@($engine.RecognizeAsync($software)))
   if(!$task.Wait(8000)){throw 'OCR_TIMEOUT'}
-  $lines=@(foreach($line in $task.Result.Lines){
+  $words=@();$lines=@(foreach($line in $task.Result.Lines){
    $left=1e9;$top=1e9;$right=0;$bottom=0
-   foreach($word in $line.Words){$b=$word.BoundingRect;$left=[Math]::Min($left,$b.X);$top=[Math]::Min($top,$b.Y);$right=[Math]::Max($right,$b.X+$b.Width);$bottom=[Math]::Max($bottom,$b.Y+$b.Height)}
+   foreach($word in $line.Words){$b=$word.BoundingRect;$words+=[pscustomobject]@{Text=$word.Text;X=$b.X/$copy.Width;Y=$b.Y/$copy.Height;W=$b.Width/$copy.Width;H=$b.Height/$copy.Height};$left=[Math]::Min($left,$b.X);$top=[Math]::Min($top,$b.Y);$right=[Math]::Max($right,$b.X+$b.Width);$bottom=[Math]::Max($bottom,$b.Y+$b.Height)}
    if($right -gt $left){[pscustomobject]@{Text=$line.Text;X=$left/$copy.Width;Y=$top/$copy.Height;W=($right-$left)/$copy.Width;H=($bottom-$top)/$copy.Height}}
   })
-  $result=[pscustomobject]@{Lines=$lines;Bitmap=$copy};$copy=$null;return $result
+  $result=[pscustomobject]@{Lines=$lines;Words=$words;Bitmap=$copy};$copy=$null;return $result
  }finally{if($software){$software.Dispose()};if($writer){$writer.Dispose()};if($copy){$copy.Dispose()}}
 }
 function Normal([string]$text){return [regex]::Replace($text.ToLowerInvariant(),'[^a-z0-9]','')}
@@ -109,7 +118,7 @@ function Cyan-Button($bitmap,$line){
  }
  return $hits -ge 2
 }
-function Observe($lines,$bitmap,[string]$promptTokens=''){
+function Observe($lines,$bitmap,[string]$promptTokens='', $homeWords=@()){
  $top=@($lines | Where-Object {$_.X -lt .25 -and $_.Y -lt .18} | ForEach-Object {Normal $_.Text}) -join ''
  $top+=$promptTokens
  $bottom=@($lines | Where-Object {$_.X -gt .65 -and $_.Y -gt .8} | ForEach-Object {Normal $_.Text}) -join ''
@@ -123,7 +132,7 @@ function Observe($lines,$bitmap,[string]$promptTokens=''){
  $header=@($lines | Where-Object {(Normal $_.Text) -eq 'commission' -and $_.X -lt .4 -and $_.Y -lt .15})
  $claim=@($lines | Where-Object {(Normal $_.Text) -eq 'claimall' -and $_.X -gt .65 -and $_.Y -gt .6})
  if($header.Count -eq 1 -and $claim.Count -eq 1){$p=$claim[0];$state='NO_REWARDS';if(Cyan-Button $bitmap $p){$state='CLAIM'};return [pscustomobject]@{State=$state;X=$p.X+$p.W/2;Y=$p.Y+$p.H/2}}
- $commissionHome=@($lines | Where-Object {(Normal $_.Text) -eq 'commission' -and $_.X -gt .7 -and $_.Y -lt .3})
+ $commissionHome=@($homeWords | Where-Object {(Normal $_.Text) -eq 'commission' -and $_.X -gt .7 -and $_.Y -lt .3})
  if($commissionHome.Count -eq 1){$p=$commissionHome[0];return [pscustomobject]@{State='HOME';X=$p.X+$p.W/2;Y=$p.Y+$p.H/2}}
  return [pscustomobject]@{State='UNKNOWN';X=0.0;Y=0.0}
 }
@@ -140,7 +149,20 @@ function Read-Observation($bitmap){
     if(($top+$tokens).Contains('esc') -and ($top+$tokens).Contains('skip')){break}
    }
   }
-  return Observe $read.Lines $read.Bitmap $tokens
+  $observation=Observe $read.Lines $read.Bitmap $tokens $read.Words
+  if($observation.State -ne 'UNKNOWN'){return $observation}
+  # WinRT often merges neighboring home labels into one line. Use individual
+  # word boxes and retry only the icon strip at higher scale in both polarities.
+  foreach($invert in @($false,$true)){
+   $crop=[CommissionDesktop]::HomeCrop($bitmap,$invert);$detail=$null
+   try{
+    $detail=Read-Image $crop
+    $mapped=@(foreach($word in $detail.Words){[pscustomobject]@{Text=$word.Text;X=.68+$word.X*.32;Y=.10+$word.Y*.20;W=$word.W*.32;H=$word.H*.20}})
+    $observation=Observe $read.Lines $read.Bitmap $tokens $mapped
+    if($observation.State -eq 'HOME'){return $observation}
+   }finally{$crop.Dispose();if($detail){$detail.Bitmap.Dispose()}}
+  }
+  return $observation
  }finally{$read.Bitmap.Dispose()}
 }
 function New-Session {return @{Entry=0;Claim=0;Skip=0;Items=0;Again=0;Last=0;Unknown=0;Actions=0;Commission=$false}}
@@ -171,7 +193,16 @@ if($SelfTest){
     'STORY' {$g.FillRectangle([Drawing.Brushes]::White,25,25,75,45);$small=[Drawing.Font]::new('Segoe UI',22,[Drawing.FontStyle]::Regular,[Drawing.GraphicsUnit]::Pixel);try{$g.DrawString('Esc',$small,[Drawing.Brushes]::DarkBlue,30,29);$g.DrawString('Skip',$font,[Drawing.Brushes]::White,110,23);$g.FillRectangle([Drawing.Brushes]::WhiteSmoke,200,490,850,160);$g.DrawString('Minova',$font,[Drawing.Brushes]::DarkBlue,240,500);$g.DrawString('Finished already?',$font,[Drawing.Brushes]::DarkBlue,240,560);$g.DrawString('Space Next',$small,[Drawing.Brushes]::White,1040,665)}finally{$small.Dispose()}}
     'ITEMS' {$g.DrawString('Items Obtained!',$font,[Drawing.Brushes]::White,400,210);$g.DrawString('Select anywhere to continue',$font,[Drawing.Brushes]::White,360,600)}
     'CLAIM' {$g.DrawString('Commission',$font,[Drawing.Brushes]::White,120,30);$g.FillRectangle([Drawing.Brushes]::Turquoise,1000,600,260,90);$g.DrawString('Claim All',$font,[Drawing.Brushes]::White,1020,620)}
-    'HOME' {$g.DrawString('Commission',$font,[Drawing.Brushes]::White,1010,110)}
+    'HOME' {
+     $g.Clear([Drawing.Color]::FromArgb(100,180,170))
+     $labelFont=[Drawing.Font]::new('Segoe UI',20,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+     try{
+      foreach($label in @(@('Missions',880),@('Heartlink',975),@('Purchase',1070),@('Commission',1160))){
+       $path=[Drawing.Drawing2D.GraphicsPath]::new();$pen=[Drawing.Pen]::new([Drawing.Color]::FromArgb(40,65,110),4)
+       try{$path.AddString($label[0],$labelFont.FontFamily,[int][Drawing.FontStyle]::Bold,20,[Drawing.PointF]::new([single]$label[1],130),[Drawing.StringFormat]::GenericDefault);$g.DrawPath($pen,$path);$g.FillPath([Drawing.Brushes]::White,$path)}finally{$path.Dispose();$pen.Dispose()}
+      }
+     }finally{$labelFont.Dispose()}
+    }
    }
    $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
    $o=Read-Observation $bitmap
@@ -182,6 +213,11 @@ if($SelfTest){
    }
    Check ($o.State -eq $kind) ('Real OCR screen recognition failed: '+$kind+' -> '+$o.State)
   }
+  $merged=@([pscustomobject]@{Text='Purchase Commission';X=.83;Y=.19;W=.16;H=.03})
+  $word=@([pscustomobject]@{Text='Commission';X=.91;Y=.19;W=.08;H=.03})
+  $o=Observe $merged $bitmap '' $word;Check ($o.State -eq 'HOME' -and [Math]::Abs($o.X-.95) -lt .001) 'Merged home line must target the Commission word only'
+  $o=Observe $merged $bitmap '' @($word[0],$word[0]);Check ($o.State -eq 'UNKNOWN') 'Ambiguous home words must not click'
+  $o=Observe $merged $bitmap '' @();Check ($o.State -eq 'UNKNOWN') 'Missing home word must not use guessed coordinates'
   $session=New-Session;$story=[pscustomobject]@{State='STORY'};$items=[pscustomobject]@{State='ITEMS'};$result=[pscustomobject]@{State='RESULT'}
   Check ((Next-Action $session ([pscustomobject]@{State='CLAIM'}) 2000) -eq 'CLAIM') 'Claim missing'
   Check ((Next-Action $session $story 2300) -eq 'WAIT') 'Cooldown ignored'
