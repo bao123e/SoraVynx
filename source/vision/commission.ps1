@@ -144,13 +144,14 @@ if($SelfTest){
   foreach($kind in @('STORY','ITEMS','CLAIM','HOME')){
    $g.Clear([Drawing.Color]::FromArgb(25,35,48))
    switch($kind){
-    'STORY' {$g.DrawString('Esc Skip',$font,[Drawing.Brushes]::White,30,20);$g.DrawString('Space Next',$font,[Drawing.Brushes]::White,980,650)}
+    'STORY' {$g.FillRectangle([Drawing.Brushes]::White,25,25,75,45);$small=[Drawing.Font]::new('Segoe UI',18);try{$g.DrawString('Esc',$small,[Drawing.Brushes]::DarkBlue,30,29);$g.DrawString('Skip',$font,[Drawing.Brushes]::White,110,23);$g.FillRectangle([Drawing.Brushes]::WhiteSmoke,200,490,850,160);$g.DrawString('Minova',$font,[Drawing.Brushes]::DarkBlue,240,500);$g.DrawString('Finished already?',$font,[Drawing.Brushes]::DarkBlue,240,560);$g.DrawString('Space Next',$small,[Drawing.Brushes]::White,1040,665)}finally{$small.Dispose()}}
     'ITEMS' {$g.DrawString('Items Obtained!',$font,[Drawing.Brushes]::White,400,210);$g.DrawString('Select anywhere to continue',$font,[Drawing.Brushes]::White,360,600)}
     'CLAIM' {$g.DrawString('Commission',$font,[Drawing.Brushes]::White,120,30);$g.FillRectangle([Drawing.Brushes]::Turquoise,1000,600,260,90);$g.DrawString('Claim All',$font,[Drawing.Brushes]::White,1020,620)}
     'HOME' {$g.DrawString('Commission',$font,[Drawing.Brushes]::White,1010,110)}
    }
+   $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
    $read=Read-Image $bitmap
-   try{$o=Observe $read.Lines $read.Bitmap;if($o.State -ne $kind){foreach($line in $read.Lines){[Console]::Out.WriteLine(('FIXTURE {0}: {1} at {2:N3},{3:N3}' -f $kind,$line.Text,$line.X,$line.Y))}};Check ($o.State -eq $kind) ('Real OCR screen recognition failed: '+$kind+' -> '+$o.State)}finally{$read.Bitmap.Dispose()}
+   try{$o=Observe $read.Lines $read.Bitmap;if($o.State -ne $kind){if($env:RUNNER_TEMP){$bitmap.Save([IO.Path]::Combine($env:RUNNER_TEMP,('ocr-fixture-'+$kind+'.png')),[Drawing.Imaging.ImageFormat]::Png)};foreach($line in $read.Lines){[Console]::Out.WriteLine(('FIXTURE {0}: {1} at {2:N3},{3:N3}' -f $kind,$line.Text,$line.X,$line.Y))}};Check ($o.State -eq $kind) ('Real OCR screen recognition failed: '+$kind+' -> '+$o.State)}finally{$read.Bitmap.Dispose()}
   }
   $session=New-Session;$story=[pscustomobject]@{State='STORY'};$items=[pscustomobject]@{State='ITEMS'};$result=[pscustomobject]@{State='RESULT'}
   Check ((Next-Action $session ([pscustomobject]@{State='CLAIM'}) 2000) -eq 'CLAIM') 'Claim missing'
