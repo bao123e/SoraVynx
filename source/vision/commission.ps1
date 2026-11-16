@@ -150,7 +150,7 @@ if($SelfTest){
     'HOME' {$g.DrawString('Commission',$font,[Drawing.Brushes]::White,1010,110)}
    }
    $read=Read-Image $bitmap
-   try{$o=Observe $read.Lines $read.Bitmap;Check ($o.State -eq $kind) ('Real OCR screen recognition failed: '+$kind+' -> '+$o.State)}finally{$read.Bitmap.Dispose()}
+   try{$o=Observe $read.Lines $read.Bitmap;if($o.State -ne $kind){foreach($line in $read.Lines){[Console]::Out.WriteLine(('FIXTURE {0}: {1} at {2:N3},{3:N3}' -f $kind,$line.Text,$line.X,$line.Y))}};Check ($o.State -eq $kind) ('Real OCR screen recognition failed: '+$kind+' -> '+$o.State)}finally{$read.Bitmap.Dispose()}
   }
   $session=New-Session;$story=[pscustomobject]@{State='STORY'};$items=[pscustomobject]@{State='ITEMS'};$result=[pscustomobject]@{State='RESULT'}
   Check ((Next-Action $session ([pscustomobject]@{State='CLAIM'}) 2000) -eq 'CLAIM') 'Claim missing'
