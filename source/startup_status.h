@@ -13,7 +13,7 @@ enum StartupCode {
  SV_FRAME_CREATE_FAILED, SV_FRAME_ENABLE_FAILED, SV_INIT_THREAD_FAILED,
  SV_STARTUP_CODE_COUNT
 };
-static const char *startup_code_name(int code) {
+static inline const char *startup_code_name(int code) {
  static const char *const names[]={
   "STARTING","WAIT_MODULE","WAIT_DOMAIN","WAIT_HOTFIX","BIND_BACKEND",
   "READY","DUPLICATE_RUNTIME","MODULE_TIMEOUT","BINARY_CHECK_FAILED",
@@ -25,7 +25,7 @@ static const char *startup_code_name(int code) {
  return code>=0&&code<SV_STARTUP_CODE_COUNT?names[code]:"UNKNOWN";
 }
 /* Scalar snapshots only: no account, license, addresses or filesystem paths. */
-static int startup_report_format(char *out,size_t size,int code,int binary_check,
+static inline int startup_report_format(char *out,size_t size,int code,int binary_check,
  int hotfix,int hook_status,int player,int events) {
  return snprintf(out,size,
   "SoraVynx compatibility report v1\r\nBuild: " SV_BUILD_VERSION "\r\n"
