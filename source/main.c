@@ -236,7 +236,7 @@ static void switch_page(int page) {
  for(int p=0;p<4;p++)for(int i=0;i<page_count[p];i++)ShowWindow(page_controls[p][i],p==page?SW_SHOW:SW_HIDE);
  const wchar_t *titles[]={L"Player",L"Bouncing Bumper Bash",L"Custom Background",L"Auto Daily"};
  const wchar_t *captions[]={L"Your core combat toolkit",L"Independent skill and score controls",L"Image, panel and button appearance",L"Keep current in-game selections"};
- const wchar_t *footers[]={L"Hide the panel with F1. Your toggles stay active.",L"F6 cooldown   /   F7 energy   /   F8 score",L"Appearance is saved automatically. Gameplay settings stay active.",L"Hover Claim Gifts in game + F9 to mark; no click."};
+ const wchar_t *footers[]={L"Hide the panel with F1. Your toggles stay active.",L"F6 cooldown   /   F7 energy   /   F8 score",L"Appearance is saved automatically. Gameplay settings stay active.",L"F9 marks the selected task button; no click."};
  update_text(section_title,titles[page]);update_text(section_caption,captions[page]);update_text(footer,footers[page]);
  make_background(window);InvalidateRect(window,NULL,TRUE);for(int i=0;i<4;i++)InvalidateRect(tabs[i],NULL,TRUE);
 }
