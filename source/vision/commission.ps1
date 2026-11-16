@@ -114,8 +114,8 @@ function Observe($lines,$bitmap){
  $header=@($lines | Where-Object {(Normal $_.Text) -eq 'commission' -and $_.X -lt .4 -and $_.Y -lt .15})
  $claim=@($lines | Where-Object {(Normal $_.Text) -eq 'claimall' -and $_.X -gt .65 -and $_.Y -gt .6})
  if($header.Count -eq 1 -and $claim.Count -eq 1){$p=$claim[0];$state='NO_REWARDS';if(Cyan-Button $bitmap $p){$state='CLAIM'};return [pscustomobject]@{State=$state;X=$p.X+$p.W/2;Y=$p.Y+$p.H/2}}
- $home=@($lines | Where-Object {(Normal $_.Text) -eq 'commission' -and $_.X -gt .7 -and $_.Y -lt .3})
- if($home.Count -eq 1){$p=$home[0];return [pscustomobject]@{State='HOME';X=$p.X+$p.W/2;Y=$p.Y+$p.H/2}}
+ $commissionHome=@($lines | Where-Object {(Normal $_.Text) -eq 'commission' -and $_.X -gt .7 -and $_.Y -lt .3})
+ if($commissionHome.Count -eq 1){$p=$commissionHome[0];return [pscustomobject]@{State='HOME';X=$p.X+$p.W/2;Y=$p.Y+$p.H/2}}
  return [pscustomobject]@{State='UNKNOWN';X=0.0;Y=0.0}
 }
 function New-Session {return @{Entry=0;Claim=0;Skip=0;Items=0;Again=0;Last=0;Unknown=0;Actions=0;Commission=$false}}
@@ -164,7 +164,7 @@ if($SelfTest){
   for($i=0;$i -lt 8;$i++){$last=Next-Action $session ([pscustomobject]@{State='UNKNOWN'}) (3000+$i*1000)};Check ($last -eq 'ERR_UNKNOWN_SCREEN') 'Unknown screen did not stop'
   $session=New-Session;Check ((Next-Action $session $story 2000) -eq 'ERR_NOT_COMMISSION') 'Unrelated story was skipped'
   $session=New-Session;Check ((Next-Action $session $items 2000) -eq 'ERR_NOT_COMMISSION') 'Unrelated loot was dismissed'
-  $session=New-Session;$home=[pscustomobject]@{State='HOME'};Check ((Next-Action $session $home 2000) -eq 'OPEN') 'Home navigation missing';Check ((Next-Action $session $home 2500) -eq 'WAIT') 'Navigation settle ignored'
+  $session=New-Session;$commissionHome=[pscustomobject]@{State='HOME'};Check ((Next-Action $session $commissionHome 2000) -eq 'OPEN') 'Home navigation missing';Check ((Next-Action $session $commissionHome 2500) -eq 'WAIT') 'Navigation settle ignored'
   $session=New-Session;$null=Next-Action $session ([pscustomobject]@{State='CLAIM'}) 2000
   Check ((Next-Action $session ([pscustomobject]@{State='NO_REWARDS'}) 2500) -eq 'WAIT') 'Temporary disabled button ended the run'
   Check ((Next-Action $session ([pscustomobject]@{State='NO_REWARDS'}) 7000) -eq 'ERR_REWARD_RESULT_NOT_RECOGNIZED') 'Missing result was reported as no input'
