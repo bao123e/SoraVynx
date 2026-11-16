@@ -1,88 +1,139 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
--- Explicit daily Tower reward request only. Shop and battle/upgrade actions are not run.
-local kind,raw,write,protected=type,rawget,rawset,pcall
+-- Claim Gifts uses the active Dorm UI, not the unrelated InfinityTower request.
+local kind,raw,write,protected,advance=type,rawget,rawset,pcall,next
 local function result(status,message,code)
- return "SoraVynx - Tower daily reward preview\r\nStatus: " .. status .. "\r\n" ..
+ return "SoraVynx - Dorm Claim Gifts preview\r\nStatus: " .. status .. "\r\n" ..
   (code and "Code: " .. code .. "\r\n" or "") .. message ..
-  "\r\nShop is skipped. No battle, upgrade, gift-send or other daily task was run.\r\n"
+  "\r\nInfinityTower and Shop were not called. No battle, upgrade or gift-send task was run.\r\n"
 end
 local function stop(code,message)return result("STOPPED",message,code)end
-local player=raw(_G,"PlayerData")
-local tower=kind(player)=="table" and raw(player,"InfinityTower") or nil
-local class=kind(tower)=="table" and raw(tower,"class") or nil
-if kind(tower)~="table" or kind(class)~="table" then return stop("TOWER_INSTANCE_UNAVAILABLE","The existing InfinityTower data instance is not ready.") end
-local handler=raw(class,"ITDailyRewardReq")
 local dbg=raw(_G,"debug")
 local info=kind(dbg)=="table" and raw(dbg,"getinfo") or nil
-local param=kind(dbg)=="table" and raw(dbg,"getlocal") or nil
-if kind(handler)~="function" then return stop("TOWER_HANDLER_MISSING","ITDailyRewardReq is unavailable on the existing Tower class.") end
-if kind(info)~="function" then return stop("TOWER_METADATA_UNAVAILABLE","Function arity metadata is unavailable; no request sent.") end
-local ok,meta=protected(info,handler,"u")
-if not ok or kind(meta)~="table" or raw(meta,"nparams")~=1 or raw(meta,"isvararg")~=false then
- return stop("TOWER_SIGNATURE_MISMATCH","The expected one-self-argument Tower handler could not be verified; no request sent.")
-end
-if kind(param)=="function" then
- local valid,name=protected(param,handler,1)
- if valid and kind(name)=="string" and name:match("^[%a_][%w_]*$") and name~="self" then
-  return stop("TOWER_PARAMETER_MISMATCH","The Tower handler parameter differs from the confirmed signature.")
- end
-end
+local registry=kind(dbg)=="table" and raw(dbg,"getregistry") or nil
+local upvalue=kind(dbg)=="table" and raw(dbg,"getupvalue") or nil
 local pkg=raw(_G,"package")
 local loaded=kind(pkg)=="table" and raw(pkg,"loaded") or nil
-local proven=false
-for _,name in ipairs({"GameCore.Data.DataClass.PlayerInfinityTowerData","GameCore/Data/DataClass/PlayerInfinityTowerData","GameCore/Data/DataClass/PlayerInfinityTowerData.lua"}) do
- if kind(loaded)=="table" and raw(loaded,name)==class then proven=true end
-end
-if not proven then
- local valid,source_meta=protected(info,handler,"S")
- local source=valid and kind(source_meta)=="table" and raw(source_meta,"source") or nil
- if kind(source)=="string" and #source<=1024 then
-  source=source:gsub("^@",""):gsub("\\","/"):gsub("/","."):gsub("%.lua$","")
-  local expected="GameCore.Data.DataClass.PlayerInfinityTowerData"
-  proven=source==expected or source:sub(-#expected-1)=="." .. expected
+local target="Game.UI.Dorm.DormInteractive.DormInteractiveCtrl"
+local classes,module_defs={},{ }
+if kind(loaded)=="table" then
+ local k,v=nil,nil
+ for i=1,4096 do
+  k,v=advance(loaded,k);if k==nil then break end
+  if kind(v)=="table" then
+   module_defs[v]=true
+   if kind(k)=="string" and k:gsub("/","."):gsub("%.lua$","")==target then classes[v]=true end
+  end
  end
 end
-if not proven then return stop("TOWER_CLASS_UNVERIFIED","The existing Tower object's class could not be linked to the confirmed data module.") end
-local rewards=raw(tower,"InfinityTowerRewardsTab")
-if kind(rewards)~="table" then return stop("TOWER_STATE_UNAVAILABLE","Tower reward data is not ready; no request sent.") end
--- Observe only this reward table; do not copy scalar values or interpret changes as success.
-local function snapshot(root)
- local values,queue,seen,count={},{{root,"",0}},{},0
- for q=1,32 do
-  local item=queue[q];if not item then break end
-  local t,path,depth=item[1],item[2],item[3]
-  if not seen[t] then
-   seen[t]=true;local key,value=nil,nil
-   for i=1,128 do
-    key,value=next(t,key);if key==nil then break end
-    if kind(key)=="string" or kind(key)=="number" then
-     local p=path .. "/" .. key
-     if kind(value)=="boolean" or kind(value)=="number" then values[p]=value;count=count+1
-     elseif kind(value)=="table" and depth<2 and key~="class" then queue[#queue+1]={value,p,depth+1} end
-    end
+if advance(classes)==nil then return stop("DORM_MODULE_NOT_LOADED","Open Tyrant's Tower / Hall first, then retry. No action was sent.") end
+local function signature(fn)
+ if kind(fn)~="function" or kind(info)~="function" then return false end
+ local ok,m=protected(info,fn,"u")
+ if not ok or kind(m)~="table" or raw(m,"nparams")~=1 or raw(m,"isvararg")~=false then return false end
+ local param=raw(dbg,"getlocal")
+ if kind(param)=="function" then
+  local valid,name=protected(param,fn,1)
+  if valid and kind(name)=="string" and name~="self" then return false end
+ end
+ return true
+end
+local key="_SORAVYNX_DORM_CLAIM_V1"
+local state=raw(_G,key)
+if state~=nil then
+ if kind(state)~="table" or raw(state,"marker")~="SoraVynx.Dorm.v1" then return stop("DORM_STATE_CHANGED","No further action sent.") end
+ return result("TOWER_STATUS",raw(state,"phase")=="returned" and
+  "Claim Gifts UI handler returned. Receipt of items and daily completion must be checked in game.\r\nAttempts: 1. Further clicks show status only." or
+  "Claim Gifts handler raised an error after the attempt; an action may already have been sent. No retry was made.")
+end
+local function owner(instance)
+ local queue,seen={instance},{}
+ local matched,handler=false,nil
+ for q=1,24 do
+  local t=queue[q];if not t then break end
+  if kind(t)=="table" and not seen[t] then
+   seen[t]=true;if classes[t] then matched=true end
+   if not handler then local fn=raw(t,"OnBtnClick_ReceiveDormReward");if kind(fn)=="function" then handler=fn end end
+   for _,name in ipairs({"class","__class","__index","super"}) do local v=raw(t,name);if kind(v)=="table" then queue[#queue+1]=v end end
+   local mt=getmetatable(t);if kind(mt)=="table" then queue[#queue+1]=mt end
+  end
+ end
+ return matched and handler or nil
+end
+-- Active Unity scene objects are required; a Lua class or stale instance alone is insufficient.
+local function active_object(value)
+ if kind(value)~="userdata" then return false end
+ local ok,active=protected(function()
+  local direct,active=protected(function()return value.activeInHierarchy end)
+  local go=direct and kind(active)=="boolean" and value or value.gameObject
+  if go==nil or go.activeInHierarchy~=true then return false end
+  local checked,enabled=protected(function()return value.isActiveAndEnabled end)
+  if checked and enabled==false then return false end
+  local scene=go.scene
+  return scene~=nil and scene.isLoaded==true
+ end)
+ return ok and active==true
+end
+local function visible(instance)
+ local k,v=nil,nil
+ for i=1,128 do
+  k,v=advance(instance,k);if k==nil then break end
+  if active_object(v) then return true end
+ end
+ return false
+end
+local roots,queued={},{}
+local limited=false
+local function enqueue(t,depth)
+ if kind(t)~="table" or queued[t] or t==_G or t==loaded or t==pkg or t==raw(_G,"PlayerData") or module_defs[t] then return end
+ if #roots>=2048 then limited=true;return end
+ queued[t]=true;roots[#roots+1]={t,depth}
+end
+if kind(registry)=="function" then local ok,r=protected(registry);if ok then enqueue(r,0) end end
+-- Known PanelManager closure captures may also retain the live controllers.
+local manager=raw(_G,"PanelManager")
+if kind(manager)=="table" and kind(upvalue)=="function" then
+ for _,name in ipairs({"GetCurPanelId","OpenPanelWithContext","CheckPanelOpen","SwitchAllUI","Home"}) do
+  local fn=raw(manager,name)
+  if kind(fn)=="function" then
+   for index=1,32 do
+    local ok,label,value=protected(upvalue,fn,index);if not ok or label==nil then break end
+    if label~="_ENV" and label~="_G" then enqueue(value,0) end
    end
   end
  end
- return values,count
 end
-local key="_SORAVYNX_TOWER_DAILY_V1"
-local state=raw(_G,key)
-if state~=nil then
- if kind(state)~="table" or raw(state,"marker")~="SoraVynx.Tower.v1" or raw(state,"tower")~=tower or raw(state,"handler")~=handler then
-  return stop("TOWER_CONTEXT_CHANGED","The Tower session changed; no new request sent.")
+local candidates,seen_candidates={},{}
+local inspected,visited,class_hits=0,0,0
+for q=1,2048 do
+ local item=roots[q];if not item then break end
+ local t,depth=item[1],item[2];visited=visited+1
+ if raw(t,"__index")~=t then
+  local handler=owner(t)
+  if handler then
+   class_hits=class_hits+1
+   if signature(handler) and visible(t) and not seen_candidates[t] then
+    seen_candidates[t]=true;candidates[#candidates+1]={t,handler}
+   end
+  end
  end
- local now=snapshot(rewards);local changes=0
- for k,v in next,state.before do if now[k]~=v then changes=changes+1 end end
- for k in next,now do if state.before[k]==nil then changes=changes+1 end end
- local message=state.phase=="returned" and "The Tower request handler returned. Server success/reward receipt is not confirmed." or
-  "The Tower handler raised an error after the attempt; a request may already have been sent."
- return result("TOWER_STATUS",message .. "\r\nObserved reward-table field changes: " .. changes ..
-  ". Changes alone do not prove task completion.\r\nAttempts: 1. Further clicks refresh status only; no automatic retry.")
+ local k,v=nil,nil
+ local complete=false
+ for i=1,(q==1 and 4096 or 256) do
+  if inspected>=32768 then limited=true;break end
+  k,v=advance(t,k);if k==nil then complete=true;break end
+  inspected=inspected+1
+  if depth<6 and k~="class" and k~="super" and k~="__index" and k~="_ENV" and k~="_G" then enqueue(v,depth+1) end
+ end
+ if not complete and advance(t,k)~=nil then limited=true end
+ if inspected>=32768 then limited=true;break end
 end
-local before,fields=snapshot(rewards)
-state={marker="SoraVynx.Tower.v1",tower=tower,handler=handler,before=before,phase="attempted"}
-write(_G,key,state)
-local sent=protected(handler,tower)
-state.phase=sent and "returned" or "handler_error"
-if not sent then return result("TOWER_STATUS","The Tower handler raised an error after the attempt. Check the game; no automatic retry was made.","TOWER_HANDLER_ERROR") end
-return result("TOWER_REQUEST_ATTEMPTED","Called ITDailyRewardReq on the existing Tower data instance once.\r\nThe tool is hidden so game reward dialogs remain visible. Press F1 to restore it, then click Tower reward / status to check observations.\r\nReward receipt is not yet confirmed.")
+if limited then return stop("DORM_DISCOVERY_LIMIT","UI discovery reached its bound. No action was sent; no incomplete uniqueness check is accepted.") end
+if #candidates~=1 then
+ return stop(#candidates==0 and "DORM_ACTIVE_UI_NOT_FOUND" or "DORM_ACTIVE_UI_AMBIGUOUS",
+  "No action sent. Open the Hall with Claim Gifts visible.\r\nDiscovery: tables=" .. visited .. "; entries=" .. inspected ..
+  "; matching instances=" .. class_hits .. "; active candidates=" .. #candidates .. ".\r\nClass definitions and inactive or unverified objects cannot receive the action.")
+end
+state={marker="SoraVynx.Dorm.v1",phase="attempted"};write(_G,key,state)
+local sent=protected(candidates[1][2],candidates[1][1]);state.phase=sent and "returned" or "handler_error"
+if not sent then return result("TOWER_STATUS","Claim Gifts UI handler raised an error after the attempt. Check the game; no retry was made.","DORM_HANDLER_ERROR") end
+return result("TOWER_REQUEST_ATTEMPTED","Called the active Dorm Claim Gifts UI handler once.\r\nThe tool is hidden so reward dialogs remain visible. F1 restores the tool; further clicks show status only.\r\nItem receipt and daily completion are not yet confirmed.")

@@ -2,7 +2,7 @@ name: Verify Windows license gate
 on:
   workflow_dispatch:
   push:
-    branches: [feature/license-gate, feature/key-recovery, fix/startup-compatibility-report]
+    branches: [feature/license-gate, feature/key-recovery, fix/startup-compatibility-report, fix/dorm-claim-gifts]
     paths: ['source/**', 'licensing/**', '.github/workflows/license-gate.yml']
 permissions:
   contents: write
@@ -30,6 +30,8 @@ jobs:
           zig cc -target x86_64-windows-gnu -O2 -UNDEBUG -std=c11 -Wall -Wextra -Werror -Wno-unused-function source/tests/startup_windows_test.c source/api.c source/backend.c source/vendor/minhook/src/hook.c source/vendor/minhook/src/buffer.c source/vendor/minhook/src/trampoline.c source/vendor/minhook/src/hde/hde64.c source/dist/ui.res -Isource/vendor/minhook/include -lgdiplus -lcomdlg32 -lmsimg32 -luser32 -lgdi32 -lkernel32 -lbcrypt -lwinhttp -lcrypt32 -ladvapi32 -o "$env:RUNNER_TEMP/startup-test.exe"
           & "$env:RUNNER_TEMP/startup-test.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Startup status/clipboard regression failed' }
+      - name: Verify deferred Lua bridge and report clipboard
+        run: python source/test_report_windows.py --zig zig
       - name: Prepare ephemeral issuer and native verifier
         shell: pwsh
         run: |
@@ -72,13 +74,13 @@ jobs:
         run: |
           tag="v$(python -c "import json; print(json.load(open('source/dist/build.json'))['version'])")"
           cat > "$RUNNER_TEMP/customer-notes.md" <<'NOTES'
-          Windows x64 startup diagnostic preview for the reported game 2.1.0 update. Replaces the generic unsupported message with distinct startup failure codes and adds Copy startup report, available after startup stops. The report contains no license key, account, addresses or paths and creates no log files. Binary hash and signature checks remain unchanged.
+          Dorm Claim Gifts UI preview. Replaces the unrelated InfinityTower.ITDailyRewardReq action with OnBtnClick_ReceiveDormReward on one verified, active Dorm UI controller. It searches bounded Lua registry/PanelManager captures, requires an exact class and signature plus an active loaded Unity scene object, and stops without calling an action if discovery is missing, ambiguous or limited. It never sends guessed reward IDs or calls InfinityTower/Shop as fallback.
 
-          Keep the existing issuer-private.pem and existing registered key. Extract into a new folder and use the EXE/DLL pair together. Enter the game main menu, wait for initialization to end (WAIT_HOTFIX can take up to 180 seconds), then Copy startup report and send its contents. No new issuer or bot/SePay setup is required.
+          Keep rewards UNCLAIMED for the test. Close the game/tool, extract the new EXE/DLL pair to a new folder and use your existing key. Open Tyrant's Tower / Hall with Claim Gifts visible, wait for READY, set Claim Tyrant's Tower rewards to USE in Auto Daily, and click Claim Gifts / status once. Do not press the game Claim Gifts button manually. The tool hides for game dialogs; F1 restores it. Check received items and the daily 0/1 to 1/1 status. Further tool clicks only show status after an attempt; failures before an attempt may be retried after reopening the Hall.
 
-          Verified: native mock backend failure paths and bounded report formatting; actual Windows status label/clipboard; license signature/expiry/tamper checks and activation UI. Gameplay after the game update is unverified. This is a diagnostic build, not a confirmed gameplay repair or anti-ban update.
+          Tested offline with real Lua VM: live class/active scene selection, missing/inactive/wrong signature/ambiguous/truncated discovery, no accidental InfinityTower/Shop calls, one attempt including exceptions, and no scalar or error disclosure. Windows CI checks the Lua main-thread bridge, original callback, cancellation/timeout/clipboard behavior and existing license/startup UI. The prior build's five Player features were confirmed by the owner; Player/Event backend code is unchanged. This NEW Dorm action has not been tested in the live game; function return is not proof of reward receipt or daily completion. No production log file is created. Existing issuer/key/bot/payment settings are retained.
           NOTES
-          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - startup diagnostic preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
+          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - Dorm Claim Gifts preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
       - name: Upload owner-configured customer build only
         if: steps.issuer.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
