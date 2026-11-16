@@ -80,7 +80,8 @@ function Read-Image($bitmap){
   $bits=$copy.LockBits($rect,[Drawing.Imaging.ImageLockMode]::ReadOnly,[Drawing.Imaging.PixelFormat]::Format32bppArgb)
   try{$bytes=[byte[]]::new($copy.Width*$copy.Height*4);[Runtime.InteropServices.Marshal]::Copy($bits.Scan0,$bytes,0,$bytes.Length)}finally{$copy.UnlockBits($bits)}
   $writer=[Windows.Storage.Streams.DataWriter]::new();$writer.WriteBytes($bytes)
-  $software=[Windows.Graphics.Imaging.SoftwareBitmap]::CreateCopyFromBuffer($writer.DetachBuffer(),[Windows.Graphics.Imaging.BitmapPixelFormat]::Bgra8,$copy.Width,$copy.Height)
+  $software=[Windows.Graphics.Imaging.SoftwareBitmap]::new([Windows.Graphics.Imaging.BitmapPixelFormat]::Bgra8,$copy.Width,$copy.Height)
+  $software.CopyFromBuffer($writer.DetachBuffer())
   $task=$asTask.MakeGenericMethod([Windows.Media.Ocr.OcrResult]).Invoke($null,@($engine.RecognizeAsync($software)))
   if(!$task.Wait(8000)){throw 'OCR_TIMEOUT'}
   $lines=@(foreach($line in $task.Result.Lines){
