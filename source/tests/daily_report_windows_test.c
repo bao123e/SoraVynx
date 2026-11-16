@@ -4,7 +4,15 @@
 #include <string.h>
 #include <wchar.h>
 #include "../backend.h"
+static int dialogs;
+static int WINAPI fixture_messagebox(HWND owner,LPCWSTR text,LPCWSTR caption,UINT flags){
+ (void)owner;(void)caption;(void)flags;
+ if(!wcsstr(text,L"Setup report copied"))return IDCANCEL;
+ dialogs++;return IDOK;
+}
+#define MessageBoxW fixture_messagebox
 #include "../daily_setup.h"
+#undef MessageBoxW
 #undef NDEBUG
 #include <assert.h>
 struct RuntimeAPI api;
@@ -34,14 +42,6 @@ static void *report_parent(void *klass){return (uintptr_t)klass==101?(void*)1000
 static const void *report_field_type(void *field){uintptr_t c=(uintptr_t)field>>4;return (void*)(uintptr_t)(c==2001?12:c==2003?6:c==1000?4:3);}
 static uint32_t report_field_flags(void *field){return ((uintptr_t)field>>4)==1000?0x10:0;}
 static void *report_invoke(const void *m,void *o,void **args,void **error){(void)m;(void)o;(void)args;(void)error;report_actions++;return NULL;}
-static BOOL CALLBACK close_test_dialog(HWND hwnd,LPARAM id) {
- wchar_t kind[32];GetClassNameW(hwnd,kind,32);
- if(!wcscmp(kind,L"#32770")){PostMessageW(hwnd,WM_COMMAND,IDOK,0);KillTimer(NULL,(UINT_PTR)id);return FALSE;}
- return TRUE;
-}
-static void CALLBACK close_report_box(HWND h,UINT m,UINT_PTR id,DWORD tick) {
- (void)h;(void)m;(void)tick;EnumThreadWindows(GetCurrentThreadId(),close_test_dialog,(LPARAM)id);
-}
 int main(void) {
  HMODULE fixture=LoadLibraryW(L"GameAssembly.dll");assert(fixture);
  HWND owner=CreateWindowW(L"STATIC",L"Report regression",WS_OVERLAPPED,0,0,100,100,NULL,NULL,GetModuleHandleW(NULL),NULL);assert(owner);
@@ -50,7 +50,7 @@ int main(void) {
  api.method_get_return_type=report_return_type;api.type_get_name=report_type_name;api.free=free;
  api.method_get_flags=report_flags;api.runtime_invoke=report_invoke;api.method_get_param=report_param;
  api.class_get_parent=report_parent;api.field_get_type=report_field_type;api.field_get_flags=report_field_flags;
- assert(SetTimer(NULL,105,100,close_report_box));daily_copy_setup(owner);
+ daily_copy_setup(owner);assert(dialogs==1);
  assert(report_detaches==1&&report_actions==0);assert(OpenClipboard(owner));
  HANDLE data=GetClipboardData(CF_UNICODETEXT);assert(data);const wchar_t *text=GlobalLock(data);assert(text);
  const wchar_t *required[]={L"report v3",L"Candidate runtime types: 12",L"ASSEMBLY Game.dll classes=3 scan=yes",L"ASSEMBLY System.Fake.dll classes=1000 scan=no",L"Lua and UI infrastructure",L"API Game.dll:XLua.LuaEnv",L"DoString(System.String script, System.String chunkName)",L"XLua.LuaTable get_Global()",L"API Game.dll:.LuaManager",L"XLua.LuaEnv luaEnv",L"Skipped generated protocol types: 100",L"DailyMissionController",L"HeartlinkManager",L"DispatchController",L"DiscUpgradeController",L"TrialStageController",L"ShopRewardManager",L"OnClickClaimDaily",L"StartCommission(System.Int32 commissionId, System.Boolean useCurrentSelection)",L"get_Instance",L"_instance",L"SelectedId",L"no game actions executed"};

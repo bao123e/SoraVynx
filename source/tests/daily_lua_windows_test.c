@@ -8,7 +8,13 @@
 #include <wchar.h>
 #include <string.h>
 #include "../backend.h"
+static int dialogs;
+static int WINAPI fixture_messagebox(HWND owner,LPCWSTR text,LPCWSTR caption,UINT flags){
+ (void)owner;(void)caption;(void)flags;(void)text;dialogs++;return IDOK;
+}
+#define MessageBoxW fixture_messagebox
 #include "../daily_lua_probe.h"
+#undef MessageBoxW
 #undef NDEBUG
 #include <assert.h>
 struct RuntimeAPI api;
@@ -47,8 +53,6 @@ void *find_field(void *k,const char *n,const char *t,bool s){(void)k;(void)n;(vo
 MH_STATUS WINAPI MH_CreateHook(LPVOID target,LPVOID detour,LPVOID *original){(void)target;(void)detour;(void)original;abort();}
 MH_STATUS WINAPI MH_EnableHook(LPVOID target){(void)target;abort();}
 MH_STATUS WINAPI MH_RemoveHook(LPVOID target){(void)target;abort();}
-static BOOL CALLBACK close_box(HWND hwnd,LPARAM unused){(void)unused;wchar_t name[32];GetClassNameW(hwnd,name,32);if(!wcscmp(name,L"#32770"))PostMessageW(hwnd,WM_COMMAND,IDOK,0);return TRUE;}
-static void CALLBACK dismiss(HWND hwnd,UINT message,UINT_PTR timer,DWORD time){(void)hwnd;(void)message;(void)timer;(void)time;EnumThreadWindows(GetCurrentThreadId(),close_box,0);}
 static void discard(void){free(daily_lua_result);daily_lua_result=NULL;daily_lua_state=0;}
 int main(void){
  memcpy(array_storage+32,&string_object,sizeof(string_object));
@@ -64,15 +68,15 @@ int main(void){
  on_main=true;reenter=true;daily_lua_update_hook(manager_object,daily_lua_update_method);
  assert(daily_lua_state==3&&inspections==1&&handles==freed&&!wcscmp(daily_lua_result,report_text));
  daily_lua_update_hook(manager_object,daily_lua_update_method);assert(inspections==1);
- assert(SetTimer(NULL,1,50,dismiss));daily_lua_poll(NULL);assert(!daily_lua_state);
+ daily_lua_poll(NULL);assert(!daily_lua_state);
  assert(OpenClipboard(NULL));HANDLE memory=GetClipboardData(CF_UNICODETEXT);assert(memory);const wchar_t *copied=GlobalLock(memory);assert(copied&&!wcscmp(copied,report_text));GlobalUnlock(memory);CloseClipboard();
  reenter=false;raise_exception=true;daily_lua_request(NULL);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(daily_lua_state==3&&wcsstr(daily_lua_result,L"command failed")&&handles==freed);discard();
  raise_exception=false;bad_result=true;daily_lua_request(NULL);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(wcsstr(daily_lua_result,L"Unexpected or oversized")&&handles==freed);discard();
  manager_ready=false;int before=inspections;daily_lua_request(NULL);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(inspections==before&&wcsstr(daily_lua_result,L"not ready"));discard();
- daily_lua_request(NULL);daily_lua_requested_at=GetTickCount64()-16000;daily_lua_poll(NULL);assert(!daily_lua_state);KillTimer(NULL,1);
+ daily_lua_request(NULL);daily_lua_requested_at=GetTickCount64()-16000;daily_lua_poll(NULL);assert(!daily_lua_state);
  manager_ready=true;bad_result=false;daily_lua_tower_request(NULL);assert(daily_lua_kind==1&&daily_lua_state==1);
  daily_lua_cancel_queued();assert(!daily_lua_state);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(inspections==before);
- daily_lua_tower_request(NULL);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(daily_lua_state==3&&daily_lua_result_kind==1);assert(SetTimer(NULL,1,50,dismiss));daily_lua_poll(NULL);assert(!daily_lua_state);KillTimer(NULL,1);
+ daily_lua_tower_request(NULL);daily_lua_update_hook(manager_object,daily_lua_update_method);assert(daily_lua_state==3&&daily_lua_result_kind==1);daily_lua_poll(NULL);assert(!daily_lua_state);
  HWND ui=CreateWindowW(L"STATIC",L"UI flow",WS_OVERLAPPEDWINDOW|WS_VISIBLE,10,10,100,100,NULL,NULL,GetModuleHandleW(NULL),NULL);assert(ui&&IsWindowVisible(ui));
  const wchar_t invoked[]=L"Tower reward\r\nStatus: TOWER_REQUEST_ATTEMPTED\r\n";daily_lua_result=calloc(sizeof(invoked)/sizeof(wchar_t),sizeof(wchar_t));memcpy(daily_lua_result,invoked,sizeof(invoked));daily_lua_result_kind=1;daily_lua_state=3;
  daily_lua_poll(ui);assert(!daily_lua_state&&!IsWindowVisible(ui));DestroyWindow(ui);

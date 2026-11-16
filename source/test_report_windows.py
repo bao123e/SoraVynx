@@ -25,7 +25,8 @@ def run(args, output):
             print('Built mock report regression:', binary)
         else:
             command = [str(binary)] if os.name == 'nt' else [args.wine, str(binary)]
-            subprocess.run(command, check=True, cwd=output)
+            print('Running Windows fixture:', binary.name, flush=True)
+            subprocess.run(command, check=True, cwd=output, timeout=60)
 
 
 if __name__ == '__main__':
