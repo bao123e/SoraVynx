@@ -143,6 +143,8 @@ static void refresh_status(void) {
  EnableWindow(GetDlgItem(window,432),state==1&&!claim_click.phase&&(daily_selection&(1u<<(claim_selected?9:7))));
  update_text(GetDlgItem(window,432),claim_click.phase?L"Return to the game...":claim_action_label());
  EnableWindow(GetDlgItem(window,435),!claim_click.phase&&!claim_click.held);
+ EnableWindow(GetDlgItem(window,436),!claim_click.phase&&!claim_click.held&&!claim_click.attempted);
+ update_text(GetDlgItem(window,436),claim_click_mode_label());
  update_text(GetDlgItem(window,435),claim_target_label());
  update_text(GetDlgItem(window,434),claim_hotkey?claim_click_hint():L"F9 is unavailable.\r\nClose the app using F9,\r\nthen restart the tool.");
  swprintf(text,256,L"Damage Multiplier  (x%ld / 2 - 50)",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
@@ -254,6 +256,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
    if(id>=400&&id<=403){switch_page(id-400);return 0;}
    if(id==433){copy_startup_report(hwnd);return 0;}
    if(id==435){if(claim_select((claim_selected+1)%CLAIM_TARGET_COUNT))refresh_status();return 0;}
+   if(id==436){if(claim_set_double(!claim_click.double_click))refresh_status();return 0;}
    if(id==430){daily_lua_request(hwnd);return 0;}
    if(id==431){daily_copy_setup(hwnd);return 0;}
    if(id==432){if(read_atomic(&init_state)==1&&(daily_selection&(1u<<(claim_selected?9:7)))){if(!claim_start(hwnd)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,claim_click_message(),claim_action_title(),MB_OK|MB_ICONINFORMATION);}}return 0;}
@@ -382,7 +385,8 @@ static DWORD WINAPI run(void *unused) {
  for(int i=0;i<12;i++)page_control(3,L"BUTTON",daily_labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+25*i,416,24,600+i);
  EnableWindow(GetDlgItem(window,610),FALSE);
  page_control(3,L"BUTTON",L"Target: Tower / change",BS_OWNERDRAW|WS_TABSTOP,648,180,312,32,435);
- page_control(3,L"STATIC",claim_click_hint(),0,648,224,312,136,434);
+ page_control(3,L"BUTTON",claim_click_mode_label(),BS_OWNERDRAW|WS_TABSTOP,648,224,312,28,436);
+ page_control(3,L"STATIC",claim_click_hint(),0,648,264,312,96,434);
  daily_report=page_control(3,L"BUTTON",L"Copy Lua name report",BS_OWNERDRAW|WS_TABSTOP,648,368,312,44,430);
  page_control(3,L"BUTTON",L"Copy API metadata",BS_OWNERDRAW|WS_TABSTOP,648,420,312,32,431);
  page_control(3,L"BUTTON",L"Claim Gifts / status",BS_OWNERDRAW|WS_TABSTOP,648,460,312,32,432);

@@ -13,19 +13,18 @@ if os.environ.get('GITHUB_ACTIONS')=='true':
  metadata['verification_run']='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']
 metadata['gameplay_verified']=False
 out=Path(os.environ.get('RUNNER_TEMP',build));archive=out/('SoraVynx-'+metadata['version']+'-win64.zip')
-readme="""SoraVynx — Commission UI steps preview.2
+readme="""SoraVynx — Claim All double click preview.3
 
-Game hiện chặn bắt đầu Dispatch vì Limit 4/4. Luồng cần thử: Claim All -> xem UI tự xếp đội/làm tiếp -> mới quyết định bước tiếp theo.
-Thoát game/tool cũ, giải nén cặp EXE/DLL mới, giữ nguyên key hiện tại.
-1. Mở Commission với phần thưởng Complete còn chưa nhận. Không bấm nhận tay.
-2. Auto Daily -> bấm Target đến Claim All; để Dispatch 1 commission ở USE.
-3. F1 ẩn tool -> rê lên CLAIM ALL trong game -> F9 chỉ đánh dấu -> F1 hiện tool.
-4. Bấm Claim All / status một lần. Gửi ảnh màn hình sau đó, gồm popup thưởng/xếp đội và Limit.
-Chưa tự chọn đội, bấm Auto team hoặc Start Dispatch trước khi xác định đúng UI kế tiếp.
-Các target Tower / Claim All / Auto team / Start Dispatch có tọa độ và một lượt thử riêng. Không tự chuyển bước hoặc dùng tọa độ của nhau.
-Không khẳng định Claim All giải phóng giới hạn 4/4; cần xem trạng thái thực tế sau nhận thưởng.
-Không đổi trang/kích thước cửa sổ sau đánh dấu. Disable all hủy input chờ, nhả chuột nếu đã nhấn.
-Không tạo log, không đổi issuer/private PEM/key/bot. Chưa xác minh các bước Commission mới trong game thật.
+Theo yêu cầu thử double click: Claim All mặc định Double, các target khác vẫn Single.
+Thoát game/tool cũ, giải nén cặp EXE/DLL mới, dùng key hiện tại.
+Mở Commission -> tool Auto Daily -> Target: Claim All, Dispatch 1 commission ở USE, Clicks: Double.
+F1 ẩn tool -> rê lên CLAIM ALL -> F9 chỉ đánh dấu -> F1 hiện tool -> Claim All / status một lần.
+Không rê chuột trong lúc tool thực hiện batch hai lần nhấp; đánh dấu lại F9 vì đây là phiên game mới.
+Chờ focus 350 ms; giữ mỗi lần nhấn 80 ms; chờ giữa hai lần 120 ms. Chỉ trả cursor sau khi nhả lần cuối.
+Nếu mất focus, bị che, đổi kích thước/vị trí cửa sổ hoặc chuột bị rê, cú thứ hai bị hủy. Disable all hủy input chờ/nhả chuột.
+Mỗi target chỉ một batch thử trong phiên; bấm lại chỉ xem trạng thái, không lặp gửi.
+Gửi ảnh sau kết quả. Chưa tự chuyển sang Auto team hay Start Dispatch. Chưa xác minh nhận quà bằng bản mới trong game thật.
+Không tạo log, không đổi key/issuer/private PEM/bot/SePay.
 """
 checks=''.join(hashlib.sha256((build/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in ['SoraVynx.exe','SoraVynx.Runtime.dll'])
 with ZipFile(archive,'w',ZIP_DEFLATED,compresslevel=9) as z:

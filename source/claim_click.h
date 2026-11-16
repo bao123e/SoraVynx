@@ -6,11 +6,11 @@
 /* UI-thread only. Calibration never sends input; coordinates are not persisted. */
 struct ClaimClick {
  HWND game;POINT point,restore,target;SIZE size;
- bool marked,attempted,held,moved;int phase;
+ bool marked,attempted,held,moved,double_click;int phase,completed_clicks;
  const wchar_t *message;
 };
 enum { CLAIM_TOWER, CLAIM_COMMISSION_ALL, CLAIM_COMMISSION_TEAM, CLAIM_COMMISSION_START, CLAIM_TARGET_COUNT };
-static struct ClaimClick claim_slots[CLAIM_TARGET_COUNT];
+static struct ClaimClick claim_slots[CLAIM_TARGET_COUNT]={[CLAIM_COMMISSION_ALL]={.double_click=true}};
 static int claim_selected;
 #define claim_click claim_slots[claim_selected]
 static bool claim_select(int selected){
@@ -18,6 +18,12 @@ static bool claim_select(int selected){
  for(int i=0;i<CLAIM_TARGET_COUNT;i++)if(claim_slots[i].phase||claim_slots[i].held)return false;
  claim_selected=selected;return true;
 }
+static bool claim_set_double(bool enabled){
+ if(claim_click.attempted)return false;
+ for(int i=0;i<CLAIM_TARGET_COUNT;i++)if(claim_slots[i].phase||claim_slots[i].held)return false;
+ claim_click.double_click=enabled;return true;
+}
+static const wchar_t *claim_click_mode_label(void){return claim_click.double_click?L"Clicks: Double / change":L"Clicks: Single / change";}
 static const wchar_t *claim_target_label(void){
  static const wchar_t *const labels[]={L"Target: Tower / change",L"Target: Claim All / change",L"Target: Auto team / change",L"Target: Start Dispatch / change"};return labels[claim_selected];
 }
@@ -34,14 +40,14 @@ static const wchar_t *claim_click_message(void){
   L"Use only when the game permits dispatch and the team is ready. F1: hide tool, hover START DISPATCH and press F9 (mark only). F1: return, then Start Dispatch / status."};return help[claim_selected];
 }
 static const wchar_t *claim_click_hint(void){
- if(claim_click.phase)return L"One click is queued.\r\nKeep the game focused.";
+ if(claim_click.phase)return claim_click.double_click?L"Double click is queued.\r\nKeep the game focused.":L"One click is queued.\r\nKeep the game focused.";
  if(claim_click.attempted)return L"ONE ATTEMPT USED\r\nCheck the game and daily.\r\nButton shows status only.";
  if(claim_click.marked)return L"POINT MARKED (no click)\r\nKeep the game page open.\r\nUse this step's action.\r\nCheck the result in game.";
  static const wchar_t *const hints[]={
-  L"F1: hide tool\r\nHover Claim Gifts + F9\r\n(mark only, no click)\r\nF1: return to tool\r\nClaim Gifts / status",
-  L"Open Commission rewards.\r\nF1: hide tool\r\nHover CLAIM ALL + F9\r\n(mark only, no click)\r\nF1, then Claim All / status",
-  L"Use game's auto-team UI.\r\nF1: hide tool\r\nHover auto-team + F9\r\n(mark only, no click)\r\nF1, then Auto team / status",
-  L"Team ready, free slot.\r\nF1: hide tool\r\nHover START DISPATCH + F9\r\n(mark only, no click)\r\nF1, then Start Dispatch"};return hints[claim_selected];
+  L"F1 hide; hover Claim Gifts\r\nF9 mark (no click)\r\nF1 return to tool\r\nClaim Gifts / status",
+  L"F1 hide; hover CLAIM ALL\r\nF9 mark (no click)\r\nF1 return to tool\r\nClaim All / status",
+  L"F1 hide; hover auto-team\r\nF9 mark (no click)\r\nF1 return to tool\r\nAuto team / status",
+  L"F1 hide; hover START\r\nF9 mark (no click)\r\nF1 return to tool\r\nStart Dispatch / status"};return hints[claim_selected];
 }
 static bool claim_game(HWND game){
  DWORD pid=0;wchar_t name[64]={0};
@@ -49,8 +55,12 @@ static bool claim_game(HWND game){
 }
 static bool claim_inside(POINT p,RECT r){return p.x>=r.left&&p.x<r.right&&p.y>=r.top&&p.y<r.bottom;}
 static bool claim_mouse(DWORD flags){INPUT input={0};input.type=INPUT_MOUSE;input.mi.dwFlags=flags;return SendInput(1,&input,sizeof(input))==1;}
-static bool claim_release(void){
+static bool claim_release_press(void){
  if(claim_click.held){for(int i=0;i<3;i++)if(claim_mouse(MOUSEEVENTF_LEFTUP)){claim_click.held=false;break;}}
+ return !claim_click.held;
+}
+static bool claim_release(void){
+ claim_release_press();
  POINT now;
  if(claim_click.moved&&GetCursorPos(&now)&&now.x==claim_click.target.x&&now.y==claim_click.target.y)SetCursorPos(claim_click.restore.x,claim_click.restore.y);
  claim_click.moved=false;return !claim_click.held;
@@ -83,37 +93,50 @@ static bool claim_start(HWND owner){
  if(claim_click.attempted||claim_click.phase){return false;}
  if(!claim_click.marked){claim_click.message=L"No point marked for this task. F1 to hide the tool, hover its game button and press F9 (no click), then F1 to return.";return false;}
  if(!claim_context()||!GetCursorPos(&claim_click.restore))return false;
- ShowWindow(owner,SW_HIDE);SetForegroundWindow(claim_click.game);claim_click.phase=1;
- if(!SetTimer(owner,3,200,NULL)){claim_click.phase=0;claim_click.message=L"Could not queue the click. No input sent.";return false;}
- claim_click.message=L"Waiting for game focus. One marked click is queued.";return true;
+ ShowWindow(owner,SW_HIDE);SetForegroundWindow(claim_click.game);claim_click.phase=1;claim_click.completed_clicks=0;
+ if(!SetTimer(owner,3,350,NULL)){claim_click.phase=0;claim_click.message=L"Could not queue the click. No input sent.";return false;}
+ claim_click.message=claim_click.double_click?L"Waiting for game focus. One double-click batch is queued.":L"Waiting for game focus. One marked click is queued.";return true;
 }
 /* -1 stopped, 0 idle/waiting, 1 click input completed. Release a sent press even after focus loss. */
 static int claim_tick(HWND owner){
  if(!claim_click.phase)return 0;
- if(claim_click.phase==2){
-  KillTimer(owner,3);claim_click.phase=0;
-  bool released=claim_release();
-  claim_click.message=released?L"One mouse click was sent to the marked task point. Check the result and daily 0/1 -> 1/1 in game. This is not server confirmation. Further presses show status only.":L"Mouse release was blocked. Release the left mouse button manually. No automatic second click.";
-  return released?1:-1;
+ if(claim_click.phase==2||claim_click.phase==4){
+  bool first=claim_click.phase==2;
+  if(!claim_release_press()){claim_cancel(owner);claim_click.message=L"Mouse release was blocked. Release the mouse manually. No further click was sent.";return -1;}
+  claim_click.completed_clicks++;
+  if(first&&claim_click.double_click){
+   claim_click.phase=3;
+   if(!SetTimer(owner,3,120,NULL)){claim_cancel(owner);claim_click.message=L"Second-click timing failed. First click may have acted; no retry.";return -1;}
+   return 0;
+  }
+  KillTimer(owner,3);claim_click.phase=0;claim_release();
+  claim_click.message=claim_click.completed_clicks==2?L"Two mouse click pairs were sent at the marked point. This is not server confirmation. Check the game; further presses show status only.":L"One mouse click was sent to the marked task point. Check the result and daily in game. This is not server confirmation. Further presses show status only.";
+  return 1;
  }
- if(!claim_context()){const wchar_t *reason=claim_click.message;claim_cancel(owner);if(!claim_click.held)claim_click.message=reason;return -1;}
+ bool second=claim_click.phase==3;
+ if(!claim_context()){const wchar_t *reason=claim_click.message;claim_cancel(owner);if(!claim_click.held)claim_click.message=second?L"Game window changed after the first click. Second click skipped; check the game.":reason;return -1;}
  if(GetForegroundWindow()!=claim_click.game||(GetAsyncKeyState(VK_LBUTTON)&0x8000)){
-  claim_cancel(owner);claim_click.message=L"Game lost focus or the mouse button is held. No click sent. Return to the selected game page and retry.";return -1;
+  claim_cancel(owner);claim_click.message=second?L"Focus or mouse state changed. Second click skipped; first click may have acted.":L"Game lost focus or the mouse button is held. No click sent. Return to the selected game page and retry.";return -1;
  }
- POINT point=claim_click.point;
- if(!ClientToScreen(claim_click.game,&point)||!SetCursorPos(point.x,point.y)){
-  claim_cancel(owner);claim_click.message=L"Could not position the cursor. No click sent.";return -1;
+ POINT point=claim_click.point,now;
+ if(!ClientToScreen(claim_click.game,&point)){claim_cancel(owner);return -1;}
+ if(second){
+  if(!GetCursorPos(&now)||now.x!=claim_click.target.x||now.y!=claim_click.target.y||point.x!=claim_click.target.x||point.y!=claim_click.target.y){
+   claim_cancel(owner);claim_click.message=L"Cursor or game position changed after the first click. Second click skipped.";return -1;
+  }
+ }else{
+  if(!SetCursorPos(point.x,point.y)){claim_cancel(owner);claim_click.message=L"Could not position the cursor. No click sent.";return -1;}
+  claim_click.target=point;claim_click.moved=true;
  }
- claim_click.target=point;claim_click.moved=true;
  if(GetAncestor(WindowFromPoint(point),GA_ROOT)!=claim_click.game||GetForegroundWindow()!=claim_click.game){
-  claim_cancel(owner);claim_click.message=L"The marked point is covered by another window. No click sent.";return -1;
+  claim_cancel(owner);claim_click.message=second?L"The point became covered. Second click skipped; first click may have acted.":L"The marked point is covered by another window. No click sent.";return -1;
  }
  claim_click.attempted=true;
  if(!claim_mouse(MOUSEEVENTF_LEFTDOWN)){
-  claim_cancel(owner);claim_click.message=L"Windows blocked the mouse press. No automatic retry was made.";return -1;
+  claim_cancel(owner);claim_click.message=second?L"Windows blocked the second press. First click may have acted; no automatic retry.":L"Windows blocked the mouse press. No automatic retry was made.";return -1;
  }
- claim_click.held=true;claim_click.phase=2;
- if(!SetTimer(owner,3,60,NULL)){claim_cancel(owner);claim_click.message=L"Click timing failed; the mouse was released. Check the game; no automatic retry.";return -1;}
+ claim_click.held=true;claim_click.phase=second?4:2;
+ if(!SetTimer(owner,3,80,NULL)){claim_cancel(owner);claim_click.message=L"Click timing failed; the mouse was released. Check the game; no automatic retry.";return -1;}
  return 0;
 }
 

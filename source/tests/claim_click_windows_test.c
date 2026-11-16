@@ -24,7 +24,7 @@ static BOOL WINAPI fake_to_screen(HWND h,LPPOINT p){assert(h==game);p->x+=100;p-
 static BOOL WINAPI fake_set_cursor(int x,int y){f.cursor=(POINT){x,y};return TRUE;}
 static BOOL WINAPI fake_show(HWND h,int show){assert(h==tool&&show==SW_HIDE);return TRUE;}
 static BOOL WINAPI fake_focus(HWND h){f.foreground=h;return TRUE;}
-static UINT_PTR WINAPI fake_timer(HWND h,UINT_PTR id,UINT interval,TIMERPROC fn){assert(h==tool&&id==3&&(interval==200||interval==60)&&!fn);return f.fail_timer?0:1;}
+static UINT_PTR WINAPI fake_timer(HWND h,UINT_PTR id,UINT interval,TIMERPROC fn){assert(h==tool&&id==3&&(interval==350||interval==80||interval==120)&&!fn);return f.fail_timer?0:1;}
 static BOOL WINAPI fake_kill(HWND h,UINT_PTR id){assert(h==tool&&id==3);return TRUE;}
 static UINT WINAPI fake_input(UINT count,LPINPUT input,int size){
  assert(count==1&&size==sizeof(INPUT)&&input->type==INPUT_MOUSE&&f.inputs<16);
@@ -54,6 +54,7 @@ static UINT WINAPI fake_input(UINT count,LPINPUT input,int size){
 static void reset(void){memset(&f,0,sizeof(f));memset(claim_slots,0,sizeof(claim_slots));claim_selected=0;f.foreground=game;f.cursor=(POINT){600,450};f.width=1000;f.height=600;f.exists=true;}
 static void marked(void){reset();assert(claim_mark());assert(claim_click.marked&&!f.inputs);}
 int main(void){
+ assert(claim_slots[CLAIM_COMMISSION_ALL].double_click&&!claim_slots[CLAIM_TOWER].double_click);
  marked();assert(claim_click.point.x==500&&claim_click.point.y==370);
  f.cursor=(POINT){900,500};f.foreground=tool;assert(claim_start(tool)&&!f.inputs);
  assert(claim_tick(tool)==0&&f.inputs==1&&claim_click.held);
@@ -97,6 +98,26 @@ int main(void){
  assert(claim_select(CLAIM_TOWER)&&!claim_click.attempted&&claim_click.point.x==500);
  marked();assert(claim_select(CLAIM_COMMISSION_START));assert(claim_mark());assert(claim_start(tool));claim_tick(tool);claim_cancel_all(tool);
  assert(f.inputs==2&&f.ups==1&&!claim_click.held&&claim_selected==CLAIM_COMMISSION_START);
+ /* Double click is one capped batch: DOWN/UP, gap, DOWN/UP; no cursor restore in the gap. */
+ marked();assert(claim_set_double(true));f.cursor=(POINT){900,500};assert(claim_start(tool));assert(!claim_set_double(false));
+ assert(claim_tick(tool)==0&&claim_click.held);assert(claim_tick(tool)==0&&!claim_click.held&&claim_click.phase==3);
+ assert(f.cursor.x==600&&f.cursor.y==450&&f.inputs==2);
+ assert(claim_tick(tool)==0&&claim_click.held);assert(claim_tick(tool)==1&&!claim_click.held&&f.inputs==4&&f.ups==2);
+ assert(f.flags[0]==MOUSEEVENTF_LEFTDOWN&&f.flags[1]==MOUSEEVENTF_LEFTUP&&f.flags[2]==MOUSEEVENTF_LEFTDOWN&&f.flags[3]==MOUSEEVENTF_LEFTUP);
+ assert(f.cursor.x==900&&f.cursor.y==500&&claim_click.completed_clicks==2);assert(!claim_start(tool)&&!claim_set_double(false));
+ /* Changes between clicks must suppress the second DOWN. */
+ for(int scenario=0;scenario<5;scenario++){
+  marked();assert(claim_set_double(true));assert(claim_start(tool));claim_tick(tool);claim_tick(tool);
+  if(scenario==0)f.foreground=other;
+  if(scenario==1)f.covered=true;
+  if(scenario==2)f.width++;
+  if(scenario==3)f.cursor=(POINT){300,200};
+  if(scenario==4)f.user_held=true;
+  assert(claim_tick(tool)==-1&&f.inputs==2&&f.ups==1&&!claim_click.held);
+ }
+ marked();assert(claim_set_double(true));assert(claim_start(tool));claim_tick(tool);claim_tick(tool);claim_cancel_all(tool);assert(f.inputs==2&&!claim_click.phase);
+ marked();assert(claim_set_double(true));assert(claim_start(tool));claim_tick(tool);claim_tick(tool);claim_tick(tool);claim_cancel_all(tool);assert(f.inputs==4&&f.ups==2&&!claim_click.held);
+ puts("PASS double-click batch timing states, two complete click pairs, no premature cursor restore, cancellation and second-click focus/cover/resize/cursor/mouse guards");
  puts("PASS separate Claim All / auto-team / start marks and caps; no automatic step advance; cancellation releases final target");
  puts("PASS independent Tower/Dispatch marks and attempt caps; target switching blocked until mouse release");
  puts("PASS marked Claim Gifts: hover never clicks, correct window/client point, delayed down/up, focus/resize/cover/mouse guards, cancel releases press, cursor preservation and no duplicate attempts");return 0;
