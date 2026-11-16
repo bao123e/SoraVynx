@@ -1,0 +1,17 @@
+name: Commission vision capability
+on:
+  push:
+    branches: [feature/commission-vision]
+    paths: ['source/vision/**', '.github/workflows/commission-vision.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe built-in English OCR
+        shell: powershell
+        run: ./source/vision/probe.ps1
