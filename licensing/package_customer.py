@@ -13,18 +13,20 @@ if os.environ.get('GITHUB_ACTIONS')=='true':
  metadata['verification_run']='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']
 metadata['gameplay_verified']=False
 out=Path(os.environ.get('RUNNER_TEMP',build));archive=out/('SoraVynx-'+metadata['version']+'-win64.zip')
-readme="""SoraVynx — Dorm Claim Gifts preview
+readme="""SoraVynx — Claim Gifts đánh dấu bằng F9 (preview.2)
 
-GIỮ QUÀ CHƯA NHẬN để thử bằng tool. Không bấm Claim Gifts trong game bằng tay.
-Thoát game/tool cũ, giải nén vào thư mục mới, dùng đúng cặp EXE/DLL. Key và bộ khóa ký cũ giữ nguyên.
-Vào Tyrant's Tower / Hall, để nút Claim Gifts trong game hiện rõ, chờ tool READY.
-Auto Daily -> Claim Tyrant's Tower rewards: USE -> Claim Gifts / status.
-Tool gọi một lần đúng handler UI Dorm nếu tìm được một controller đang hoạt động; nếu không, chỉ báo lỗi và không gửi hành động.
-Tool tự ẩn; F1 hiện lại. Kiểm tra quà và nhiệm vụ daily có chuyển 0/1 sang 1/1 không.
-Bấm lại nút tool sau một lần gọi chỉ xem trạng thái. Không tự gửi lại khi handler lỗi.
-Báo cáo chỉ ở clipboard, không có thông tin tài khoản/key và không tạo log.
-Bản mới bỏ luồng InfinityTower gọi nhầm. Chưa xác minh nhận quà Dorm trong game thật; không khẳng định thành công từ việc hàm trả về.
-Không cần đổi private PEM, tạo lại key hoặc cấu hình lại bot/SePay.
+Giữ quà chưa nhận. Không bấm Claim Gifts bằng tay.
+Thoát game/tool cũ. Giải nén cặp EXE/DLL mới vào thư mục mới; dùng key hiện tại.
+1. Vào Hall, để Claim Gifts hiện rõ; chờ tool READY.
+2. Auto Daily -> Claim Tyrant's Tower rewards: USE.
+3. F1 ẩn tool. Để game có focus, rê chuột lên chính nút Claim Gifts và nhấn F9 (CHỈ ĐÁNH DẤU, KHÔNG CLICK).
+4. F1 hiện tool. Thấy POINT MARKED rồi bấm Claim Gifts / status một lần. Tool tự nhấn điểm đã đánh dấu.
+5. Kiểm tra bảng nhận vật phẩm và daily có lên 1/1 không. F1 hiện lại tool; bấm lại chỉ xem trạng thái.
+Không đổi trang game hoặc kích thước cửa sổ sau khi đánh dấu. Nếu cần, đánh dấu lại trước khi gửi thao tác đầu tiên.
+Mỗi phiên game chỉ một lần gửi thử; Disable all hủy thao tác chờ và nhả chuột nếu đã gửi nhấn.
+Điểm chỉ lưu trong bộ nhớ, không ghi file. Không quét Lua hay gọi InfinityTower/Shop cho thao tác này.
+Nếu F9 bị ứng dụng khác giữ, đóng ứng dụng đó rồi khởi động lại tool.
+Không tạo log, không đổi key/private PEM hay bot/SePay. Chưa xác minh click này trong game thật.
 """
 checks=''.join(hashlib.sha256((build/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in ['SoraVynx.exe','SoraVynx.Runtime.dll'])
 with ZipFile(archive,'w',ZIP_DEFLATED,compresslevel=9) as z:

@@ -13,6 +13,7 @@
 #include "daily_setup.h"
 #include "daily_lua_probe.h"
 #include "license_gate.h"
+#include "claim_click.h"
 
 /* Image, panel and button opacity are independent; text stays fully visible. */
 #define UI_BG RGB(9,17,30)
@@ -30,7 +31,7 @@ static HICON brand_icon;
 static HWND multiplier_hint,event_hint,section_title,section_caption,footer;
 static HWND background_name,background_mode;
 static HWND page_controls[4][16];static int page_count[4],active_page;
-static bool global_hotkey;
+static bool global_hotkey,claim_hotkey;
 static HBRUSH background_brush,background_pattern;
 static HFONT body_font,button_font,title_font,section_font,daily_font;
 static HDC background_dc;static HBITMAP background_bitmap;
@@ -124,7 +125,7 @@ static void update_text(HWND hwnd,const wchar_t *text) {
  if(!hwnd)return;wchar_t old[512]={0};GetWindowTextW(hwnd,old,512);if(wcscmp(old,text))SetWindowTextW(hwnd,text);
 }
 static void disable_all(void) {
- daily_lua_cancel_queued();
+ daily_lua_cancel_queued();claim_cancel(window);
  for(int i=0;i<3;i++){InterlockedExchange(&event_flags[i],0);if(event_checks[i])InvalidateRect(event_checks[i],NULL,TRUE);}
  for(int i=0;i<FEATURE_COUNT;i++){InterlockedExchange(&feature_flags[i],0);if(checks[i])InvalidateRect(checks[i],NULL,TRUE);}
 }
@@ -139,9 +140,9 @@ static void refresh_status(void) {
  update_text(status_label,text);
  EnableWindow(GetDlgItem(window,433),state!=0);
  if(daily_report){LONG pending=InterlockedCompareExchange(&daily_lua_state,0,0);EnableWindow(daily_report,state==1&&!pending);update_text(daily_report,pending&&!daily_lua_kind?L"Inspecting Lua names...":L"Copy Lua name report");}
- LONG pending_action=InterlockedCompareExchange(&daily_lua_state,0,0);
- EnableWindow(GetDlgItem(window,432),state==1&&!pending_action&&(daily_selection&(1u<<7)));
- update_text(GetDlgItem(window,432),pending_action&&daily_lua_kind?L"Return to the game...":L"Claim Gifts / status");
+ EnableWindow(GetDlgItem(window,432),state==1&&!claim_click.phase&&(daily_selection&(1u<<7)));
+ update_text(GetDlgItem(window,432),claim_click.phase?L"Return to the game...":L"Claim Gifts / status");
+ update_text(GetDlgItem(window,434),claim_hotkey?claim_click_hint():L"F9 is unavailable.\r\nClose the app using F9,\r\nthen restart the tool.");
  swprintf(text,256,L"Damage Multiplier  (x%ld / 2 - 50)",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
  swprintf(text,256,L"Score Multiplier  (x%ld / 2 - 100)",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
  swprintf(text,256,L"Mob Vacuum  (distance %ld / 1 - 10)",(long)read_atomic(&vacuum_distance));update_text(checks[MOB_VACUUM],text);
@@ -233,7 +234,7 @@ static void switch_page(int page) {
  for(int p=0;p<4;p++)for(int i=0;i<page_count[p];i++)ShowWindow(page_controls[p][i],p==page?SW_SHOW:SW_HIDE);
  const wchar_t *titles[]={L"Player",L"Bouncing Bumper Bash",L"Custom Background",L"Auto Daily"};
  const wchar_t *captions[]={L"Your core combat toolkit",L"Independent skill and score controls",L"Image, panel and button appearance",L"Keep current in-game selections"};
- const wchar_t *footers[]={L"Hide the panel with F1. Your toggles stay active.",L"F6 cooldown   /   F7 energy   /   F8 score",L"Appearance is saved automatically. Gameplay settings stay active.",L"Open Hall, then Claim Gifts / status. Shop skipped."};
+ const wchar_t *footers[]={L"Hide the panel with F1. Your toggles stay active.",L"F6 cooldown   /   F7 energy   /   F8 score",L"Appearance is saved automatically. Gameplay settings stay active.",L"Hover Claim Gifts in game + F9 to mark; no click."};
  update_text(section_title,titles[page]);update_text(section_caption,captions[page]);update_text(footer,footers[page]);
  make_background(window);InvalidateRect(window,NULL,TRUE);for(int i=0;i<4;i++)InvalidateRect(tabs[i],NULL,TRUE);
 }
@@ -252,9 +253,9 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
    if(id==433){copy_startup_report(hwnd);return 0;}
    if(id==430){daily_lua_request(hwnd);return 0;}
    if(id==431){daily_copy_setup(hwnd);return 0;}
-   if(id==432){if(read_atomic(&init_state)==1&&(daily_selection&(1u<<7))){daily_lua_tower_request(hwnd);if(daily_lua_kind==1&&InterlockedCompareExchange(&daily_lua_state,0,0)==1)daily_lua_return_to_game(hwnd);}return 0;}
+   if(id==432){if(read_atomic(&init_state)==1&&(daily_selection&(1u<<7))){if(!claim_start(hwnd)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,claim_click_message(),L"SoraVynx - Claim Gifts / status",MB_OK|MB_ICONINFORMATION);}}return 0;}
    if(id==610)return 0;
-   if(id>=600&&id<612){daily_selection^=1u<<(id-600);if(id==607&&!(daily_selection&(1u<<7))&&daily_lua_kind==1)daily_lua_cancel_queued();wchar_t value[16];swprintf(value,16,L"%u",daily_selection);if(!WritePrivateProfileStringW(L"AutoDaily",L"Tasks",value,ui_config_path)||!WritePrivateProfileStringW(L"AutoDaily",L"TaskCount",L"12",ui_config_path))MessageBoxW(hwnd,L"Daily task selection could not be saved.",L"SoraVynx",MB_OK|MB_ICONWARNING);InvalidateRect(GetDlgItem(hwnd,id),NULL,TRUE);return 0;}
+   if(id>=600&&id<612){daily_selection^=1u<<(id-600);if(id==607&&!(daily_selection&(1u<<7)))claim_cancel(hwnd);if(id==607&&!(daily_selection&(1u<<7))&&daily_lua_kind==1)daily_lua_cancel_queued();wchar_t value[16];swprintf(value,16,L"%u",daily_selection);if(!WritePrivateProfileStringW(L"AutoDaily",L"Tasks",value,ui_config_path)||!WritePrivateProfileStringW(L"AutoDaily",L"TaskCount",L"12",ui_config_path))MessageBoxW(hwnd,L"Daily task selection could not be saved.",L"SoraVynx",MB_OK|MB_ICONWARNING);InvalidateRect(GetDlgItem(hwnd,id),NULL,TRUE);return 0;}
    if(id==410){ShowWindow(hwnd,SW_HIDE);return 0;}
    if(id==411){SendMessageW(hwnd,WM_CLOSE,0,0);return 0;}
    if(id==420){if(choose_background(hwnd))refresh_background();return 0;}
@@ -283,6 +284,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  case WM_HOTKEY:
   if(!sv_license_alive()){disable_all();return 0;}
   if(wp==1)toggle_panel(hwnd);
+  else if(wp==9&&active_page==3&&read_atomic(&init_state)==1&&(daily_selection&(1u<<7))){bool marked=claim_mark();MessageBeep(marked?MB_OK:MB_ICONWARNING);refresh_status();}
   else if(wp>=6&&wp<=8){int i=(int)wp-6;if(read_atomic(&event_ready[i]))InterlockedExchange(&event_flags[i],!read_atomic(&event_flags[i]));refresh_status();}
   return 0;
  case WM_DRAWITEM:{DRAWITEMSTRUCT *item=(DRAWITEMSTRUCT*)lp;
@@ -298,7 +300,8 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  case WM_ERASEBKGND:return 1;
  case WM_PAINT:{PAINTSTRUCT paint;HDC dc=BeginPaint(hwnd,&paint);if(background_dc){RECT r;GetClientRect(hwnd,&r);BitBlt(dc,0,0,r.right,r.bottom,background_dc,0,0,SRCCOPY);}EndPaint(hwnd,&paint);return 0;}
  case WM_TIMER:
-  if(!sv_license_alive()){disable_all();for(int id=1;id<=8;id++)UnregisterHotKey(hwnd,id);KillTimer(hwnd,1);DestroyWindow(hwnd);MessageBoxW(NULL,L"Your access key has expired. Reopen SoraVynx to activate a new key.",L"SoraVynx access",MB_OK|MB_ICONINFORMATION);PostQuitMessage(0);return 0;}
+  if(!sv_license_alive()){disable_all();for(int id=1;id<=9;id++)UnregisterHotKey(hwnd,id);KillTimer(hwnd,1);DestroyWindow(hwnd);MessageBoxW(NULL,L"Your access key has expired. Reopen SoraVynx to activate a new key.",L"SoraVynx access",MB_OK|MB_ICONINFORMATION);PostQuitMessage(0);return 0;}
+  if(wp==3){int result=claim_tick(hwnd);if(result<0){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,claim_click_message(),L"SoraVynx - Claim Gifts / status",MB_OK|MB_ICONINFORMATION);}refresh_status();return 0;}
   daily_lua_poll(hwnd);
   if(!global_hotkey){static bool previous;bool down=(GetAsyncKeyState(VK_F1)&0x8000)!=0;if(down&&!previous)toggle_panel(hwnd);previous=down;}
   refresh_status();return 0;
@@ -375,7 +378,7 @@ static DWORD WINAPI run(void *unused) {
  const wchar_t *daily_labels[]={L"Tier-up Trial: 1 battle",L"Ascension: 1 run",L"Upgrade Disc once",L"Upgrade Trekker once",L"Battle stages: 5 clears",L"Spend 100 Vigor",L"Interact with home Trekker",L"Claim Tyrant's Tower rewards",L"Send 1 Heartlink gift",L"Dispatch 1 commission",L"Shop daily gift (skipped)",L"Daily login"};
  for(int i=0;i<12;i++)page_control(3,L"BUTTON",daily_labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+25*i,416,24,600+i);
  EnableWindow(GetDlgItem(window,610),FALSE);
- page_control(3,L"STATIC",L"PARTIAL INTEGRATION\r\n\r\nDorm Claim Gifts UI preview.\r\nShop is skipped.\r\nOther 10 tasks require setup.\r\n\r\nOne attempt per game session.\r\nF1 restores the hidden tool.",0,648,180,312,170,0);
+ page_control(3,L"STATIC",claim_click_hint(),0,648,180,312,170,434);
  daily_report=page_control(3,L"BUTTON",L"Copy Lua name report",BS_OWNERDRAW|WS_TABSTOP,648,368,312,44,430);
  page_control(3,L"BUTTON",L"Copy API metadata",BS_OWNERDRAW|WS_TABSTOP,648,420,312,32,431);
  page_control(3,L"BUTTON",L"Claim Gifts / status",BS_OWNERDRAW|WS_TABSTOP,648,460,312,32,432);
@@ -386,6 +389,7 @@ static DWORD WINAPI run(void *unused) {
  EnableWindow(GetDlgItem(window,433),FALSE);
  for(int i=6;i<=8;i++)RegisterHotKey(window,i,MOD_NOREPEAT,VK_F6+i-6);
  global_hotkey=RegisterHotKey(window,1,MOD_NOREPEAT,VK_F1)!=0;
+ claim_hotkey=RegisterHotKey(window,9,MOD_NOREPEAT,VK_F9)!=0;
  switch_page(0);refresh_background();SetTimer(window,1,global_hotkey?500:50,NULL);ShowWindow(window,SW_SHOWNOACTIVATE);
  HANDLE thread=CreateThread(NULL,0,initialize,NULL,0,NULL);if(thread)CloseHandle(thread);else {InterlockedExchange(&startup_code,SV_INIT_THREAD_FAILED);InterlockedExchange(&init_state,-1);}
  MSG msg;while(GetMessageW(&msg,NULL,0,0)>0){if(!IsDialogMessageW(window,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}
