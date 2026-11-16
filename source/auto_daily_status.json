@@ -5,9 +5,15 @@
     "mode": "user-marked-one-shot-click"
   },
   "dispatch": {
-    "status": "awaiting-live-test",
-    "build": "1.2.3-dispatch-preview.1",
-    "mode": "user-marked-start-button-with-current-commission-and-team"
+    "status": "blocked-at-live-limit-4-of-4-awaiting-claim-all-test",
+    "build": "1.2.3-dispatch-preview.2",
+    "proposed_flow": [
+      "claim_all",
+      "observe_game_auto_team_or_continue_ui",
+      "start_only_if_game_allows"
+    ],
+    "claim_all_resets_limit_verified": false,
+    "auto_team_ui_observed": false
   },
   "automatic_navigation": false,
   "automatic_task_selection": false,

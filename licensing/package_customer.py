@@ -13,19 +13,19 @@ if os.environ.get('GITHUB_ACTIONS')=='true':
  metadata['verification_run']='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']
 metadata['gameplay_verified']=False
 out=Path(os.environ.get('RUNNER_TEMP',build));archive=out/('SoraVynx-'+metadata['version']+'-win64.zip')
-readme="""SoraVynx — Auto Daily Dispatch preview
+readme="""SoraVynx — Commission UI steps preview.2
 
-Tower đã được chủ tool xác nhận nhận quà và daily Complete ở bản trước. Không cần làm lại Tower.
-Thoát game/tool cũ, giải nén cặp EXE/DLL mới vào thư mục mới, dùng key hiện tại.
-1. Mở Dispatch trong game, chọn commission và đội muốn dùng; CHƯA bấm nút bắt đầu.
-2. Auto Daily -> bấm Target để chọn Dispatch. Để Dispatch 1 commission ở USE.
-3. F1 ẩn tool. Rê chuột lên nút START DISPATCH trong game, nhấn F9 (chỉ đánh dấu, không click).
-4. F1 hiện tool, thấy DISPATCH POINT MARKED -> bấm Dispatch / status một lần.
-5. Kiểm tra commission bắt đầu chạy và daily có Complete không. Nếu hiện hộp xác nhận khác, giữ nguyên và gửi ảnh trước khi thao tác tiếp.
-Tower/Dispatch có điểm đánh dấu và một lượt thử riêng; không dùng lại tọa độ Tower cho Dispatch.
-Không đổi trang/kích thước cửa sổ sau khi đánh dấu. Disable all hủy input chờ và nhả chuột đang giữ.
-Chưa tự mở các trang, chọn commission/đội hoặc chạy toàn chuỗi Auto Daily. Bản Dispatch mới chưa thử trong game thật.
-Không tạo log, không đổi public/private issuer, key hoặc cấu hình bot/SePay.
+Game hiện chặn bắt đầu Dispatch vì Limit 4/4. Luồng cần thử: Claim All -> xem UI tự xếp đội/làm tiếp -> mới quyết định bước tiếp theo.
+Thoát game/tool cũ, giải nén cặp EXE/DLL mới, giữ nguyên key hiện tại.
+1. Mở Commission với phần thưởng Complete còn chưa nhận. Không bấm nhận tay.
+2. Auto Daily -> bấm Target đến Claim All; để Dispatch 1 commission ở USE.
+3. F1 ẩn tool -> rê lên CLAIM ALL trong game -> F9 chỉ đánh dấu -> F1 hiện tool.
+4. Bấm Claim All / status một lần. Gửi ảnh màn hình sau đó, gồm popup thưởng/xếp đội và Limit.
+Chưa tự chọn đội, bấm Auto team hoặc Start Dispatch trước khi xác định đúng UI kế tiếp.
+Các target Tower / Claim All / Auto team / Start Dispatch có tọa độ và một lượt thử riêng. Không tự chuyển bước hoặc dùng tọa độ của nhau.
+Không khẳng định Claim All giải phóng giới hạn 4/4; cần xem trạng thái thực tế sau nhận thưởng.
+Không đổi trang/kích thước cửa sổ sau đánh dấu. Disable all hủy input chờ, nhả chuột nếu đã nhấn.
+Không tạo log, không đổi issuer/private PEM/key/bot. Chưa xác minh các bước Commission mới trong game thật.
 """
 checks=''.join(hashlib.sha256((build/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in ['SoraVynx.exe','SoraVynx.Runtime.dll'])
 with ZipFile(archive,'w',ZIP_DEFLATED,compresslevel=9) as z:

@@ -2,7 +2,7 @@ name: Verify Windows license gate
 on:
   workflow_dispatch:
   push:
-    branches: [feature/license-gate, feature/key-recovery, fix/startup-compatibility-report, fix/dorm-claim-gifts, fix/claim-gifts-marked-click, feature/daily-dispatch-preview]
+    branches: [feature/license-gate, feature/key-recovery, fix/startup-compatibility-report, fix/dorm-claim-gifts, fix/claim-gifts-marked-click, feature/daily-dispatch-preview, feature/commission-ui-steps]
     paths: ['source/**', 'licensing/**', '.github/workflows/license-gate.yml']
 permissions:
   contents: write
@@ -74,15 +74,15 @@ jobs:
         run: |
           tag="v$(python -c "import json; print(json.load(open('source/dist/build.json'))['version'])")"
           cat > "$RUNNER_TEMP/customer-notes.md" <<'NOTES'
-          Auto Daily Dispatch start preview. Adds a Tower/Dispatch target selector with independent F9 calibration and per-task attempt state. The owner confirmed the previous Tower marked click received items and completed the Tower daily. This revision reuses that native input flow for the game START DISPATCH button while preserving the currently selected commission and team; it does not guess ReqApplyAgent arguments or send game requests directly.
+          Commission UI steps preview. The live game shows Max commission limit reached (4/4), so starting another dispatch is currently blocked. The owner describes the normal flow as Claim All, then the game's auto-team/continue UI. Add separate, explicitly selected targets for Tower, Commission Claim All, auto-team and Start Dispatch. Each target has an independent F9 point and one-attempt cap; there is no automatic step advance or guessed game request.
 
-          Extract the matching EXE/DLL pair to a new folder after closing the old game/tool; use your existing key. Open Dispatch in game and select a commission/team without pressing START DISPATCH manually. In Auto Daily, choose Target: Dispatch and leave Dispatch 1 commission at USE. F1 hides the tool; hover START DISPATCH and press F9 (mark only, no click). F1 restores the tool; check DISPATCH POINT MARKED and press Dispatch / status once. Check whether dispatch starts and the daily becomes Complete. If the game opens an additional confirmation dialog, leave it open and report its screenshot before further actions. Do not repeat the completed Tower task.
+          First test only Claim All: close the old game/tool, extract this matching EXE/DLL pair to a new folder and use the current key. Open Commission with completed rewards available. In Auto Daily cycle Target to Claim All and leave Dispatch 1 commission at USE. F1 hides the tool; hover the game's CLAIM ALL button, F9 marks without clicking; F1 restores the tool, then press Claim All / status once. Send the resulting screenshot, including reward/auto-team dialogs and the limit counter. Do not manually select teams or start dispatch yet. The limit might be active slots or a daily quota; receipt of rewards is not assumed to reset it. Do not repeat the completed Tower task.
 
-          Each target has its own point and one-attempt cap. Target switching is blocked while input is pending or a mouse press is held. Disable all cancels/releases either target. Existing process/window/focus/client-size/cover checks remain. Coordinates stay in memory and no production log file is created. Player/Event backend and current issuer are unchanged. This is individual-step testing, not automatic navigation, automatic commission/team selection, quest-state verification or a complete Auto Daily chain. Dispatch gameplay is unverified until the owner tests it.
+          The auto-team and start targets are prepared as distinct manual test actions for the next observed screen; they do not execute after Claim All by themselves. Never mark a button until it is visible and its purpose has been checked. Keep the current game page/client size between marking and execution. The normal window/focus/cover checks and cancellation/release behavior remain. No production log files or issuer/key/bot configuration changes. This is still step testing rather than a complete autonomous daily sequence.
 
-          Validation: native backend regression and Windows click-helper tests, including independent target points/attempts, target switch rejection during input and cancellation release; real startup/clipboard and existing license checks.
+          Validation: native backend regressions plus Windows click-helper tests for all four independent target states, blocked switching during input, no automatic step advance, duplicate rejection and release/cancel of the last target. Existing startup/clipboard, report bridge and license tests run before publication. The new Commission steps are unverified in the live game.
           NOTES
-          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - Auto Daily Dispatch preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
+          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - Commission Claim All / auto-team preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
       - name: Upload owner-configured customer build only
         if: steps.issuer.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
