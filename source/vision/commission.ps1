@@ -118,16 +118,16 @@ function Observe($lines,$bitmap){
  if($home.Count -eq 1){$p=$home[0];return [pscustomobject]@{State='HOME';X=$p.X+$p.W/2;Y=$p.Y+$p.H/2}}
  return [pscustomobject]@{State='UNKNOWN';X=0.0;Y=0.0}
 }
-function New-Session {return @{Entry=0;Claim=0;Skip=0;Items=0;Again=0;Last=0;Unknown=0;Actions=0}}
+function New-Session {return @{Entry=0;Claim=0;Skip=0;Items=0;Again=0;Last=0;Unknown=0;Actions=0;Commission=$false}}
 function Next-Action($session,$observation,[long]$now){
  if($session.Actions -ge 12){return 'ERR_ACTION_LIMIT'}
  switch($observation.State){
-  'HOME' {if($session.Entry -gt 0){return 'ERR_ENTRY_NOT_CHANGED'};$session.Entry++;$action='OPEN'}
-  'CLAIM' {if($session.Again -gt 0){return 'DONE'};if($now-$session.Last -lt 1500){return 'WAIT'};if($session.Claim -ge 2){return 'ERR_CLAIM_NOT_CHANGED'};$session.Claim++;$action='CLAIM'}
-  'STORY' {if($now-$session.Last -lt 800){return 'WAIT'};if($session.Skip -ge 4){return 'ERR_STORY_LIMIT'};$session.Skip++;$action='ESC'}
-  'ITEMS' {if($now-$session.Last -lt 800){return 'WAIT'};if($session.Items -ge 4){return 'ERR_ITEMS_LIMIT'};$session.Items++;$action='CONTINUE'}
-  'RESULT' {if($session.Again -gt 0){return 'DONE'};if($now-$session.Last -lt 800){return 'WAIT'};$session.Again++;$action='AGAIN'}
-  'NO_REWARDS' {return 'NO_REWARDS'}
+  'HOME' {if($session.Entry -gt 0){if($now-$session.Last -lt 3000){return 'WAIT'};return 'ERR_ENTRY_NOT_CHANGED'};$session.Entry++;$action='OPEN'}
+  'CLAIM' {$session.Commission=$true;if($session.Again -gt 0){return 'DONE'};if($now-$session.Last -lt 1500){return 'WAIT'};if($session.Claim -ge 2){return 'ERR_CLAIM_NOT_CHANGED'};$session.Claim++;$action='CLAIM'}
+  'STORY' {if(!$session.Commission){return 'ERR_NOT_COMMISSION'};if($now-$session.Last -lt 800){return 'WAIT'};if($session.Skip -ge 4){return 'ERR_STORY_LIMIT'};$session.Skip++;$action='ESC'}
+  'ITEMS' {if(!$session.Commission){return 'ERR_NOT_COMMISSION'};if($now-$session.Last -lt 800){return 'WAIT'};if($session.Items -ge 4){return 'ERR_ITEMS_LIMIT'};$session.Items++;$action='CONTINUE'}
+  'RESULT' {$session.Commission=$true;if($session.Again -gt 0){return 'DONE'};if($now-$session.Last -lt 800){return 'WAIT'};$session.Again++;$action='AGAIN'}
+  'NO_REWARDS' {if($session.Claim -gt 0){if($now-$session.Last -lt 4000){return 'WAIT'};return 'ERR_REWARD_RESULT_NOT_RECOGNIZED'};return 'NO_REWARDS'}
   default {$session.Unknown++;if($session.Unknown -ge 8){return 'ERR_UNKNOWN_SCREEN'};return 'WAIT'}
  }
  $session.Unknown=0;$session.Last=$now;$session.Actions++;return $action
@@ -162,6 +162,12 @@ if($SelfTest){
   $session=New-Session;Check ((Next-Action $session $result 1000) -eq 'AGAIN') 'Resume at results failed'
   $session=New-Session;Check ((Next-Action $session ([pscustomobject]@{State='NO_REWARDS'}) 2000) -eq 'NO_REWARDS') 'Disabled claim was clicked'
   for($i=0;$i -lt 8;$i++){$last=Next-Action $session ([pscustomobject]@{State='UNKNOWN'}) (3000+$i*1000)};Check ($last -eq 'ERR_UNKNOWN_SCREEN') 'Unknown screen did not stop'
+  $session=New-Session;Check ((Next-Action $session $story 2000) -eq 'ERR_NOT_COMMISSION') 'Unrelated story was skipped'
+  $session=New-Session;Check ((Next-Action $session $items 2000) -eq 'ERR_NOT_COMMISSION') 'Unrelated loot was dismissed'
+  $session=New-Session;$home=[pscustomobject]@{State='HOME'};Check ((Next-Action $session $home 2000) -eq 'OPEN') 'Home navigation missing';Check ((Next-Action $session $home 2500) -eq 'WAIT') 'Navigation settle ignored'
+  $session=New-Session;$null=Next-Action $session ([pscustomobject]@{State='CLAIM'}) 2000
+  Check ((Next-Action $session ([pscustomobject]@{State='NO_REWARDS'}) 2500) -eq 'WAIT') 'Temporary disabled button ended the run'
+  Check ((Next-Action $session ([pscustomobject]@{State='NO_REWARDS'}) 7000) -eq 'ERR_REWARD_RESULT_NOT_RECOGNIZED') 'Missing result was reported as no input'
   Signal 'SELF_TEST_PASS'
  }finally{$g.Dispose();$bitmap.Dispose();if($font){$font.Dispose()}}
  exit 0
