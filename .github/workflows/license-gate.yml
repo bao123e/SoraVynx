@@ -2,7 +2,7 @@ name: Verify Windows license gate
 on:
   workflow_dispatch:
   push:
-    branches: [feature/license-gate, feature/key-recovery, fix/startup-compatibility-report, fix/dorm-claim-gifts]
+    branches: [feature/license-gate, feature/key-recovery, fix/startup-compatibility-report, fix/dorm-claim-gifts, fix/claim-gifts-marked-click]
     paths: ['source/**', 'licensing/**', '.github/workflows/license-gate.yml']
 permissions:
   contents: write
@@ -74,13 +74,15 @@ jobs:
         run: |
           tag="v$(python -c "import json; print(json.load(open('source/dist/build.json'))['version'])")"
           cat > "$RUNNER_TEMP/customer-notes.md" <<'NOTES'
-          Dorm Claim Gifts UI preview. Replaces the unrelated InfinityTower.ITDailyRewardReq action with OnBtnClick_ReceiveDormReward on one verified, active Dorm UI controller. It searches bounded Lua registry/PanelManager captures, requires an exact class and signature plus an active loaded Unity scene object, and stops without calling an action if discovery is missing, ambiguous or limited. It never sends guessed reward IDs or calls InfinityTower/Shop as fallback.
+          Claim Gifts marked-click preview. The previous Lua controller discovery reached DORM_DISCOVERY_LIMIT in the owner's live game. This revision retires that Lua action route and lets the owner mark the visible Claim Gifts button by hovering and pressing F9, without clicking or consuming the reward. The tool then sends one normal mouse press/release to that client point. It no longer scans Lua or invokes a Tower reward API for this action.
 
-          Keep rewards UNCLAIMED for the test. Close the game/tool, extract the new EXE/DLL pair to a new folder and use your existing key. Open Tyrant's Tower / Hall with Claim Gifts visible, wait for READY, set Claim Tyrant's Tower rewards to USE in Auto Daily, and click Claim Gifts / status once. Do not press the game Claim Gifts button manually. The tool hides for game dialogs; F1 restores it. Check received items and the daily 0/1 to 1/1 status. Further tool clicks only show status after an attempt; failures before an attempt may be retried after reopening the Hall.
+          Keep the gift unclaimed. Close the old game/tool, extract this matching EXE/DLL pair to a new folder and use your existing key. Enter the Hall with Claim Gifts visible and wait for READY. In Auto Daily set Claim Tyrant's Tower rewards to USE. F1 hides the tool; hover Claim Gifts in the game and press F9 once (mark only, no click). F1 restores the tool; check POINT MARKED and press Claim Gifts / status once. The tool focuses the game and clicks the marked point. Check the reward dialog and daily 0/1 -> 1/1. Further presses show status only. Do not move/resize the game or open another game panel between marking and clicking.
 
-          Tested offline with real Lua VM: live class/active scene selection, missing/inactive/wrong signature/ambiguous/truncated discovery, no accidental InfinityTower/Shop calls, one attempt including exceptions, and no scalar or error disclosure. Windows CI checks the Lua main-thread bridge, original callback, cancellation/timeout/clipboard behavior and existing license/startup UI. The prior build's five Player features were confirmed by the owner; Player/Event backend code is unchanged. This NEW Dorm action has not been tested in the live game; function return is not proof of reward receipt or daily completion. No production log file is created. Existing issuer/key/bot/payment settings are retained.
+          Marking checks the current process, Unity window and point ownership. Execution checks the same client size, game focus, unobscured target and mouse-up state. A sent press is released on the next timer tick even if focus changes; Disable all cancels pending input and releases a sent press. Cursor restoration does not override a subsequent user cursor move. No duplicate automatic attempt is made, including blocked input. Coordinates are kept in memory for this game session only.
+
+          Windows CI tests the actual click helper with mocked input APIs: marking emits no input, correct client-to-screen mapping, delayed press/release, focus/resize/cover/foreign-window guards, cancellation/release and duplicate rejection. It also tests real startup/clipboard UI, Lua report bridge and existing activation/issuer behavior. Native backend regressions pass. Player/Event backend and issuer are unchanged. This new click action remains unverified in the live game; input delivery is not server confirmation. This is a first test step, not a complete Auto Daily sequence. No production log files.
           NOTES
-          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - Dorm Claim Gifts preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
+          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - Claim Gifts marked-click preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
       - name: Upload owner-configured customer build only
         if: steps.issuer.outputs.configured == 'true'
         uses: actions/upload-artifact@v4

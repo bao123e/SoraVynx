@@ -1,3 +1,13 @@
+## Claim Gifts đánh dấu bằng F9 — 1.2.2-dorm-preview.2
+
+Ảnh thực tế của preview.1 trả `DORM_DISCOVERY_LIMIT` trước khi gọi handler. Preview.2 bỏ hẳn luồng Lua đó cho hành động nhận quà; giữ script cũ ở trạng thái chỉ trả hướng dẫn, không quét hoặc gửi request. Bộ test Lua cũ cho discovery được thay bằng kiểm thử helper click native Windows.
+
+**Giữ quà chưa nhận.** Mở cặp EXE/DLL mới với key hiện tại, vào Hall để Claim Gifts hiện rõ, chờ READY. Auto Daily -> Claim Tyrant's Tower rewards -> USE. F1 ẩn tool, rê chuột lên Claim Gifts và nhấn **F9 để đánh dấu, không bấm nhận tay**. F1 hiện lại tool; thấy POINT MARKED rồi bấm **Claim Gifts / status** một lần. Tool tự nhấn điểm đã chọn. Kiểm tra vật phẩm và daily lên 1/1; F1 hiện tool, lần bấm sau chỉ xem trạng thái.
+
+Không đổi trang game hoặc kích thước cửa sổ giữa đánh dấu và thực hiện. F9 kiểm tra đúng process/cửa sổ Unity và điểm trong client; không gửi input. Trước click kiểm tra lại kích thước/focus/điểm không bị cửa sổ khác che/chuột không bị giữ. Chuột được nhả ở tick sau kể cả khi mất focus; Disable all hủy thao tác chờ và nhả chuột đã nhấn. Không gửi lần thứ hai tự động, kể cả khi Windows chặn input. Tọa độ chỉ ở bộ nhớ; không ghi file log. Player/Event backend và public issuer giữ nguyên.
+
+Windows test dùng input API giả để kiểm tra chính helper thực thi, không nhấn chuột thật trên runner. Bản mới chưa được kiểm tra nhận quà trong game thật và chưa phải chuỗi Auto Daily đầy đủ. Các phần dưới là lịch sử thử nghiệm, không phải hướng dẫn dùng preview.2.
+
 ## Dorm Claim Gifts preview — 1.2.2-dorm-preview.1
 
 Report Lua v5 mới có `Game.UI.Dorm.DormInteractive.DormInteractiveCtrl.OnBtnClick_ReceiveDormReward(self)` và `PlayerDormData.DormRewardReceive(self,rewardIds,callback)`. Nút Claim Gifts trong Hall thuộc Dorm; lệnh `InfinityTower.ITDailyRewardReq` trước đây không chứng minh được nhiệm vụ Tyrant's Tower. Bản mới bỏ hẳn lệnh InfinityTower và dùng handler UI Dorm để game tự chọn reward IDs/callback, không đoán đối số.
