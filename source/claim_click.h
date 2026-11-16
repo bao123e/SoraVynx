@@ -100,6 +100,11 @@ static bool claim_start(HWND owner){
 /* -1 stopped, 0 idle/waiting, 1 click input completed. Release a sent press even after focus loss. */
 static int claim_tick(HWND owner){
  if(!claim_click.phase)return 0;
+ if(claim_click.phase==5){
+  KillTimer(owner,3);claim_click.phase=0;claim_release();
+  claim_click.message=claim_click.completed_clicks==2?L"Two mouse click pairs were sent at the marked point. This is not server confirmation. Check the game; further presses show status only.":L"One mouse click was sent to the marked task point. Check the result and daily in game. This is not server confirmation. Further presses show status only.";
+  return 1;
+ }
  if(claim_click.phase==2||claim_click.phase==4){
   bool first=claim_click.phase==2;
   if(!claim_release_press()){claim_cancel(owner);claim_click.message=L"Mouse release was blocked. Release the mouse manually. No further click was sent.";return -1;}
@@ -109,9 +114,13 @@ static int claim_tick(HWND owner){
    if(!SetTimer(owner,3,120,NULL)){claim_cancel(owner);claim_click.message=L"Second-click timing failed. First click may have acted; no retry.";return -1;}
    return 0;
   }
-  KillTimer(owner,3);claim_click.phase=0;claim_release();
-  claim_click.message=claim_click.completed_clicks==2?L"Two mouse click pairs were sent at the marked point. This is not server confirmation. Check the game; further presses show status only.":L"One mouse click was sent to the marked task point. Check the result and daily in game. This is not server confirmation. Further presses show status only.";
-  return 1;
+  /* Let the game process UP at the target before restoring the cursor. */
+  claim_click.phase=5;
+  if(!SetTimer(owner,3,100,NULL)){
+   KillTimer(owner,3);claim_click.phase=0;claim_click.moved=false;
+   claim_click.message=L"Click input was sent but final settle timing failed. Cursor left at the target; check the game. No retry.";return -1;
+  }
+  return 0;
  }
  bool second=claim_click.phase==3;
  if(!claim_context()){const wchar_t *reason=claim_click.message;claim_cancel(owner);if(!claim_click.held)claim_click.message=second?L"Game window changed after the first click. Second click skipped; check the game.":reason;return -1;}

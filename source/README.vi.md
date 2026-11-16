@@ -1,10 +1,10 @@
-## Claim All double-click — 1.2.3-dispatch-preview.3
+## Claim All double-click — 1.2.3-dispatch-preview.4
 
 Chủ tool báo con trỏ đến đúng điểm F9 nhưng Claim All không nhận click và yêu cầu thử double click. Thêm **Clicks: Single / Double** theo từng target; Claim All mặc định Double, các target khác Single. Một lần bấm nút tool tạo một batch, không tự lặp batch sau khi đã thử. Chưa kết luận nguyên nhân cú nhấp cũ không được game nhận.
 
 Mở bản mới bằng key hiện tại, chọn Target: Claim All, Dispatch 1 commission ở USE và Clicks: Double. F1 → rê Claim All + F9 (không click) → F1 → Claim All / status một lần. Vì đổi DLL cần khởi động lại game, đánh dấu F9 lại trong phiên mới. Không rê chuột trong lúc batch chạy; gửi ảnh sau kết quả, chưa bấm tiếp Auto team/Start.
 
-Chờ focus 350 ms, giữ DOWN 80 ms, nhả UP, chờ 120 ms, rồi DOWN/UP thứ hai tại cùng điểm. Chỉ restore cursor sau lần cuối. Cú thứ hai được kiểm tra lại focus/kích thước/vị trí cửa sổ/điểm bị che/cursor/mouse state và bị hủy nếu thay đổi. Disable all hủy bước chờ và nhả nút đã nhấn. Input count không chứng minh nhận thưởng hay daily Complete. Windows regression kiểm tra bốn event đúng thứ tự, không restore cursor trong gap, hủy/cancel trong mỗi nửa batch, chặn batch thứ hai và giữ single-click behavior cũ.
+Chờ focus 350 ms, giữ DOWN 80 ms, nhả UP, chờ 120 ms, rồi DOWN/UP thứ hai tại cùng điểm. Chờ 100 ms sau UP cuối rồi mới restore cursor; single-click cũng có khoảng chờ cuối để không dời con trỏ trước khi game xử lý UP. Cú thứ hai được kiểm tra lại focus/kích thước/vị trí cửa sổ/điểm bị che/cursor/mouse state và bị hủy nếu thay đổi. Disable all hủy bước chờ và nhả nút đã nhấn. Input count không chứng minh nhận thưởng hay daily Complete. Windows regression kiểm tra bốn event đúng thứ tự, không restore cursor trong gap, hủy/cancel trong mỗi nửa batch, chặn batch thứ hai và giữ single-click behavior cũ.
 
 ## Commission steps — 1.2.3-dispatch-preview.2
 

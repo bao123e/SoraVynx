@@ -13,14 +13,14 @@ if os.environ.get('GITHUB_ACTIONS')=='true':
  metadata['verification_run']='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']
 metadata['gameplay_verified']=False
 out=Path(os.environ.get('RUNNER_TEMP',build));archive=out/('SoraVynx-'+metadata['version']+'-win64.zip')
-readme="""SoraVynx — Claim All double click preview.3
+readme="""SoraVynx — Claim All double click preview.4
 
 Theo yêu cầu thử double click: Claim All mặc định Double, các target khác vẫn Single.
 Thoát game/tool cũ, giải nén cặp EXE/DLL mới, dùng key hiện tại.
 Mở Commission -> tool Auto Daily -> Target: Claim All, Dispatch 1 commission ở USE, Clicks: Double.
 F1 ẩn tool -> rê lên CLAIM ALL -> F9 chỉ đánh dấu -> F1 hiện tool -> Claim All / status một lần.
 Không rê chuột trong lúc tool thực hiện batch hai lần nhấp; đánh dấu lại F9 vì đây là phiên game mới.
-Chờ focus 350 ms; giữ mỗi lần nhấn 80 ms; chờ giữa hai lần 120 ms. Chỉ trả cursor sau khi nhả lần cuối.
+Chờ focus 350 ms; giữ mỗi lần nhấn 80 ms; chờ giữa hai lần 120 ms. Chờ thêm 100 ms sau khi nhả lần cuối rồi mới trả cursor, để game có thời gian xử lý mouse-UP tại nút.
 Nếu mất focus, bị che, đổi kích thước/vị trí cửa sổ hoặc chuột bị rê, cú thứ hai bị hủy. Disable all hủy input chờ/nhả chuột.
 Mỗi target chỉ một batch thử trong phiên; bấm lại chỉ xem trạng thái, không lặp gửi.
 Gửi ảnh sau kết quả. Chưa tự chuyển sang Auto team hay Start Dispatch. Chưa xác minh nhận quà bằng bản mới trong game thật.
