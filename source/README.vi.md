@@ -1,3 +1,7 @@
+## Sửa nhận diện màn chính — 1.3.0-commission-ocr-preview.2
+
+Chủ tool báo preview.1 dừng `ERR_UNKNOWN_SCREEN` ngay màn chính, chưa mở Commission. Preview.2 đọc vị trí từng từ thay cho so khớp nguyên dòng (OCR có thể gộp Purchase và Commission), thêm đọc phóng to vùng biểu tượng góc phải với hai kiểu màu. Vẫn chỉ bấm khi nhận diện duy nhất chữ Commission trong vùng màn chính; không đoán điểm bấm khi thiếu chữ. Dùng key cũ và giải nén toàn bộ ZIP mới, không chỉ thay script. Bản sửa chưa được xác nhận trong game thật.
+
 ## Auto Commission OCR — 1.3.0-commission-ocr-preview.1
 
 Chủ tool đã xác nhận Tower nhận quà/daily Complete và Dispatch Again dẫn tới nhiệm vụ Dispatch 1/1. Bản này ghép riêng Commission thành một lượt chạy dựa trên chữ/UI tiếng Anh, không cần F9 cho module này: màn chính -> Commission -> Claim All -> hội thoại nếu có (Esc Skip + Space Next) -> Items Obtained (nhấp dòng tiếp tục) -> Commission Complete / Dispatch Again.
