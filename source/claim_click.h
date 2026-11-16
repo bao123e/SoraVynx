@@ -9,24 +9,39 @@ struct ClaimClick {
  bool marked,attempted,held,moved;int phase;
  const wchar_t *message;
 };
-static struct ClaimClick claim_slots[2];
-static int claim_selected; /* Tower, Dispatch */
+enum { CLAIM_TOWER, CLAIM_COMMISSION_ALL, CLAIM_COMMISSION_TEAM, CLAIM_COMMISSION_START, CLAIM_TARGET_COUNT };
+static struct ClaimClick claim_slots[CLAIM_TARGET_COUNT];
+static int claim_selected;
 #define claim_click claim_slots[claim_selected]
 static bool claim_select(int selected){
- if(selected<0||selected>=2)return false;
- for(int i=0;i<2;i++)if(claim_slots[i].phase||claim_slots[i].held)return false;
+ if(selected<0||selected>=CLAIM_TARGET_COUNT)return false;
+ for(int i=0;i<CLAIM_TARGET_COUNT;i++)if(claim_slots[i].phase||claim_slots[i].held)return false;
  claim_selected=selected;return true;
 }
-static const wchar_t *claim_action_title(void){return claim_selected?L"SoraVynx - Dispatch / status":L"SoraVynx - Claim Gifts / status";}
+static const wchar_t *claim_target_label(void){
+ static const wchar_t *const labels[]={L"Target: Tower / change",L"Target: Claim All / change",L"Target: Auto team / change",L"Target: Start Dispatch / change"};return labels[claim_selected];
+}
+static const wchar_t *claim_action_label(void){
+ static const wchar_t *const labels[]={L"Claim Gifts / status",L"Claim All / status",L"Auto team / status",L"Start Dispatch / status"};return labels[claim_selected];
+}
+static const wchar_t *claim_action_title(void){return claim_selected?L"SoraVynx - Commission step / status":L"SoraVynx - Claim Gifts / status";}
 static const wchar_t *claim_click_message(void){
  if(claim_click.message)return claim_click.message;
- return claim_selected?L"Open Dispatch and select a commission/team in game. F1: hide tool, hover the START DISPATCH button and press F9 (mark only). F1: return, then Dispatch / status.":L"F1: hide tool. Hover Claim Gifts, press F9 to mark (no click). F1: return, then Claim Gifts / status.";
+ static const wchar_t *const help[]={
+  L"F1: hide tool. Hover Claim Gifts, press F9 to mark (no click). F1: return, then Claim Gifts / status.",
+  L"Open Commission with completed rewards. F1: hide tool, hover CLAIM ALL and press F9 (mark only). F1: return, then Claim All / status. Check the resulting screen and commission limit before continuing.",
+  L"Use only when the game's auto-team button is visible. F1: hide tool, hover that button and press F9 (mark only). F1: return, then Auto team / status. This step does not automatically press Start Dispatch.",
+  L"Use only when the game permits dispatch and the team is ready. F1: hide tool, hover START DISPATCH and press F9 (mark only). F1: return, then Start Dispatch / status."};return help[claim_selected];
 }
 static const wchar_t *claim_click_hint(void){
  if(claim_click.phase)return L"One click is queued.\r\nKeep the game focused.";
  if(claim_click.attempted)return L"ONE ATTEMPT USED\r\nCheck the game and daily.\r\nButton shows status only.";
- if(claim_click.marked)return claim_selected?L"DISPATCH POINT MARKED\r\nKeep commission/team set.\r\nDispatch / status\r\nsends one mouse click.":L"TOWER POINT MARKED\r\nKeep the Hall open.\r\nClaim Gifts / status\r\nsends one mouse click.";
- return claim_selected?L"Choose commission/team.\r\nF1: hide tool\r\nHover START DISPATCH + F9\r\n(mark only, no click)\r\nF1, then Dispatch / status":L"F1: hide tool\r\nHover Claim Gifts + F9\r\n(mark only, no click)\r\nF1: return to tool\r\nClaim Gifts / status";
+ if(claim_click.marked)return L"POINT MARKED (no click)\r\nKeep the game page open.\r\nUse this step's action.\r\nCheck the result in game.";
+ static const wchar_t *const hints[]={
+  L"F1: hide tool\r\nHover Claim Gifts + F9\r\n(mark only, no click)\r\nF1: return to tool\r\nClaim Gifts / status",
+  L"Open Commission rewards.\r\nF1: hide tool\r\nHover CLAIM ALL + F9\r\n(mark only, no click)\r\nF1, then Claim All / status",
+  L"Use game's auto-team UI.\r\nF1: hide tool\r\nHover auto-team + F9\r\n(mark only, no click)\r\nF1, then Auto team / status",
+  L"Team ready, free slot.\r\nF1: hide tool\r\nHover START DISPATCH + F9\r\n(mark only, no click)\r\nF1, then Start Dispatch"};return hints[claim_selected];
 }
 static bool claim_game(HWND game){
  DWORD pid=0;wchar_t name[64]={0};
@@ -104,6 +119,6 @@ static int claim_tick(HWND owner){
 
 static void claim_cancel_all(HWND owner){
  int selected=claim_selected;
- for(int i=0;i<2;i++){claim_selected=i;claim_cancel(owner);}
+ for(int i=0;i<CLAIM_TARGET_COUNT;i++){claim_selected=i;claim_cancel(owner);}
  claim_selected=selected;
 }

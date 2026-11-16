@@ -1,3 +1,13 @@
+## Commission steps — 1.2.3-dispatch-preview.2
+
+Ảnh thực tế cho thấy Limit 4/4 và Max commission limit reached. Chủ tool cho biết sau Claim All có UI game tự xếp đội/làm tiếp, không cần chọn từng đội lại. Không kết luận quota theo ngày hay slot đang chiếm trước khi xem kết quả nhận thưởng.
+
+Thêm target riêng: **Tower → Claim All → Auto team → Start Dispatch**. Mỗi bước có điểm F9 và lượt thử riêng. Không tự chuyển bước, không dùng tọa độ của bước khác hoặc đoán agentList/agentData. Những target xếp đội/bắt đầu chỉ sẵn sàng để thử sau khi có ảnh đúng màn hình tiếp theo, chưa phải chuỗi tự chạy.
+
+Trước mắt chỉ thử Claim All bằng tool: mở Commission còn thưởng Complete, Auto Daily chọn Target: Claim All và để Dispatch 1 commission ở USE. F1 → rê lên Claim All + F9 (không bấm tay) → F1 → Claim All / status. Gửi ảnh sau khi tool bấm, gồm popup và bộ đếm Limit. Chưa yêu cầu chọn lại đội hoặc tự bấm tiếp. Tower đã Complete không cần thử lại.
+
+Windows regression kiểm tra trạng thái/điểm riêng cả bốn target, không tự chuyển bước, cấm đổi target khi input chờ/đang giữ chuột, và Disable all nhả chuột của target cuối. Các bước Commission mới chưa xác minh trong game thật. Player/Event và issuer không đổi; không tạo log.
+
 ## Dispatch preview — 1.2.3-dispatch-preview.1
 
 Tower nhận quà và daily Complete đã được chủ tool xác nhận ở preview.2. Tiếp theo thử nút START DISPATCH bằng cách đánh dấu F9, giữ commission/đội đang chọn. Thêm **Target: Tower / Dispatch** trong Auto Daily; mỗi target có điểm, trạng thái và giới hạn một lượt riêng. Không chuyển target giữa lúc input chờ/chuột đang giữ. Disable all hủy/nhả chuột của cả hai target.

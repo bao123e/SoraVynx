@@ -82,7 +82,22 @@ int main(void){
  assert(!claim_select(0));claim_cancel_all(tool);assert(!claim_click.held&&f.ups==1);
  assert(claim_select(0)&&claim_click.marked&&!claim_click.attempted&&claim_click.point.x==500);
  assert(claim_start(tool));claim_tick(tool);claim_tick(tool);assert(f.inputs==4);
- assert(claim_select(1)&&claim_click.attempted&&!claim_start(tool));assert(!claim_select(-1)&&!claim_select(2));
+ assert(claim_select(1)&&claim_click.attempted&&!claim_start(tool));assert(!claim_select(-1)&&!claim_select(CLAIM_TARGET_COUNT));
+ /* Each commission step has an independent mark and cap, including the final slot. */
+ marked();
+ for(int step=1;step<CLAIM_TARGET_COUNT;step++){
+  assert(claim_select(step)&&!claim_click.marked&&!claim_click.attempted);
+  f.cursor=(POINT){600+step*20,450};assert(claim_mark());assert(!f.inputs||f.inputs==2*(step-1));
+  assert(claim_start(tool));for(int next=0;next<CLAIM_TARGET_COUNT;next++)assert(!claim_select(next));
+  claim_tick(tool);claim_tick(tool);assert(claim_click.attempted&&f.inputs==2*step);
+ }
+ assert(claim_select(CLAIM_COMMISSION_ALL)&&!claim_start(tool));
+ assert(claim_select(CLAIM_COMMISSION_TEAM)&&!claim_start(tool));
+ assert(claim_select(CLAIM_COMMISSION_START)&&!claim_start(tool));
+ assert(claim_select(CLAIM_TOWER)&&!claim_click.attempted&&claim_click.point.x==500);
+ marked();assert(claim_select(CLAIM_COMMISSION_START));assert(claim_mark());assert(claim_start(tool));claim_tick(tool);claim_cancel_all(tool);
+ assert(f.inputs==2&&f.ups==1&&!claim_click.held&&claim_selected==CLAIM_COMMISSION_START);
+ puts("PASS separate Claim All / auto-team / start marks and caps; no automatic step advance; cancellation releases final target");
  puts("PASS independent Tower/Dispatch marks and attempt caps; target switching blocked until mouse release");
  puts("PASS marked Claim Gifts: hover never clicks, correct window/client point, delayed down/up, focus/resize/cover/mouse guards, cancel releases press, cursor preservation and no duplicate attempts");return 0;
 }

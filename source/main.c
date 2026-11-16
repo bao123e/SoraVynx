@@ -141,9 +141,9 @@ static void refresh_status(void) {
  EnableWindow(GetDlgItem(window,433),state!=0);
  if(daily_report){LONG pending=InterlockedCompareExchange(&daily_lua_state,0,0);EnableWindow(daily_report,state==1&&!pending);update_text(daily_report,pending&&!daily_lua_kind?L"Inspecting Lua names...":L"Copy Lua name report");}
  EnableWindow(GetDlgItem(window,432),state==1&&!claim_click.phase&&(daily_selection&(1u<<(claim_selected?9:7))));
- update_text(GetDlgItem(window,432),claim_click.phase?L"Return to the game...":claim_selected?L"Dispatch / status":L"Claim Gifts / status");
+ update_text(GetDlgItem(window,432),claim_click.phase?L"Return to the game...":claim_action_label());
  EnableWindow(GetDlgItem(window,435),!claim_click.phase&&!claim_click.held);
- update_text(GetDlgItem(window,435),claim_selected?L"Target: Dispatch / change":L"Target: Tower / change");
+ update_text(GetDlgItem(window,435),claim_target_label());
  update_text(GetDlgItem(window,434),claim_hotkey?claim_click_hint():L"F9 is unavailable.\r\nClose the app using F9,\r\nthen restart the tool.");
  swprintf(text,256,L"Damage Multiplier  (x%ld / 2 - 50)",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
  swprintf(text,256,L"Score Multiplier  (x%ld / 2 - 100)",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
@@ -253,12 +253,12 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   if(notice==BN_CLICKED){
    if(id>=400&&id<=403){switch_page(id-400);return 0;}
    if(id==433){copy_startup_report(hwnd);return 0;}
-   if(id==435){if(claim_select(!claim_selected))refresh_status();return 0;}
+   if(id==435){if(claim_select((claim_selected+1)%CLAIM_TARGET_COUNT))refresh_status();return 0;}
    if(id==430){daily_lua_request(hwnd);return 0;}
    if(id==431){daily_copy_setup(hwnd);return 0;}
    if(id==432){if(read_atomic(&init_state)==1&&(daily_selection&(1u<<(claim_selected?9:7)))){if(!claim_start(hwnd)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,claim_click_message(),claim_action_title(),MB_OK|MB_ICONINFORMATION);}}return 0;}
    if(id==610)return 0;
-   if(id>=600&&id<612){daily_selection^=1u<<(id-600);if((id==607&&claim_selected==0&&!(daily_selection&(1u<<7)))||(id==609&&claim_selected==1&&!(daily_selection&(1u<<9))))claim_cancel(hwnd);wchar_t value[16];swprintf(value,16,L"%u",daily_selection);if(!WritePrivateProfileStringW(L"AutoDaily",L"Tasks",value,ui_config_path)||!WritePrivateProfileStringW(L"AutoDaily",L"TaskCount",L"12",ui_config_path))MessageBoxW(hwnd,L"Daily task selection could not be saved.",L"SoraVynx",MB_OK|MB_ICONWARNING);InvalidateRect(GetDlgItem(hwnd,id),NULL,TRUE);return 0;}
+   if(id>=600&&id<612){daily_selection^=1u<<(id-600);if((id==607&&claim_selected==0&&!(daily_selection&(1u<<7)))||(id==609&&claim_selected!=0&&!(daily_selection&(1u<<9))))claim_cancel(hwnd);wchar_t value[16];swprintf(value,16,L"%u",daily_selection);if(!WritePrivateProfileStringW(L"AutoDaily",L"Tasks",value,ui_config_path)||!WritePrivateProfileStringW(L"AutoDaily",L"TaskCount",L"12",ui_config_path))MessageBoxW(hwnd,L"Daily task selection could not be saved.",L"SoraVynx",MB_OK|MB_ICONWARNING);InvalidateRect(GetDlgItem(hwnd,id),NULL,TRUE);return 0;}
    if(id==410){ShowWindow(hwnd,SW_HIDE);return 0;}
    if(id==411){SendMessageW(hwnd,WM_CLOSE,0,0);return 0;}
    if(id==420){if(choose_background(hwnd))refresh_background();return 0;}
