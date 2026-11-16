@@ -4,3 +4,5 @@
 403 RCDATA "fonts/BeVietnamPro-Bold.ttf"
 404 RCDATA "daily_inventory.lua"
 405 RCDATA "daily_tower.lua"
+
+406 RCDATA "../vision/commission.ps1"

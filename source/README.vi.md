@@ -1,3 +1,13 @@
+## Auto Commission OCR — 1.3.0-commission-ocr-preview.1
+
+Chủ tool đã xác nhận Tower nhận quà/daily Complete và Dispatch Again dẫn tới nhiệm vụ Dispatch 1/1. Bản này ghép riêng Commission thành một lượt chạy dựa trên chữ/UI tiếng Anh, không cần F9 cho module này: màn chính -> Commission -> Claim All -> hội thoại nếu có (Esc Skip + Space Next) -> Items Obtained (nhấp dòng tiếp tục) -> Commission Complete / Dispatch Again.
+
+Giải nén đủ thư mục automation cùng EXE/DLL, giữ key hiện tại. Vào màn chính hoặc Commission, chờ READY, Auto Daily để Dispatch 1 commission ở USE rồi **Auto Commission**. Giữ game foreground, không đổi kích thước/chuyển ứng dụng. **F1 dừng luồng và hiện tool**; Disable all cũng hủy helper và nhả input thuộc luồng. Chế độ F9 thủ công vẫn giữ nguyên. Không yêu cầu chọn lại commission/đội; dùng đúng nút Dispatch Again đã được kiểm chứng ở bước thủ công.
+
+Dùng OCR tiếng Anh tích hợp Windows, xử lý ảnh trong bộ nhớ ở helper cục bộ; không lưu/gửi screenshot hoặc xuất chữ tài khoản. Chỉ các mã trạng thái/input định sẵn đi qua pipe. Native kiểm tra script trùng resource của DLL và giữ file read-only trong cả phiên; helper ở job riêng kill-on-close, chỉ kế thừa ba handle stdio cần thiết. Dừng nếu focus/window thay đổi, không hiểu màn hình, vượt giới hạn bước/thời gian hoặc thiếu OCR. Không gửi Esc khi không nhận diện cặp dấu hiệu hội thoại. Claim All chỉ tối đa hai lần có nhận diện lại, Dispatch Again một lần; không bấm mù theo tọa độ cũ.
+
+Kiểm thử Windows dùng OCR thật trên bitmap tổng hợp cho các trạng thái và kiểm tra máy trạng thái/lỗi/protocol/script pinning. Chưa kiểm tra nhận diện luồng mới trong game thật. Dòng hoàn tất chỉ xác nhận gửi input, chưa truy vấn server/quest. Đây chưa phải toàn chuỗi Auto Daily. Player/Event, issuer và cấu hình bot/thanh toán không đổi; không tạo log sản phẩm.
+
 ## Claim All double-click — 1.2.3-dispatch-preview.4
 
 Chủ tool báo con trỏ đến đúng điểm F9 nhưng Claim All không nhận click và yêu cầu thử double click. Thêm **Clicks: Single / Double** theo từng target; Claim All mặc định Double, các target khác Single. Một lần bấm nút tool tạo một batch, không tự lặp batch sau khi đã thử. Chưa kết luận nguyên nhân cú nhấp cũ không được game nhận.

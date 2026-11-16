@@ -5,18 +5,21 @@
     "mode": "user-marked-one-shot-click"
   },
   "dispatch": {
-    "status": "blocked-at-live-limit-4-of-4-awaiting-claim-all-test",
-    "build": "1.2.3-dispatch-preview.2",
-    "proposed_flow": [
+    "status": "owner-confirmed-daily-1-of-1-with-manual-step-input",
+    "tested_build": "1.2.3-dispatch-preview.4",
+    "observed_flow": [
       "claim_all",
-      "observe_game_auto_team_or_continue_ui",
-      "start_only_if_game_allows"
+      "optional_story_esc_skip",
+      "items_obtained_continue",
+      "dispatch_again"
     ],
-    "claim_all_resets_limit_verified": false,
-    "auto_team_ui_observed": false
+    "automatic_module_build": "1.3.0-commission-ocr-preview.1",
+    "automatic_module_status": "awaiting-live-game-test"
   },
   "automatic_navigation": false,
   "automatic_task_selection": false,
   "automatic_quest_verification": false,
-  "complete_auto_daily_chain": false
+  "complete_auto_daily_chain": false,
+  "commission_screen_recognition_implemented": true,
+  "commission_automatic_navigation_implemented": true
 }

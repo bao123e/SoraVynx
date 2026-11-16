@@ -13,22 +13,22 @@ if os.environ.get('GITHUB_ACTIONS')=='true':
  metadata['verification_run']='https://github.com/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+os.environ['GITHUB_RUN_ID']
 metadata['gameplay_verified']=False
 out=Path(os.environ.get('RUNNER_TEMP',build));archive=out/('SoraVynx-'+metadata['version']+'-win64.zip')
-readme="""SoraVynx — Claim All double click preview.4
+readme="""SoraVynx — Auto Commission OCR preview
 
-Theo yêu cầu thử double click: Claim All mặc định Double, các target khác vẫn Single.
-Thoát game/tool cũ, giải nén cặp EXE/DLL mới, dùng key hiện tại.
-Mở Commission -> tool Auto Daily -> Target: Claim All, Dispatch 1 commission ở USE, Clicks: Double.
-F1 ẩn tool -> rê lên CLAIM ALL -> F9 chỉ đánh dấu -> F1 hiện tool -> Claim All / status một lần.
-Không rê chuột trong lúc tool thực hiện batch hai lần nhấp; đánh dấu lại F9 vì đây là phiên game mới.
-Chờ focus 350 ms; giữ mỗi lần nhấn 80 ms; chờ giữa hai lần 120 ms. Chờ thêm 100 ms sau khi nhả lần cuối rồi mới trả cursor, để game có thời gian xử lý mouse-UP tại nút.
-Nếu mất focus, bị che, đổi kích thước/vị trí cửa sổ hoặc chuột bị rê, cú thứ hai bị hủy. Disable all hủy input chờ/nhả chuột.
-Mỗi target chỉ một batch thử trong phiên; bấm lại chỉ xem trạng thái, không lặp gửi.
-Gửi ảnh sau kết quả. Chưa tự chuyển sang Auto team hay Start Dispatch. Chưa xác minh nhận quà bằng bản mới trong game thật.
-Không tạo log, không đổi key/issuer/private PEM/bot/SePay.
+Giải nén TOÀN BỘ ZIP, giữ thư mục automation/commission.ps1 cạnh EXE/DLL. Không sửa file script; tool kiểm tra nó khớp binary.
+Thoát game/tool cũ, mở cặp mới bằng key hiện tại, vào màn chính hoặc Commission và chờ READY.
+Auto Daily -> để Dispatch 1 commission ở USE -> bấm Auto Commission. Riêng module này không cần F9.
+Tool đọc UI tiếng Anh: mở Commission nếu đang ở màn chính, Claim All, Esc khi đúng hội thoại, nhấp đóng Items Obtained rồi Dispatch Again.
+Giữ game có focus, không đổi kích thước/chuyển ứng dụng trong lúc chạy. F1 dừng và hiện lại tool; Disable all cũng dừng.
+Không có thưởng, không nhận ra màn hình hoặc thiếu English OCR thì dừng, không bấm đoán. Nếu báo thiếu OCR, cần thành phần OCR tiếng Anh của Windows.
+Ảnh/chữ OCR chỉ xử lý cục bộ trong bộ nhớ, không lưu/gửi ảnh, không tạo log. Không đổi key/issuer/private PEM hoặc bot/SePay.
+Kiểm thử Windows OCR dùng ảnh giả lập có chữ; CHƯA xác minh nhận diện tự động trên game thật. Kết thúc input không đồng nghĩa server/daily đã xác nhận.
+Đây mới là module Commission, chưa phải tự chạy toàn bộ daily. Chế độ F9 thủ công vẫn có nếu cần.
 """
 checks=''.join(hashlib.sha256((build/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in ['SoraVynx.exe','SoraVynx.Runtime.dll'])
 with ZipFile(archive,'w',ZIP_DEFLATED,compresslevel=9) as z:
  for name in ['SoraVynx.exe','SoraVynx.Runtime.dll']:z.write(build/name,name)
+ z.write(root/'source/vision/commission.ps1','automation/commission.ps1')
  z.writestr('README.vi.txt',readme);z.writestr('build.json',json.dumps(metadata,indent=2)+'\n');z.writestr('SHA256SUMS.txt',checks)
  z.write(root/'LICENSE.txt','LICENSE.txt');z.write(root/'config.example.ini','config.example.ini')
 with ZipFile(archive) as z:

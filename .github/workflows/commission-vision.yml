@@ -1,8 +1,5 @@
 name: Commission vision capability
 on:
-  push:
-    branches: [feature/commission-vision]
-    paths: ['source/vision/**', '.github/workflows/commission-vision.yml']
   workflow_dispatch:
 permissions:
   contents: read

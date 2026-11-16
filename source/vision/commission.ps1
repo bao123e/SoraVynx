@@ -95,7 +95,7 @@ function Read-Image($bitmap){
 function Normal([string]$text){return [regex]::Replace($text.ToLowerInvariant(),'[^a-z0-9]','')}
 function Cyan-Button($bitmap,$line){
  $hits=0
- foreach($point in @(@($line.X-.008,$line.Y+$line.H/2),@($line.X+$line.W+.008,$line.Y+$line.H/2),@($line.X+$line.W/2,$line.Y-.01),@($line.X+$line.W/2,$line.Y+$line.H+.01))){
+ foreach($point in @(@(($line.X-.008),($line.Y+$line.H/2)),@(($line.X+$line.W+.008),($line.Y+$line.H/2)),@(($line.X+$line.W/2),($line.Y-.01)),@(($line.X+$line.W/2),($line.Y+$line.H+.01)))){
   $x=[int]($point[0]*$bitmap.Width);$y=[int]($point[1]*$bitmap.Height)
   if($x -ge 0 -and $x -lt $bitmap.Width -and $y -ge 0 -and $y -lt $bitmap.Height){$c=$bitmap.GetPixel($x,$y);if($c.G -gt 130 -and $c.B -gt 120 -and $c.G-$c.R -gt 30 -and $c.B-$c.R -gt 20){$hits++}}
  }
@@ -141,6 +141,17 @@ if($SelfTest){
   $g.FillRectangle([Drawing.Brushes]::Turquoise,660,550,390,90);$g.DrawString('Dispatch Again',$font,[Drawing.Brushes]::White,675,565)
   $read=Read-Image $bitmap
   try{$o=Observe $read.Lines $read.Bitmap;Check ($o.State -eq 'RESULT') ('Real OCR recognition failed: '+$o.State)}finally{$read.Bitmap.Dispose()}
+  foreach($kind in @('STORY','ITEMS','CLAIM','HOME')){
+   $g.Clear([Drawing.Color]::FromArgb(25,35,48))
+   switch($kind){
+    'STORY' {$g.DrawString('Esc Skip',$font,[Drawing.Brushes]::White,30,20);$g.DrawString('Space Next',$font,[Drawing.Brushes]::White,980,650)}
+    'ITEMS' {$g.DrawString('Items Obtained!',$font,[Drawing.Brushes]::White,400,210);$g.DrawString('Select anywhere to continue',$font,[Drawing.Brushes]::White,360,600)}
+    'CLAIM' {$g.DrawString('Commission',$font,[Drawing.Brushes]::White,120,30);$g.FillRectangle([Drawing.Brushes]::Turquoise,1000,600,260,90);$g.DrawString('Claim All',$font,[Drawing.Brushes]::White,1020,620)}
+    'HOME' {$g.DrawString('Commission',$font,[Drawing.Brushes]::White,1010,110)}
+   }
+   $read=Read-Image $bitmap
+   try{$o=Observe $read.Lines $read.Bitmap;Check ($o.State -eq $kind) ('Real OCR screen recognition failed: '+$kind+' -> '+$o.State)}finally{$read.Bitmap.Dispose()}
+  }
   $session=New-Session;$story=[pscustomobject]@{State='STORY'};$items=[pscustomobject]@{State='ITEMS'};$result=[pscustomobject]@{State='RESULT'}
   Check ((Next-Action $session ([pscustomobject]@{State='CLAIM'}) 2000) -eq 'CLAIM') 'Claim missing'
   Check ((Next-Action $session $story 2300) -eq 'WAIT') 'Cooldown ignored'

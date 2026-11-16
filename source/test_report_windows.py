@@ -23,7 +23,10 @@ def run(args, output):
     click_executable = output / 'claim-click-test.exe'
     subprocess.run(common + ['-Wno-unused-function', str(ROOT / 'tests/claim_click_windows_test.c'),
                              '-o', str(click_executable)], check=True)
-    for binary in (executable, lua_executable, click_executable):
+    host_executable = output / 'commission-host-test.exe'
+    subprocess.run(common + ['-Wno-unused-function', str(ROOT / 'tests/commission_host_windows_test.c'),
+                             '-luser32', '-o', str(host_executable)], check=True)
+    for binary in (executable, lua_executable, click_executable, host_executable):
         if args.build_only:
             print('Built mock report regression:', binary)
         else:
