@@ -18,14 +18,20 @@ def run():
     lua.lua_close.argtypes = [c.c_void_p]
     script = (Path(__file__).parent / 'assets/daily_tower.lua').read_text()
     fixture = r'''
-    requests,other_actions,ui_lookups=0,0,0
-    local tower
-    local class={ITDailyRewardReq=function(self) assert(self==tower);requests=requests+1 end,
-      EnterInfinityTower=function() other_actions=other_actions+1;error('battle called') end}
-    tower={class=class,InfinityTowerRewardsTab={daily={received=false,state=0}}}
-    PlayerData={InfinityTower=tower,Shop={SendDailyShopRewardReceiveReq=function() other_actions=other_actions+1 end}}
-    package.loaded['GameCore.Data.DataClass.PlayerInfinityTowerData']=class
-    CS=setmetatable({}, {__index=function() ui_lookups=ui_lookups+1;error('UI lookup called') end})
+    requests,other_actions=0,0
+    local target='Game.UI.Dorm.DormInteractive.DormInteractiveCtrl'
+    local class={OnBtnClick_ReceiveDormReward=function(self) assert(self==instance);requests=requests+1 end}
+    local go={activeInHierarchy=true,scene={isLoaded=true}}
+    local component=io.tmpfile();local previous=getmetatable(component);local mt={}
+    for k,v in next,previous do mt[k]=v end
+    mt.__index=function(u,k) if k=='gameObject' then return go end;return previous.__index[k] end
+    debug.setmetatable(component,mt)
+    instance={class=class,view=component}
+    local live_registry={[27]=instance}
+    debug.getregistry=function() return live_registry end
+    package.loaded[target]=class
+    PlayerData={InfinityTower={class={ITDailyRewardReq=function() other_actions=other_actions+1 end}},
+      Shop={SendDailyShopRewardReceiveReq=function() other_actions=other_actions+1 end}}
     '''
 
     def case(setup, checks):
@@ -46,33 +52,42 @@ def run():
             lua.lua_close(state)
 
     case('', '''
-    local text=run_tower();assert(requests==1 and other_actions==0 and ui_lookups==0)
+    local text=run_tower();assert(requests==1 and other_actions==0)
     assert(text:find('TOWER_REQUEST_ATTEMPTED',1,true))
     for i=1,5 do text=run_tower() end
     assert(requests==1 and text:find('TOWER_STATUS',1,true))
-    tower.InfinityTowerRewardsTab.daily.received=true;tower.InfinityTowerRewardsTab.daily.state=200987654
-    text=run_tower();assert(requests==1 and text:find('field changes: 2',1,true))
-    assert(not text:find('200987654',1,true) and other_actions==0 and ui_lookups==0)
+    assert(not text:find('confirmed success',1,true))
     ''')
     for setup,code in [
-      ('PlayerData.InfinityTower=nil','TOWER_INSTANCE_UNAVAILABLE'),
-      ('class.ITDailyRewardReq=nil','TOWER_HANDLER_MISSING'),
-      ('debug=nil','TOWER_METADATA_UNAVAILABLE'),
-      ('class.ITDailyRewardReq=function(self,extra) end','TOWER_SIGNATURE_MISMATCH'),
-      ('class.ITDailyRewardReq=function(target) end','TOWER_PARAMETER_MISMATCH'),
-      ('tower.InfinityTowerRewardsTab=nil','TOWER_STATE_UNAVAILABLE'),
-      ("package.loaded['GameCore.Data.DataClass.PlayerInfinityTowerData']={}",'TOWER_CLASS_UNVERIFIED')]:
-        case(setup,'local t=run_tower();assert(requests==0 and other_actions==0 and ui_lookups==0 and t:find("'+code+'",1,true))')
+      ('package.loaded[target]=nil','DORM_MODULE_NOT_LOADED'),
+      ('class.OnBtnClick_ReceiveDormReward=nil','DORM_ACTIVE_UI_NOT_FOUND'),
+      ('debug.getinfo=nil','DORM_ACTIVE_UI_NOT_FOUND'),
+      ('class.OnBtnClick_ReceiveDormReward=function(self,extra) end','DORM_ACTIVE_UI_NOT_FOUND'),
+      ('class.OnBtnClick_ReceiveDormReward=function(target) end','DORM_ACTIVE_UI_NOT_FOUND'),
+      ('go.activeInHierarchy=false','DORM_ACTIVE_UI_NOT_FOUND'),
+      ('go.scene.isLoaded=false','DORM_ACTIVE_UI_NOT_FOUND'),
+      ('instance.view=nil','DORM_ACTIVE_UI_NOT_FOUND'),
+      ('instance.view={gameObject=go}','DORM_ACTIVE_UI_NOT_FOUND'),
+      ('live_registry={[1]=class}','DORM_ACTIVE_UI_NOT_FOUND'),
+      ('live_registry[28]={class=class,view=component}','DORM_ACTIVE_UI_AMBIGUOUS')]:
+        case(setup,'local t=run_tower();assert(requests==0 and other_actions==0 and t:find("'+code+'",1,true))')
     case('debug.getlocal=nil', 'run_tower();assert(requests==1)')
-    case("package.loaded['GameCore/Data/DataClass/PlayerInfinityTowerData']=class;package.loaded['GameCore.Data.DataClass.PlayerInfinityTowerData']=nil", 'run_tower();assert(requests==1)')
-    case('class.ITDailyRewardReq=function(self) requests=requests+1;error("PRIVATE_ERROR") end', '''
+    case("package.loaded['Game/UI/Dorm/DormInteractive/DormInteractiveCtrl.lua']=class;package.loaded[target]=nil", 'run_tower();assert(requests==1)')
+    case('class.OnBtnClick_ReceiveDormReward=function(self) requests=requests+1;error("PRIVATE_ERROR") end', '''
     local text=run_tower();run_tower();assert(requests==1 and not text:find('PRIVATE_ERROR',1,true))
     ''')
-    case('', '''
-    run_tower();PlayerData.InfinityTower={class=class,InfinityTowerRewardsTab={}}
-    local text=run_tower();assert(requests==1 and text:find('TOWER_CONTEXT_CHANGED',1,true))
-    ''')
-    print('PASS Tower request: exact instance/signature, one attempt, status-only refresh, reward-state observations, no payload/ID disclosure, no UI lookup or Shop/battle calls')
+    case('''
+    local capture={[91]=instance};debug.getregistry=nil
+    PanelManager={GetCurPanelId=function() return capture end}
+    ''', 'run_tower();assert(requests==1 and other_actions==0)')
+    case('''
+    live_registry[28]=live_registry;instance.__index=nil
+    live_registry[29]=setmetatable({}, {__index=function() other_actions=other_actions+1;error('metamethod called') end})
+    ''', 'run_tower();assert(requests==1 and other_actions==0)')
+    case('''
+    for i=1,2050 do live_registry[i+100]={} end
+    ''', 'local t=run_tower();assert(requests==0 and other_actions==0 and t:find("DORM_DISCOVERY_LIMIT",1,true))')
+    print('PASS Dorm Claim Gifts: exact live UI class/signature, active scene, ambiguity/limit rejection, one attempt, unchanged Player/InfinityTower/Shop, no scalar/error disclosure')
 
 
 if __name__ == '__main__':

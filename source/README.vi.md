@@ -1,3 +1,11 @@
+## Dorm Claim Gifts preview — 1.2.2-dorm-preview.1
+
+Report Lua v5 mới có `Game.UI.Dorm.DormInteractive.DormInteractiveCtrl.OnBtnClick_ReceiveDormReward(self)` và `PlayerDormData.DormRewardReceive(self,rewardIds,callback)`. Nút Claim Gifts trong Hall thuộc Dorm; lệnh `InfinityTower.ITDailyRewardReq` trước đây không chứng minh được nhiệm vụ Tyrant's Tower. Bản mới bỏ hẳn lệnh InfinityTower và dùng handler UI Dorm để game tự chọn reward IDs/callback, không đoán đối số.
+
+GIỮ QUÀ CHƯA NHẬN. Đóng game/tool cũ, mở cặp EXE/DLL mới với key hiện tại. Vào Hall để Claim Gifts hiện rõ, chờ READY, bật Claim Tyrant's Tower rewards -> USE rồi bấm **Claim Gifts / status** trên tool. Không nhận quà thủ công trước. F1 hiện lại tool sau khi ẩn; kiểm tra vật phẩm và daily từ 0/1 sang 1/1. Nếu không gọi được, thông báo có mã lỗi và bộ đếm discovery. Không cần làm lại report Lua rộng.
+
+Script duyệt bảng registry/capture của PanelManager theo giới hạn, chỉ nhận đúng class có chữ ký đã biết và userdata Unity thuộc scene loaded/active. Class definition, instance không chứng minh được hoạt động, nhiều ứng viên hoặc discovery bị cắt đều không được gọi. Sau một lần gọi (kể cả lỗi), lần bấm sau chỉ xem trạng thái. Không có fallback InfinityTower/Shop. Không tạo log hay xuất giá trị tài khoản. Player/Event backend không đổi; action Dorm mới chưa xác minh trong game thật.
+
 ## Bản Windows hiện tại — xác nhận Player trên game 2.1.0
 
 Bản `1.2.1-startup-preview.1` đã được chủ tool chạy: READY, Player 5/5, Event 3/3; **cả 5 chức năng Player hoạt động**. Event chưa được thử vì sự kiện đã kết thúc; chữ ký khớp không có nghĩa gameplay Event đã được xác minh. Auto Daily chưa được xác nhận.

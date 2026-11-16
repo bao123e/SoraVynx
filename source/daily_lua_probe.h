@@ -26,7 +26,7 @@ static const wchar_t *daily_lua_failure=L"Lua inspection is unavailable in this 
 
 static wchar_t *daily_lua_error_result(const wchar_t *reason) {
  size_t length=wcslen(reason)+160;wchar_t *result=calloc(length,sizeof(*result));
- if(result)swprintf(result,length,daily_lua_kind?L"SoraVynx Tower bridge stopped\r\n%ls\r\nA request may already have been sent. Check the game; no automatic retry was made.\r\n":L"SoraVynx Auto Daily setup - Lua report v5\r\nStatus: inspection stopped\r\n%ls\r\nNo daily actions executed.\r\n",reason);
+ if(result)swprintf(result,length,daily_lua_kind?L"SoraVynx Dorm bridge stopped\r\n%ls\r\nA request may already have been sent. Check the game; no automatic retry was made.\r\n":L"SoraVynx Auto Daily setup - Lua report v5\r\nStatus: inspection stopped\r\n%ls\r\nNo daily actions executed.\r\n",reason);
  return result;
 }
 static wchar_t *daily_lua_collect(void) {
@@ -146,7 +146,7 @@ static void daily_lua_poll(HWND owner) {
  }
  if(kind&&result){
   if(wcsstr(result,L"\r\nStatus: TOWER_REQUEST_ATTEMPTED\r\n"))daily_lua_return_to_game(owner);
-  else {daily_lua_restore_tool(owner);MessageBoxW(owner,result,L"SoraVynx - Tower reward / status",MB_OK|MB_ICONINFORMATION);}
+  else {daily_lua_restore_tool(owner);MessageBoxW(owner,result,L"SoraVynx - Claim Gifts / status",MB_OK|MB_ICONINFORMATION);}
  }
  else MessageBoxW(owner,copied?L"Lua name report copied. Send it to continue Auto Daily integration. No daily tasks were run.":L"Could not copy the Lua report. Please retry.",L"SoraVynx",MB_OK|(copied?MB_ICONINFORMATION:MB_ICONERROR));
  free(result);

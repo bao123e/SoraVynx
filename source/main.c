@@ -141,7 +141,7 @@ static void refresh_status(void) {
  if(daily_report){LONG pending=InterlockedCompareExchange(&daily_lua_state,0,0);EnableWindow(daily_report,state==1&&!pending);update_text(daily_report,pending&&!daily_lua_kind?L"Inspecting Lua names...":L"Copy Lua name report");}
  LONG pending_action=InterlockedCompareExchange(&daily_lua_state,0,0);
  EnableWindow(GetDlgItem(window,432),state==1&&!pending_action&&(daily_selection&(1u<<7)));
- update_text(GetDlgItem(window,432),pending_action&&daily_lua_kind?L"Return to the game...":L"Tower reward / status");
+ update_text(GetDlgItem(window,432),pending_action&&daily_lua_kind?L"Return to the game...":L"Claim Gifts / status");
  swprintf(text,256,L"Damage Multiplier  (x%ld / 2 - 50)",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
  swprintf(text,256,L"Score Multiplier  (x%ld / 2 - 100)",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
  swprintf(text,256,L"Mob Vacuum  (distance %ld / 1 - 10)",(long)read_atomic(&vacuum_distance));update_text(checks[MOB_VACUUM],text);
@@ -233,7 +233,7 @@ static void switch_page(int page) {
  for(int p=0;p<4;p++)for(int i=0;i<page_count[p];i++)ShowWindow(page_controls[p][i],p==page?SW_SHOW:SW_HIDE);
  const wchar_t *titles[]={L"Player",L"Bouncing Bumper Bash",L"Custom Background",L"Auto Daily"};
  const wchar_t *captions[]={L"Your core combat toolkit",L"Independent skill and score controls",L"Image, panel and button appearance",L"Keep current in-game selections"};
- const wchar_t *footers[]={L"Hide the panel with F1. Your toggles stay active.",L"F6 cooldown   /   F7 energy   /   F8 score",L"Appearance is saved automatically. Gameplay settings stay active.",L"Tower reward / status requests Tower daily rewards. Shop is skipped."};
+ const wchar_t *footers[]={L"Hide the panel with F1. Your toggles stay active.",L"F6 cooldown   /   F7 energy   /   F8 score",L"Appearance is saved automatically. Gameplay settings stay active.",L"Open Hall, then Claim Gifts / status. Shop skipped."};
  update_text(section_title,titles[page]);update_text(section_caption,captions[page]);update_text(footer,footers[page]);
  make_background(window);InvalidateRect(window,NULL,TRUE);for(int i=0;i<4;i++)InvalidateRect(tabs[i],NULL,TRUE);
 }
@@ -375,10 +375,10 @@ static DWORD WINAPI run(void *unused) {
  const wchar_t *daily_labels[]={L"Tier-up Trial: 1 battle",L"Ascension: 1 run",L"Upgrade Disc once",L"Upgrade Trekker once",L"Battle stages: 5 clears",L"Spend 100 Vigor",L"Interact with home Trekker",L"Claim Tyrant's Tower rewards",L"Send 1 Heartlink gift",L"Dispatch 1 commission",L"Shop daily gift (skipped)",L"Daily login"};
  for(int i=0;i<12;i++)page_control(3,L"BUTTON",daily_labels[i],BS_OWNERDRAW|WS_TABSTOP,208,180+25*i,416,24,600+i);
  EnableWindow(GetDlgItem(window,610),FALSE);
- page_control(3,L"STATIC",L"PARTIAL INTEGRATION\r\n\r\nTower reward request available.\r\nShop is skipped.\r\nOther 10 tasks require setup.\r\n\r\nOne attempt per game session.\r\nF1 restores the hidden tool.",0,648,180,312,170,0);
+ page_control(3,L"STATIC",L"PARTIAL INTEGRATION\r\n\r\nDorm Claim Gifts UI preview.\r\nShop is skipped.\r\nOther 10 tasks require setup.\r\n\r\nOne attempt per game session.\r\nF1 restores the hidden tool.",0,648,180,312,170,0);
  daily_report=page_control(3,L"BUTTON",L"Copy Lua name report",BS_OWNERDRAW|WS_TABSTOP,648,368,312,44,430);
  page_control(3,L"BUTTON",L"Copy API metadata",BS_OWNERDRAW|WS_TABSTOP,648,420,312,32,431);
- page_control(3,L"BUTTON",L"Tower reward / status",BS_OWNERDRAW|WS_TABSTOP,648,460,312,32,432);
+ page_control(3,L"BUTTON",L"Claim Gifts / status",BS_OWNERDRAW|WS_TABSTOP,648,460,312,32,432);
  control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,48,200);
  status_label=control(L"STATIC",L"Connecting to game...",0,208,516,752,24,0);
  footer=control(L"STATIC",L"",0,208,552,528,24,0);
