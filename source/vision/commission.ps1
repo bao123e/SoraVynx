@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-param([long]$GameWindow=0,[int]$GamePid=0,[int]$Tasks=512,[switch]$SelfTest)
+param([long]$GameWindow=0,[int]$GamePid=0,[int]$Tasks=512,[switch]$SelfTest,[switch]$Inspect)
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 function Signal([string]$code){[Console]::Out.WriteLine('SV1|'+$code);[Console]::Out.Flush()}
@@ -39,6 +39,7 @@ public static class CommissionDesktop {
  [DllImport("user32.dll")] static extern uint SendInput(uint count,Input[] input,int size);
  [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
  static IntPtr Window;static uint Pid;static int Width,Height;
+ public static void InspectForeground(){Window=GetForegroundWindow();GetWindowThreadProcessId(Window,out Pid);Width=Height=0;try{SetThreadDpiAwarenessContext(new IntPtr(-4));}catch(EntryPointNotFoundException){}View();}
  public static void Init(long window,int pid){Window=new IntPtr(window);Pid=(uint)pid;try{SetThreadDpiAwarenessContext(new IntPtr(-4));}catch(EntryPointNotFoundException){} View();}
  static Rect View(){
   uint pid;var name=new StringBuilder(64);Rect r;
@@ -289,7 +290,52 @@ function Observe($lines,$bitmap,[string]$promptTokens='', $homeWords=@()){
  if($commissionHome.Count -eq 1){$p=$commissionHome[0];return [pscustomobject]@{State='HOME';X=$p.X+$p.W/2;Y=$p.Y+$p.H/2}}
  return [pscustomobject]@{State='UNKNOWN';X=0.0;Y=0.0}
 }
-function Read-Observation($bitmap){
+# Optical fallback is limited to the Disc candidate flow already entered by
+# this run. Multiple independent layout checks must agree; no text is guessed.
+function Color-Patch($bitmap,[double]$x,[double]$y,[double]$w,[double]$h,[string]$kind){
+ $hits=0
+ for($row=0;$row -lt 3;$row++){for($col=0;$col -lt 5;$col++){
+  $px=[int](($x+$w*($col+.5)/5)*$bitmap.Width);$py=[int](($y+$h*($row+.5)/3)*$bitmap.Height)
+  $c=$bitmap.GetPixel($px,$py);$match=$false
+  switch($kind){
+   'CYAN' {$match=$c.R -lt 110 -and $c.G -gt 135 -and $c.B -gt 120 -and $c.G-$c.R -gt 45}
+   'WHITE' {$match=$c.R -gt 190 -and $c.G -gt 190 -and $c.B -gt 180}
+   'BLUE' {$match=$c.R -lt 110 -and $c.G -lt 145 -and $c.B -gt 55 -and $c.B-$c.R -gt 25 -and $c.B-$c.G -gt 5}
+  }
+  if($match){$hits++}
+ }}
+ return $hits -ge 10
+}
+function Disc-Layout-Checks($bitmap){
+ $harmony=$false
+ for($y=.40;$y -le .62;$y+=.006){if(Color-Patch $bitmap .84 $y .06 .012 'CYAN'){$harmony=$true;break}}
+ return [pscustomobject]@{
+  Header=(Color-Patch $bitmap .17 .04 .03 .04 'BLUE')
+  House=(Color-Patch $bitmap .29 .055 .009 .012 'WHITE')
+  DetailsActive=(Color-Patch $bitmap .30 .943 .015 .006 'BLUE')
+  DetailsInactive=(Color-Patch $bitmap .30 .943 .015 .006 'WHITE')
+  UpgradeActive=(Color-Patch $bitmap .48 .943 .012 .006 'BLUE')
+  UpgradeInactive=(Color-Patch $bitmap .48 .943 .012 .006 'WHITE')
+  Melody=(Color-Patch $bitmap .84 .207 .06 .015 'CYAN')
+  Harmony=$harmony
+  OnePill=(Color-Patch $bitmap .70 .636 .04 .008 'WHITE')
+  MaxPill=(Color-Patch $bitmap .82 .636 .04 .008 'WHITE')
+  Commit=(Color-Patch $bitmap .73 .736 .08 .007 'CYAN')
+ }
+}
+function Disc-Layout($bitmap,$session){
+ if(!$session -or $session.UpgradeKind -ne 'DISC'){return $null}
+ $c=Disc-Layout-Checks $bitmap
+ if(!$c.Header -or !$c.House){return $null}
+ if($session.UpgradePhase -in @('DETAILS','EDIT') -and $c.DetailsActive -and $c.UpgradeInactive -and $c.Melody -and $c.Harmony){
+  return [pscustomobject]@{State='DISC_DETAILS';X=.435;Y=.923;Level=0;Layout=$true}
+ }
+ if($session.UpgradePhase -in @('EDIT','PREPARED','VERIFY') -and $c.UpgradeActive -and $c.DetailsInactive -and $c.OnePill -and $c.MaxPill -and $c.Commit){
+  return [pscustomobject]@{State='DISC_EDIT';X=0.0;Y=0.0;Level=0;Cost=-1;OneX=.72;OneY=.657;CommitX=.785;CommitY=.763;Layout=$true}
+ }
+ return $null
+}
+function Read-Observation($bitmap,$session=$null){
  $read=Read-Image $bitmap
  try {
   $tokens=''
@@ -303,6 +349,7 @@ function Read-Observation($bitmap){
    }
   }
   $observation=Observe $read.Lines $read.Bitmap $tokens $read.Words
+  if($observation.State -eq 'UNKNOWN'){$layout=Disc-Layout $bitmap $session;if($layout){$observation=$layout}}
   if($observation.State -eq 'UNKNOWN'){
    $regions=@(@(.08,.015,.23,.085),@(.69,.18,.29,.09),@(.69,.52,.29,.08),@(.35,.89,.15,.075))
    foreach($region in $regions){
@@ -326,7 +373,7 @@ function Read-Observation($bitmap){
   $discTop=$observation.State -eq 'DISC_DETAILS'
   $levelY=.12;$levelH=.20;if($discTop){$levelY=.01;$levelH=.10}
   if($observation.State -in @('DISC_DETAILS','TREKKER_DETAILS','DISC_EDIT','TREKKER_EDIT')){
-   if($observation.Level -eq 0){
+   if($observation.Level -eq 0 -and !($discTop -and $observation.Layout)){
     foreach($invert in @($false,$true)){
      $crop=[CommissionDesktop]::Region($bitmap,.68,$levelY,.24,$levelH,$invert);$detail=$null
      try{
@@ -339,7 +386,7 @@ function Read-Observation($bitmap){
    }
   }
   if($observation.State -in @('DISC_DETAILS','TREKKER_DETAILS','DISC_EDIT','TREKKER_EDIT')){
-   if(!$observation.Level){$n=[CommissionDesktop]::Number($bitmap,.72,$levelY,.14,$levelH,$true,.032,.10);if($n -gt 0){$observation.Level=$n}}
+   if(!$observation.Level -and !($discTop -and $observation.Layout)){$n=[CommissionDesktop]::Number($bitmap,.72,$levelY,.14,$levelH,$true,.032,.10);if($n -gt 0){$observation.Level=$n}}
    if($observation.State -in @('DISC_EDIT','TREKKER_EDIT') -and $observation.Cost -lt 0){
     $priceY=.68;if($observation.State -eq 'TREKKER_EDIT'){$priceY=.75}
     $values=@()
@@ -414,7 +461,7 @@ function Next-Upgrade($session,$observation,[long]$now){
   $session.UpgradePhase='DETAILS';$session.UpgradeAt=$now;return 'SELECT_LOW'
  }
  if($phase -eq 'DETAILS' -and $observation.State -eq ($kind+'_DETAILS')){
-  if($observation.Level -lt 1 -or $observation.Level -ge 10){
+  if($observation.Level -ge 10){
    $session.TargetX=.046;$session.TargetY=.061
    $session.UpgradePhase='LIST';$session.UpgradeAt=$now;return 'BACK_LIST'
   }
@@ -425,7 +472,7 @@ function Next-Upgrade($session,$observation,[long]$now){
   # A navigation click can focus Unity without changing its tab. Retry this
   # harmless page transition once, only after re-recognizing the same detail
   # layout. Never apply this policy to PREPARE_LEVEL or COMMIT_UPGRADE.
-  if($observation.Level -gt 0 -and $observation.Level -ne $session.BeforeLevel){return 'ERR_UPGRADE_SELECTION_CHANGED'}
+  if($session.BeforeLevel -gt 0 -and $observation.Level -gt 0 -and $observation.Level -ne $session.BeforeLevel){return 'ERR_UPGRADE_SELECTION_CHANGED'}
   if($session.UpgradeOpenAttempts -lt 2 -and $now-$session.Last -ge 1800){
    $session.UpgradeOpenAttempts++
    $session.TargetX=.435;$session.TargetY=.923
@@ -434,6 +481,12 @@ function Next-Upgrade($session,$observation,[long]$now){
   }
  }
  if($phase -eq 'EDIT' -and $observation.State -eq ($kind+'_EDIT')){
+  # Opening the editor spends nothing. An unreadable detail counter may
+  # reach this point, but the editor's level and empty selection are mandatory.
+  if($observation.Level -lt 1){return 'ERR_UPGRADE_LEVEL_UNREADABLE'}
+  if($observation.Level -ge 10){$session.TargetX=.046;$session.TargetY=.061;$session.UpgradePhase='LIST';$session.UpgradeAt=$now;return 'BACK_LIST'}
+  if(!$session.BeforeLevel){$session.BeforeLevel=$observation.Level}
+  if($observation.Cost -lt 0){return 'ERR_UPGRADE_COST_UNREADABLE'}
   if($observation.Cost -ne 0 -or $observation.Level -ne $session.BeforeLevel){return 'ERR_UPGRADE_EXISTING_SELECTION'}
   $session.TargetX=$observation.OneX;$session.TargetY=$observation.OneY
   $session.UpgradePhase='PREPARED';$session.UpgradeAt=$now;return 'PREPARE_LEVEL'
@@ -755,15 +808,84 @@ if($SelfTest){
   Check ((Next-Action $session $upgradeHome 20000) -eq 'OPEN') 'Completed upgrades did not hand off to Commission'
   $session=New-Session 12;$session.DiscDone=$true
   Check ((Next-Action $session $upgradeHome 2000) -eq 'ENTER_TREKKER') 'Disc did not hand off to Trekker'
+  # Missing ALL OCR labels must still allow navigation in established Disc
+  # context, using the actual control layout. It must never authorize a spend.
+  function Paint-Region($brush,[double]$x,[double]$y,[double]$w,[double]$h){$g.FillRectangle($brush,[single]($x*$bitmap.Width),[single]($y*$bitmap.Height),[single]($w*$bitmap.Width),[single]($h*$bitmap.Height))}
+  function Paint-DiscLayout([bool]$editor){
+   $g.Clear([Drawing.Color]::FromArgb(30,50,100))
+   Paint-Region ([Drawing.Brushes]::DarkBlue) .0 .03 .27 .06
+   Paint-Region ([Drawing.Brushes]::White) .285 .045 .019 .03
+   Paint-Region ([Drawing.Brushes]::WhiteSmoke) .19 .89 .62 .064
+   if(!$editor){
+    Paint-Region ([Drawing.Brushes]::DarkBlue) .20 .89 .17 .064
+    Paint-Region ([Drawing.Brushes]::DarkTurquoise) .70 .20 .25 .035
+    Paint-Region ([Drawing.Brushes]::DarkTurquoise) .70 .505 .25 .035
+   }else{
+    Paint-Region ([Drawing.Brushes]::DarkBlue) .36 .89 .15 .064
+    Paint-Region ([Drawing.Brushes]::White) .667 .63 .105 .052
+    Paint-Region ([Drawing.Brushes]::White) .80 .63 .105 .052
+    Paint-Region ([Drawing.Brushes]::DarkTurquoise) .715 .73 .14 .066
+   }
+   $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+  }
+  Paint-DiscLayout $false
+  $session=New-Session 4;$session.Actions=2;$session.UpgradeKind='DISC';$session.UpgradePhase='DETAILS'
+  $o=Read-Observation $bitmap $session
+  Check ($o.State -eq 'DISC_DETAILS' -and $o.Layout -and $o.Level -eq 0) 'Disc layout did not recover a text-free detail screen'
+  Check ((Next-Action $session $o 3000) -eq 'OPEN_UPGRADE') 'Unknown detail counter blocked harmless editor navigation'
+  Check ($session.UpgradeCommits -eq 0 -and $session.BeforeLevel -eq 0) 'Layout navigation authorized an upgrade spend'
+  $wrong=New-Session 8;$wrong.UpgradeKind='TREKKER';$wrong.UpgradePhase='DETAILS'
+  Check ($null -eq (Disc-Layout $bitmap $wrong)) 'Disc layout fallback ran in unrelated task context'
+  Check ($null -eq (Disc-Layout $bitmap $null)) 'Disc layout fallback ran without an established candidate'
+  Paint-Region ([Drawing.Brushes]::DarkBlue) .70 .50 .25 .06
+  Check ($null -eq (Disc-Layout $bitmap $session)) 'Partial layout was accepted'
+  Paint-DiscLayout $true
+  $o=Read-Observation $bitmap $session
+  Check ($o.State -eq 'DISC_EDIT' -and $o.Layout -and $o.Level -eq 0) 'Text-free editor layout was not identified'
+  Check ((Next-Action $session $o 5000) -eq 'ERR_UPGRADE_LEVEL_UNREADABLE') 'Unreadable editor level allowed resource selection'
+  Check ($session.UpgradeCommits -eq 0) 'Layout-only editor allowed spending'
+  $counter=[Drawing.Font]::new('Segoe UI',56,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  $price=[Drawing.Font]::new('Segoe UI',24,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  try{
+   $g.DrawString('1',$counter,[Drawing.Brushes]::Gold,[single](.74*$bitmap.Width),[single](.16*$bitmap.Height))
+   $g.DrawString('0',$price,[Drawing.Brushes]::White,[single](.845*$bitmap.Width),[single](.69*$bitmap.Height));$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+   $session=New-Session 4;$session.Actions=3;$session.UpgradeKind='DISC';$session.UpgradePhase='EDIT'
+   $o=Read-Observation $bitmap $session
+   Check ($o.State -eq 'DISC_EDIT' -and $o.Level -eq 1 -and $o.Cost -eq 0) ('Layout editor numeric validation failed: '+$o.State+'/'+$o.Level+'/'+$o.Cost)
+   Check ((Next-Action $session $o 5000) -eq 'PREPARE_LEVEL') 'Validated editor did not continue'
+   Check ($session.BeforeLevel -eq 1 -and $session.UpgradeCommits -eq 0) 'Editor baseline was not established before spending'
+   $dim=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(170,0,0,0))
+   try{$g.FillRectangle($dim,0,0,$bitmap.Width,$bitmap.Height);$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)}finally{$dim.Dispose()}
+   Check ($null -eq (Disc-Layout $bitmap $session)) 'Dimmed/modal-covered layout was accepted'
+  }finally{$counter.Dispose();$price.Dispose()}
   Signal 'SELF_TEST_PASS'
  }finally{$g.Dispose();$bitmap.Dispose();if($font){$font.Dispose()}}
+ exit 0
+}
+if($Inspect){
+ [Console]::Out.WriteLine('READ-ONLY INSPECTION: switch to the game within 8 seconds. No click or key will be sent. Keep this window open.')
+ Start-Sleep -Seconds 8
+ $snapshot=$null;$read=$null
+ try{
+  [CommissionDesktop]::InspectForeground();$snapshot=[CommissionDesktop]::Capture()
+  $read=Read-Image $snapshot
+  [Console]::Out.WriteLine('SoraVynx Disc inspection v1 - labels and layout only; no account text or screenshot saved')
+  foreach($name in @('disc','melodyskill','harmonyskill','upgrade')){
+   [Console]::Out.WriteLine(('Known label {0}: {1}' -f $name,@(Label $read.Lines $name 0 1 0 1).Count))
+  }
+  $facts=Disc-Layout-Checks $snapshot
+  foreach($property in $facts.PSObject.Properties){[Console]::Out.WriteLine(('Layout {0}: {1}' -f $property.Name,$property.Value))}
+  $context=New-Session 4;$context.UpgradeKind='DISC';$context.UpgradePhase='EDIT'
+  $observed=Read-Observation $snapshot $context
+  [Console]::Out.WriteLine(('Recognized state: {0}; editor level (0 = not validated): {1}' -f $observed.State,$observed.Level))
+ }catch{[Console]::Out.WriteLine('READ_ONLY_INSPECTION_FAILED: keep the unobscured Unity game foreground and try again.')}finally{if($read){$read.Bitmap.Dispose()};if($snapshot){$snapshot.Dispose()}}
  exit 0
 }
 try {
  [CommissionDesktop]::Init($GameWindow,$GamePid);$session=New-Session $Tasks;$clock=[Diagnostics.Stopwatch]::StartNew();Signal 'READY'
  while($clock.ElapsedMilliseconds -lt 180000){
   $bitmap=[CommissionDesktop]::Capture()
-  try{$observation=Read-Observation $bitmap}finally{$bitmap.Dispose()}
+  try{$observation=Read-Observation $bitmap $session}finally{$bitmap.Dispose()}
   $action=Next-Action $session $observation $clock.ElapsedMilliseconds
   Signal ('STATE_'+$observation.State)
   if($action -eq 'DONE' -or $action -eq 'NO_REWARDS'){Signal $action;exit 0}

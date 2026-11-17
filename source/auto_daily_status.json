@@ -13,7 +13,7 @@
       "items_obtained_continue",
       "dispatch_again"
     ],
-    "automatic_module_build": "1.3.2-upgrade-preview.3",
+    "automatic_module_build": "1.3.2-upgrade-preview.4",
     "automatic_module_status": "preview.3-owner-tentatively-ok-requested-next-task",
     "automatic_home_and_dispatch": "owner-confirmed-preview.2",
     "optional_overlay_order": "before-or-after-dispatch-again",
@@ -36,7 +36,7 @@
     "build": "1.3.1-home-commission-preview.1"
   },
   "disc_upgrade": {
-    "status": "preview.2-owner-reported-level-1-details-with-generic-screen-not-changed;preview.3-navigation-retry-awaiting-retest",
+    "status": "preview.3-owner-reported-unknown-detail-screen;preview.4-context-layout-and-editor-validation-awaiting-live-retest",
     "mode": "inspect-up-to-10-visible-cells;skip-level-ge10-or-unreadable;upgrade-1-level-once",
     "spend_retry": false
   },

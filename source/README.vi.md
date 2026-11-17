@@ -1,3 +1,11 @@
+## Nhận diện bố cục Disc và kiểm tra chỉ đọc — 1.3.2-upgrade-preview.4
+
+Chủ tool gửi ảnh ERR_UNKNOWN_SCREEN ở Claw the Claw 1/10; nhánh thử lại mở tab trong preview.3 chưa được chạy vì chưa nhận ra màn hình. Preview.4 thêm nhận diện quang học có ngữ cảnh: chỉ khi lượt hiện tại đã mở thẻ Disc, yêu cầu đồng thời header/home icon, trạng thái thanh tab và hai thanh kỹ năng của Details hoặc các nút vật liệu/xác nhận ở editor. Không tự áp dụng bố cục Disc cho Trekker hay cửa sổ chưa có thẻ được mở. Bố cục thiếu hoặc bị làm tối sẽ bị từ chối.
+
+Nếu cấp ở Details không đọc được, được mở editor để kiểm tra vì chuyển màn không dùng nguyên liệu. Chỉ chọn vật liệu sau khi đọc rõ cấp editor 1–9 và chi phí hiện tại 0. Cấp >=10 quay lại chọn thẻ khác; cấp/chi phí không đọc được báo lỗi riêng. Xác nhận nâng vẫn tối đa một lần. Mẫu thử Windows mới bao gồm không có toàn bộ nhãn OCR, thiếu landmark, sai ngữ cảnh, làm tối giao diện, bộ đếm vàng và không được dùng nguyên liệu khi chưa xác minh editor.
+
+ZIP có Inspect-Screen.cmd: chạy rồi chuyển focus sang game trong 8 giây, chỉ đọc các nhãn cố định và cờ bố cục. In chữ không chứa tên tài khoản, key hay đường dẫn; không gửi click/phím, không lưu/gửi ảnh hoặc log. Dùng kết quả này khi cần đối chiếu game thật để tránh tiếp tục đoán. Bản sửa cần thử lại trên game; không khẳng định đã sửa xong từ ảnh tổng hợp.
+
 ## Mở lại tab Upgrade có kiểm tra — 1.3.2-upgrade-preview.3
 
 Chủ tool báo dừng ở Disc 1/10 với ERR_UPGRADE_SCREEN_NOT_CHANGED. Bản này nhận diện lại màn chi tiết sau lần mở Upgrade: nếu vẫn là cùng mục và qua ít nhất 1,8 giây, thử chuyển tab thêm một lần. Nếu vẫn không mở được thì báo ERR_UPGRADE_TAB_NOT_OPENED. Các lỗi mở danh sách/chi tiết/về Home có mã riêng, không dùng chung thông báo không đổi màn hình.

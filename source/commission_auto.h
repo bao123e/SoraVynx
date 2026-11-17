@@ -30,6 +30,8 @@ static void commission_code(const char *code){
   if(!strcmp(code,"ERR_OCR_LANGUAGE"))commission_status(L"English OCR is unavailable. Install English OCR in Windows language settings, then retry. No game input was sent.");
   else if(!strcmp(code,"ERR_HOME_REQUIRED"))commission_status(L"Home interaction or upgrades are USE. Return to the main screen, then start this run again.");
   else if(!strcmp(code,"ERR_UPGRADE_TAB_NOT_OPENED"))commission_status(L"ERR_UPGRADE_TAB_NOT_OPENED: the Upgrade page did not open after two navigation attempts. No confirmation spend was sent.");
+  else if(!strcmp(code,"ERR_UPGRADE_LEVEL_UNREADABLE"))commission_status(L"ERR_UPGRADE_LEVEL_UNREADABLE: cannot validate the editor level. No material selection or upgrade confirmation was sent.");
+  else if(!strcmp(code,"ERR_UPGRADE_COST_UNREADABLE"))commission_status(L"ERR_UPGRADE_COST_UNREADABLE: cannot validate the empty material selection. No confirmation was sent.");
   else swprintf(commission_auto.message,256,L"Commission stopped: %hs. Check the game; no blind retry was made.",code);
   return;
  }
