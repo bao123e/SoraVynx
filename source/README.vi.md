@@ -1,3 +1,11 @@
+## Home interaction + Commission — 1.3.1-home-commission-preview.1
+
+Chủ tool cho biết nhiệm vụ Interact with home Trekker chỉ cần nhấp nhân vật ở màn chính. Bản này thêm một lần nhấp tại giữa vùng client (50%, 50%) theo ảnh giao diện đã cung cấp, chỉ khi OCR nhận ra màn hình HOME. Đây là điểm theo bố cục tham chiếu, không phải nhận diện hình nhân vật. Không nhấp lại trong cùng lượt chạy; không tự kiểm tra nhiệm vụ qua server.
+
+Ở Auto Daily, chọn USE/SKIP độc lập cho Interact with home Trekker và Dispatch 1 commission; nút mới là **Auto Home / Commission**. Nếu cả hai USE: bắt đầu màn chính -> nhấp nhân vật -> chờ -> Commission và luồng nhận thưởng/Dispatch Again như trước. Chỉ Home USE thì dừng sau thao tác và chờ; chỉ Dispatch USE thì không nhấp nhân vật. Nếu Home USE mà đang ở trang Commission, tool yêu cầu về màn chính. Không cần F9. F1 hoặc thay lựa chọn trong lúc chạy sẽ dừng helper.
+
+Commission preview.3 được chủ tool đánh giá có vẻ ổn và yêu cầu chuyển bước; chưa có xác nhận riêng cho lần gặp overlay tùy chọn. Home interaction mới cần thử trong game. Giữ key và issuer hiện tại, giải nén đầy đủ ZIP.
+
 ## Xử lý overlay sau Dispatch Again — 1.3.0-commission-ocr-preview.3
 
 Chủ tool xác nhận preview.2 đã tự chạy được, nhưng hội thoại Esc Skip và Items Obtained đôi khi xuất hiện sau Dispatch Again. Preview.3 tiếp tục đọc màn hình sau nút này, xử lý hội thoại/vật phẩm được nhận diện ở cả trước lẫn sau Dispatch Again. Chỉ kết thúc khi thấy lại trang Commission ổn định ít nhất 2,5 giây và đã quan sát tối thiểu 8 giây sau Dispatch Again. Không bấm Dispatch Again hoặc Claim All thêm trong giai đoạn này; modal không đổi hoặc màn hình không rõ sẽ dừng có lỗi. Không xác minh tiến độ nhiệm vụ qua server.

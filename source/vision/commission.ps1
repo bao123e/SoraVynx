@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-param([long]$GameWindow=0,[int]$GamePid=0,[switch]$SelfTest)
+param([long]$GameWindow=0,[int]$GamePid=0,[int]$Tasks=512,[switch]$SelfTest)
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 function Signal([string]$code){[Console]::Out.WriteLine('SV1|'+$code);[Console]::Out.Flush()}
@@ -165,9 +165,11 @@ function Read-Observation($bitmap){
   return $observation
  }finally{$read.Bitmap.Dispose()}
 }
-function New-Session {return @{Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
+function New-Session([int]$selectedTasks=512) {return @{HomeEnabled=($selectedTasks -band 64) -ne 0;DispatchEnabled=($selectedTasks -band 512) -ne 0;Interact=0;Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
 function Next-Action($session,$observation,[long]$now){
- if($session.Actions -ge 12){return 'ERR_ACTION_LIMIT'}
+ if(!$session.HomeEnabled -and !$session.DispatchEnabled){return 'ERR_NO_TASKS'}
+ if($session.Actions -ge 13){return 'ERR_ACTION_LIMIT'}
+ if($session.HomeEnabled -and !$session.Interact -and $observation.State -ne 'HOME' -and $observation.State -ne 'UNKNOWN'){return 'ERR_HOME_REQUIRED'}
  # Dispatch Again can be followed by delayed dialogue and reward overlays.
  # Finish only on a recognized Commission page after an observation window,
  # never merely because the dispatch input was sent or its modal persists.
@@ -187,7 +189,15 @@ function Next-Action($session,$observation,[long]$now){
   if($observation.State -eq 'HOME'){return 'ERR_LEFT_COMMISSION'}
  }
  switch($observation.State){
-  'HOME' {if($session.Entry -gt 0){if($now-$session.Last -lt 3000){return 'WAIT'};return 'ERR_ENTRY_NOT_CHANGED'};$session.Entry++;$action='OPEN'}
+  'HOME' {
+   if($session.HomeEnabled -and !$session.Interact){$session.Interact++;$action='INTERACT'}
+   else {
+    if($session.Interact -gt 0 -and $now-$session.Last -lt 1600){return 'WAIT'}
+    if(!$session.DispatchEnabled){return 'DONE'}
+    if($session.Entry -gt 0){if($now-$session.Last -lt 3000){return 'WAIT'};return 'ERR_ENTRY_NOT_CHANGED'}
+    $session.Entry++;$action='OPEN'
+   }
+  }
   'CLAIM' {$session.Commission=$true;if($now-$session.Last -lt 1500){return 'WAIT'};if($session.Claim -ge 2){return 'ERR_CLAIM_NOT_CHANGED'};$session.Claim++;$action='CLAIM'}
   'STORY' {if(!$session.Commission){return 'ERR_NOT_COMMISSION'};if($now-$session.Last -lt 800){return 'WAIT'};if($session.Skip -ge 4){return 'ERR_STORY_LIMIT'};$session.Skip++;$action='ESC'}
   'ITEMS' {if(!$session.Commission){return 'ERR_NOT_COMMISSION'};if($now-$session.Last -lt 800){return 'WAIT'};if($session.Items -ge 4){return 'ERR_ITEMS_LIMIT'};$session.Items++;$action='CONTINUE'}
@@ -275,12 +285,33 @@ if($SelfTest){
   $session=New-Session;$null=Next-Action $session ([pscustomobject]@{State='CLAIM'}) 2000
   Check ((Next-Action $session ([pscustomobject]@{State='NO_REWARDS'}) 2500) -eq 'WAIT') 'Temporary disabled button ended the run'
   Check ((Next-Action $session ([pscustomobject]@{State='NO_REWARDS'}) 7000) -eq 'ERR_REWARD_RESULT_NOT_RECOGNIZED') 'Missing result was reported as no input'
+  # Task selections are independent: home-only, dispatch-only, both, neither.
+  $homeScreen=[pscustomobject]@{State='HOME'}
+  $session=New-Session 576
+  Check ((Next-Action $session $homeScreen 1000) -eq 'INTERACT') 'Home touch missing'
+  Check ((Next-Action $session $homeScreen 1500) -eq 'WAIT') 'Home interaction did not settle'
+  Check ((Next-Action $session $homeScreen 2600) -eq 'OPEN') 'Commission did not follow interaction'
+  Check ((Next-Action $session $homeScreen 3000) -eq 'WAIT') 'Home touch repeated during navigation'
+  Check ($session.Interact -eq 1 -and $session.Entry -eq 1) 'Home interaction was duplicated'
+  Check ((Next-Action $session ([pscustomobject]@{State='CLAIM'}) 5000) -eq 'CLAIM') 'Combined flow lost Commission'
+  $session=New-Session 64
+  Check ((Next-Action $session $homeScreen 1000) -eq 'INTERACT') 'Home-only touch missing'
+  Check ((Next-Action $session $homeScreen 2600) -eq 'DONE') 'Home-only task opened Commission'
+  Check ($session.Entry -eq 0 -and $session.Interact -eq 1) 'Home-only ran skipped task'
+  $session=New-Session 512
+  Check ((Next-Action $session $homeScreen 1000) -eq 'OPEN') 'Dispatch-only touched home character'
+  Check ($session.Interact -eq 0) 'Skipped interaction was sent'
+  $session=New-Session 576
+  Check ((Next-Action $session $result 1000) -eq 'ERR_HOME_REQUIRED') 'Home task ran from Commission modal'
+  Check ($session.Actions -eq 0) 'Wrong starting page sent input'
+  $session=New-Session 0
+  Check ((Next-Action $session $homeScreen 1000) -eq 'ERR_NO_TASKS') 'All skipped tasks sent input'
   Signal 'SELF_TEST_PASS'
  }finally{$g.Dispose();$bitmap.Dispose();if($font){$font.Dispose()}}
  exit 0
 }
 try {
- [CommissionDesktop]::Init($GameWindow,$GamePid);$session=New-Session;$clock=[Diagnostics.Stopwatch]::StartNew();Signal 'READY'
+ [CommissionDesktop]::Init($GameWindow,$GamePid);$session=New-Session $Tasks;$clock=[Diagnostics.Stopwatch]::StartNew();Signal 'READY'
  while($clock.ElapsedMilliseconds -lt 90000){
   $bitmap=[CommissionDesktop]::Capture()
   try{$observation=Read-Observation $bitmap}finally{$bitmap.Dispose()}
@@ -290,7 +321,12 @@ try {
   if($action.StartsWith('ERR_')){Signal $action;exit 3}
   if($action -eq 'WAIT'){Start-Sleep -Milliseconds 450;continue}
   Signal ('ACTION_'+$action)
-  [CommissionDesktop]::Act(($action -eq 'ESC'),$observation.X,$observation.Y)
+  # The owner confirmed one touch on the displayed home character completes
+  # interaction. Its center point is based on the supplied home layout; this
+  # is not character detection. Require recognized HOME before sending it.
+  $targetX=$observation.X;$targetY=$observation.Y
+  if($action -eq 'INTERACT'){$targetX=0.50;$targetY=0.50}
+  [CommissionDesktop]::Act(($action -eq 'ESC'),$targetX,$targetY)
   Start-Sleep -Milliseconds 500
  }
  Signal 'ERR_TIMEOUT';exit 3

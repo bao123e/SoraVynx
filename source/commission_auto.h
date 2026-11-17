@@ -14,7 +14,7 @@ static struct {
  char pending[128];size_t used;
  wchar_t message[256];
 } commission_auto;
-static const wchar_t *commission_auto_message(void){return commission_auto.message[0]?commission_auto.message:L"Open the main screen or Commission. Auto Commission reads the screen, claims rewards, uses Dispatch Again once, and clears recognized story/loot overlays before or after it.";}
+static const wchar_t *commission_auto_message(void){return commission_auto.message[0]?commission_auto.message:L"Start on the main screen for home interaction. The selected home and Commission tasks run once; F1 stops.";}
 static void commission_status(const wchar_t *text){wcsncpy(commission_auto.message,text,255);commission_auto.message[255]=0;}
 /* Only enumerated progress codes cross the pipe; no OCR text or screenshot is returned. */
 static void commission_code(const char *code){
@@ -22,12 +22,13 @@ static void commission_code(const char *code){
  if(!strcmp(code,"UP_MOUSE")){commission_auto.mouse_held=false;return;}
  if(!strcmp(code,"HOLD_ESCAPE")){commission_auto.escape_held=true;return;}
  if(!strcmp(code,"UP_ESCAPE")){commission_auto.escape_held=false;return;}
- if(!strcmp(code,"DONE")){commission_auto.terminal=1;commission_status(L"Commission inputs finished. Check running commissions and daily 1/1 in game; server completion is not auto-verified.");return;}
+ if(!strcmp(code,"DONE")){commission_auto.terminal=1;commission_status(L"Selected home / Commission inputs finished. Check daily progress in game; server completion is not auto-verified.");return;}
  if(!strcmp(code,"NO_REWARDS")){commission_auto.terminal=2;commission_status(L"No enabled Claim All button found. No reward click was sent; check whether rewards are ready.");return;}
  if(!strncmp(code,"ERR_",4)){
   for(size_t i=0;code[i];i++)if(i>60||!((code[i]>='A'&&code[i]<='Z')||code[i]=='_')){commission_auto.terminal=-1;commission_status(L"Stopped: invalid helper output.");return;}
   commission_auto.terminal=-1;
   if(!strcmp(code,"ERR_OCR_LANGUAGE"))commission_status(L"English OCR is unavailable. Install English OCR in Windows language settings, then retry. No game input was sent.");
+  else if(!strcmp(code,"ERR_HOME_REQUIRED"))commission_status(L"Home interaction is USE. Return to the main screen, then start this run again.");
   else swprintf(commission_auto.message,256,L"Commission stopped: %hs. Check the game; no blind retry was made.",code);
   return;
  }
@@ -37,6 +38,7 @@ static void commission_code(const char *code){
   {"STATE_STORY",L"Story overlay recognized (Esc Skip and Space Next)."},{"STATE_ITEMS",L"Items Obtained overlay recognized."},
   {"STATE_RESULT",L"Commission Complete and Dispatch Again recognized."},{"STATE_UNKNOWN",L"Waiting for a recognized Commission screen; no input on unknown screens."},
   {"STATE_NO_REWARDS",L"Claim All is not enabled."},
+  {"ACTION_INTERACT",L"Touching the home character once at the center of the recognized home screen."},
   {"ACTION_OPEN",L"Opening Commission."},{"ACTION_CLAIM",L"Clicking the recognized Claim All button."},
   {"ACTION_ESC",L"Sending Esc to the recognized story overlay."},{"ACTION_CONTINUE",L"Closing the recognized Items Obtained overlay."},
   {"ACTION_AGAIN",L"Clicking Dispatch Again once; continuing to watch for story and reward overlays."}
@@ -84,7 +86,9 @@ static bool commission_script_matches(HANDLE file,const void *expected,DWORD byt
  void *buffer=malloc(bytes);if(!buffer)return false;
  bool ok=ReadFile(file,buffer,bytes,&read,NULL)&&read==bytes&&!memcmp(buffer,expected,bytes);free(buffer);return ok;
 }
-static bool commission_start(HWND owner,HMODULE module,HWND game){
+static bool commission_start(HWND owner,HMODULE module,HWND game,unsigned tasks){
+ tasks&=(1u<<6)|(1u<<9);
+ if(!tasks){commission_status(L"Set home interaction or Dispatch to USE first.");return false;}
  if(commission_auto.running)return false;
  wchar_t name[64],path[2048],exe[1024],command[4096];DWORD pid=0;
  if(!game||!IsWindow(game)||IsIconic(game)||!GetWindowThreadProcessId(game,&pid)||pid!=GetCurrentProcessId()||!GetClassNameW(game,name,64)||wcscmp(name,L"UnityWndClass")){commission_status(L"Open the game main screen or Commission before starting.");return false;}
@@ -100,7 +104,7 @@ static bool commission_start(HWND owner,HMODULE module,HWND game){
  }
  DWORD directory=GetSystemDirectoryW(exe,1024);const wchar_t *ps=L"\\WindowsPowerShell\\v1.0\\powershell.exe";
  if(!directory||directory+wcslen(ps)>=1024){CloseHandle(file);return false;}wcscat(exe,ps);
- int chars=swprintf(command,4096,L"\"%ls\" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%ls\" -GameWindow %llu -GamePid %lu",exe,path,(unsigned long long)(uintptr_t)game,(unsigned long)pid);
+ int chars=swprintf(command,4096,L"\"%ls\" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%ls\" -GameWindow %llu -GamePid %lu -Tasks %u",exe,path,(unsigned long long)(uintptr_t)game,(unsigned long)pid,tasks);
  if(chars<0||chars>=4096){CloseHandle(file);return false;}
  SECURITY_ATTRIBUTES security={sizeof(security),NULL,TRUE};HANDLE read_pipe=NULL,write_pipe=NULL,input=NULL,error=NULL,job=NULL;
  STARTUPINFOEXW startup={0};PROCESS_INFORMATION process={0};SIZE_T attribute_bytes=0;bool attributes_ready=false,created=false,ok=false;
