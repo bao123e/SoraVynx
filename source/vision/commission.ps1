@@ -373,7 +373,7 @@ function Read-Observation($bitmap){
   return $observation
  }finally{$read.Bitmap.Dispose()}
 }
-function New-Session([int]$selectedTasks=512) {return @{DiscEnabled=($selectedTasks -band 4) -ne 0;TrekkerEnabled=($selectedTasks -band 8) -ne 0;DiscDone=$false;TrekkerDone=$false;TriedCards=@();UpgradeKind='';UpgradePhase='';UpgradeAt=0;BeforeLevel=0;TargetLevel=0;UpgradeCommits=0;TargetX=0.0;TargetY=0.0;HomeEnabled=($selectedTasks -band 64) -ne 0;DispatchEnabled=($selectedTasks -band 512) -ne 0;Interact=0;Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
+function New-Session([int]$selectedTasks=512) {return @{DiscEnabled=($selectedTasks -band 4) -ne 0;TrekkerEnabled=($selectedTasks -band 8) -ne 0;DiscDone=$false;TrekkerDone=$false;TriedCards=@();UpgradeKind='';UpgradePhase='';UpgradeAt=0;BeforeLevel=0;TargetLevel=0;UpgradeCommits=0;UpgradeOpenAttempts=0;TargetX=0.0;TargetY=0.0;HomeEnabled=($selectedTasks -band 64) -ne 0;DispatchEnabled=($selectedTasks -band 512) -ne 0;Interact=0;Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
 function Next-Upgrade($session,$observation,[long]$now){
  $kind=$session.UpgradeKind
  if(!$kind){
@@ -419,7 +419,19 @@ function Next-Upgrade($session,$observation,[long]$now){
    $session.UpgradePhase='LIST';$session.UpgradeAt=$now;return 'BACK_LIST'
   }
   $session.BeforeLevel=$observation.Level;$session.TargetX=$observation.X;$session.TargetY=$observation.Y
-  $session.UpgradePhase='EDIT';$session.UpgradeAt=$now;return 'OPEN_UPGRADE'
+  $session.UpgradeOpenAttempts=1;$session.UpgradePhase='EDIT';$session.UpgradeAt=$now;return 'OPEN_UPGRADE'
+ }
+ if($phase -eq 'EDIT' -and $observation.State -eq ($kind+'_DETAILS')){
+  # A navigation click can focus Unity without changing its tab. Retry this
+  # harmless page transition once, only after re-recognizing the same detail
+  # layout. Never apply this policy to PREPARE_LEVEL or COMMIT_UPGRADE.
+  if($observation.Level -gt 0 -and $observation.Level -ne $session.BeforeLevel){return 'ERR_UPGRADE_SELECTION_CHANGED'}
+  if($session.UpgradeOpenAttempts -lt 2 -and $now-$session.Last -ge 1800){
+   $session.UpgradeOpenAttempts++
+   $session.TargetX=.435;$session.TargetY=.923
+   if($kind -eq 'TREKKER'){$session.TargetX=$observation.X;$session.TargetY=$observation.Y}
+   return 'REOPEN_UPGRADE'
+  }
  }
  if($phase -eq 'EDIT' -and $observation.State -eq ($kind+'_EDIT')){
   if($observation.Cost -ne 0 -or $observation.Level -ne $session.BeforeLevel){return 'ERR_UPGRADE_EXISTING_SELECTION'}
@@ -446,6 +458,12 @@ function Next-Upgrade($session,$observation,[long]$now){
  if($now-$session.UpgradeAt -ge 10000){
   if($phase -eq 'PREPARED'){return 'ERR_UPGRADE_NOT_PREPARED'}
   if($phase -eq 'VERIFY'){return 'ERR_UPGRADE_NOT_CONFIRMED'}
+  switch($phase){
+   'LIST' {return 'ERR_UPGRADE_LIST_NOT_OPENED'}
+   'DETAILS' {return 'ERR_UPGRADE_DETAILS_NOT_OPENED'}
+   'EDIT' {return 'ERR_UPGRADE_TAB_NOT_OPENED'}
+   'RETURN' {return 'ERR_UPGRADE_HOME_NOT_OPENED'}
+  }
   return 'ERR_UPGRADE_SCREEN_NOT_CHANGED'
  }
  return 'WAIT'
@@ -707,6 +725,27 @@ if($SelfTest){
    $session.UpgradePhase='LIST';$session.TriedCards=@(0..9);if($kind -eq 'TREKKER'){$session.TriedCards=@(0..11)}
    Check ((Next-Action $session $list 8000) -eq 'ERR_LOW_LEVEL_NOT_FOUND') 'Visible inventory search did not stop at its bound'
   }
+  foreach($kind in @('DISC','TREKKER')){
+   $mask=4;if($kind -eq 'TREKKER'){$mask=8}
+   $session=New-Session $mask;$null=Next-Action $session $upgradeHome 1000
+   $list=[pscustomobject]@{State=($kind+'_LIST');Cards=@()};$null=Next-Action $session $list 2200
+   $detail=[pscustomobject]@{State=($kind+'_DETAILS');Level=1;X=.435;Y=.923}
+   Check ((Next-Action $session $detail 3400) -eq 'OPEN_UPGRADE') 'Initial upgrade navigation missing'
+   Check ((Next-Action $session $detail 4500) -eq 'WAIT') 'Navigation retried too soon'
+   Check ((Next-Action $session $detail 5400) -eq 'REOPEN_UPGRADE') 'Missed upgrade navigation was not retried'
+   Check ($session.UpgradeOpenAttempts -eq 2 -and $session.UpgradeCommits -eq 0) 'Navigation retry spent resources'
+   Check ((Next-Action $session $detail 7400) -eq 'WAIT') 'Navigation was retried a third time'
+   $edit=[pscustomobject]@{State=($kind+'_EDIT');Level=1;Cost=0;OneX=.72;OneY=.67;CommitX=.8;CommitY=.8}
+   Check ((Next-Action $session $edit 8500) -eq 'PREPARE_LEVEL') 'Navigation retry did not continue into material selection'
+   $edit.Level=2;$edit.Cost=100
+   Check ((Next-Action $session $edit 10000) -eq 'COMMIT_UPGRADE') 'Retry flow did not send its one upgrade'
+   Check ((Next-Action $session $edit 12000) -eq 'WAIT') 'Navigation policy retried the actual spend'
+   Check ($session.UpgradeCommits -eq 1) 'Actual spend was duplicated after navigation retry'
+   $session=New-Session $mask;$session.Actions=3;$session.UpgradeKind=$kind;$session.UpgradePhase='EDIT';$session.BeforeLevel=1;$session.UpgradeAt=1000;$session.Last=1000;$session.UpgradeOpenAttempts=2
+   Check ((Next-Action $session $detail 11000) -eq 'ERR_UPGRADE_TAB_NOT_OPENED') 'Missing tab did not identify its failed stage'
+   $session.UpgradeAt=11000;$session.Last=11000;$session.UpgradeOpenAttempts=1;$detail.Level=10
+   Check ((Next-Action $session $detail 13000) -eq 'ERR_UPGRADE_SELECTION_CHANGED') 'Navigation retry accepted a changed candidate'
+  }
   $session=New-Session 4;$session.Actions=5;$session.UpgradeKind='DISC';$session.UpgradePhase='VERIFY';$session.UpgradeAt=1000;$session.BeforeLevel=1;$session.TargetLevel=2;$session.UpgradeCommits=1
   Check ((Next-Action $session ([pscustomobject]@{State='DISC_EDIT';Level=2;Cost=100}) 11000) -eq 'ERR_UPGRADE_NOT_CONFIRMED') 'Unconfirmed spend was retried or accepted'
   Check ($session.UpgradeCommits -eq 1) 'Failed upgrade spent twice'
@@ -736,7 +775,7 @@ try {
   # is not character detection. Require recognized HOME before sending it.
   $targetX=$observation.X;$targetY=$observation.Y
   if($action -eq 'INTERACT'){$targetX=0.50;$targetY=0.50}
-  if($action -in @('ENTER_DISC','ENTER_TREKKER','SELECT_LOW','BACK_LIST','OPEN_UPGRADE','PREPARE_LEVEL','COMMIT_UPGRADE','RETURN_HOME')){$targetX=$session.TargetX;$targetY=$session.TargetY}
+  if($action -in @('ENTER_DISC','ENTER_TREKKER','SELECT_LOW','BACK_LIST','OPEN_UPGRADE','REOPEN_UPGRADE','PREPARE_LEVEL','COMMIT_UPGRADE','RETURN_HOME')){$targetX=$session.TargetX;$targetY=$session.TargetY}
   [CommissionDesktop]::Act(($action -eq 'ESC'),$targetX,$targetY)
   Start-Sleep -Milliseconds 500
  }

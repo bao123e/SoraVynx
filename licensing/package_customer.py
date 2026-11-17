@@ -23,6 +23,7 @@ Disc/Trekker: ưu tiên cấp thấp nhất đọc được trên các thẻ đa
 Nếu Home USE: bắt đầu ở màn chính, tool nhấp nhân vật một lần tại giữa màn hình theo bố cục tham chiếu (không nhận diện hình nhân vật). Nếu Dispatch cũng USE thì chạy Commission tiếp; chỉ Home USE thì dừng sau bước này.
 Tool đọc UI tiếng Anh: mở Commission, Claim All, Dispatch Again một lần; Esc Skip và Items Obtained được xử lý nếu xuất hiện ở cả trước lẫn sau Dispatch Again.
 Sau Dispatch Again, quan sát ít nhất 8 giây và chờ trang Commission ổn định 2,5 giây rồi kết thúc. Không có overlay thì không gửi Esc/click dư.
+Nếu vẫn ở cùng màn chi tiết sau khi mở Upgrade, thử lại chuyển màn đúng một lần; ERR_UPGRADE_TAB_NOT_OPENED nghĩa là cả hai lần không mở được. Không thử lại nút xác nhận chi tiêu.
 Giữ game có focus, không đổi kích thước/chuyển ứng dụng trong lúc chạy. F1 dừng và hiện lại tool; Disable all cũng dừng.
 Không có thưởng, không nhận ra màn hình hoặc thiếu English OCR thì dừng, không bấm đoán. Nếu báo thiếu OCR, cần thành phần OCR tiếng Anh của Windows.
 Ảnh/chữ OCR chỉ xử lý cục bộ trong bộ nhớ, không lưu/gửi ảnh, không tạo log. Không đổi key/issuer/private PEM hoặc bot/SePay.

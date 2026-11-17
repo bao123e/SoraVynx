@@ -1,3 +1,9 @@
+## Mở lại tab Upgrade có kiểm tra — 1.3.2-upgrade-preview.3
+
+Chủ tool báo dừng ở Disc 1/10 với ERR_UPGRADE_SCREEN_NOT_CHANGED. Bản này nhận diện lại màn chi tiết sau lần mở Upgrade: nếu vẫn là cùng mục và qua ít nhất 1,8 giây, thử chuyển tab thêm một lần. Nếu vẫn không mở được thì báo ERR_UPGRADE_TAB_NOT_OPENED. Các lỗi mở danh sách/chi tiết/về Home có mã riêng, không dùng chung thông báo không đổi màn hình.
+
+Đây chỉ là thử lại thao tác chuyển màn, không áp dụng cho chọn nguyên liệu hoặc xác nhận nâng. Chi tiêu Upgrade vẫn tối đa một lần. Dùng key cũ, giải nén toàn bộ ZIP, bắt đầu từ màn chính như trước. Khả năng click tab được game nhận vẫn cần thử lại trong game; chưa khẳng định nguyên nhân đầu vào từ ảnh và mã lỗi hiện có.
+
 ## Sửa chọn mục đầy cấp và nhận diện Disc — 1.3.2-upgrade-preview.2
 
 Preview.1 đã chọn Daylight Garden 10/10 rồi dừng ERR_UNKNOWN_SCREEN, không đạt yêu cầu chọn cấp thấp. Preview.2 đọc cấp Disc Details ở góc trên phải, tách khỏi vùng cấp trong màn Upgrade; đọc lại header/tab/skill bằng các vùng phóng to nếu OCR toàn khung bỏ sót. Chỉ nâng cấp 1–9. Cấp từ 10 trở lên hoặc không đọc rõ thì quay lại danh sách, kiểm tra thẻ khác; không mở màn chi tiêu cho thẻ bị loại.

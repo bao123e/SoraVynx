@@ -5,6 +5,7 @@ int main(void){
  commission_code("READY");assert(!commission_auto.terminal);
  commission_code("HOLD_MOUSE");assert(commission_auto.mouse_held);commission_code("UP_MOUSE");assert(!commission_auto.mouse_held);
  commission_code("HOLD_ESCAPE");assert(commission_auto.escape_held);commission_code("UP_ESCAPE");assert(!commission_auto.escape_held);
+ commission_code("ACTION_REOPEN_UPGRADE");assert(wcsstr(commission_auto_message(),L"navigation once"));
  commission_code("ACTION_COMMIT_UPGRADE");assert(wcsstr(commission_auto_message(),L"never retried"));
  commission_code("STATE_TREKKER_EDIT");assert(wcsstr(commission_auto_message(),L"training"));
  commission_code("ACTION_INTERACT");assert(wcsstr(commission_auto_message(),L"home character"));

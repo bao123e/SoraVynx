@@ -258,7 +258,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   if(notice==BN_CLICKED){
    if(id>=400&&id<=403){switch_page(id-400);return 0;}
    if(id==433){copy_startup_report(hwnd);return 0;}
-   if(id==437){if(commission_auto.running)commission_cancel(hwnd);else if(read_atomic(&init_state)==1&&(daily_selection&((1u<<2)|(1u<<3)|(1u<<6)|(1u<<9)))&&!claim_click.phase){HWND game=NULL;EnumWindows(daily_lua_find_game,(LPARAM)&game);if(!commission_start(hwnd,self_module,game,daily_selection)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,commission_auto_message(),L"SoraVynx - Auto Commission",MB_OK|MB_ICONINFORMATION);}}refresh_status();return 0;}
+   if(id==437){if(commission_auto.running)commission_cancel(hwnd);else if(read_atomic(&init_state)==1&&(daily_selection&((1u<<2)|(1u<<3)|(1u<<6)|(1u<<9)))&&!claim_click.phase){HWND game=NULL;EnumWindows(daily_lua_find_game,(LPARAM)&game);if(!commission_start(hwnd,self_module,game,daily_selection)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,commission_auto_message(),L"SoraVynx - Auto Daily",MB_OK|MB_ICONINFORMATION);}}refresh_status();return 0;}
    if(commission_auto.running&&(id==430||id==431||id==432||id==435||id==436))return 0;
    if(id==435){if(claim_select((claim_selected+1)%CLAIM_TARGET_COUNT))refresh_status();return 0;}
    if(id==436){if(claim_set_double(!claim_click.double_click))refresh_status();return 0;}
@@ -312,7 +312,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  case WM_PAINT:{PAINTSTRUCT paint;HDC dc=BeginPaint(hwnd,&paint);if(background_dc){RECT r;GetClientRect(hwnd,&r);BitBlt(dc,0,0,r.right,r.bottom,background_dc,0,0,SRCCOPY);}EndPaint(hwnd,&paint);return 0;}
  case WM_TIMER:
   if(!sv_license_alive()){disable_all();for(int id=1;id<=9;id++)UnregisterHotKey(hwnd,id);KillTimer(hwnd,1);DestroyWindow(hwnd);MessageBoxW(NULL,L"Your access key has expired. Reopen SoraVynx to activate a new key.",L"SoraVynx access",MB_OK|MB_ICONINFORMATION);PostQuitMessage(0);return 0;}
-  if(wp==4){if(commission_poll(hwnd)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,commission_auto_message(),L"SoraVynx - Auto Commission",MB_OK|MB_ICONINFORMATION);}refresh_status();return 0;}
+  if(wp==4){if(commission_poll(hwnd)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,commission_auto_message(),L"SoraVynx - Auto Daily",MB_OK|MB_ICONINFORMATION);}refresh_status();return 0;}
   if(wp==3){int result=claim_tick(hwnd);if(result<0){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,claim_click_message(),claim_action_title(),MB_OK|MB_ICONINFORMATION);}refresh_status();return 0;}
   daily_lua_poll(hwnd);
   if(!global_hotkey){static bool previous;bool down=(GetAsyncKeyState(VK_F1)&0x8000)!=0;if(down&&!previous)toggle_panel(hwnd);previous=down;}
