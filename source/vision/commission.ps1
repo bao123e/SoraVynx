@@ -306,7 +306,6 @@ function Read-Observation($bitmap){
       $detail=Read-Image $crop
       $mapped=@(foreach($word in $detail.Words){[pscustomobject]@{Text=$word.Text;X=.68+$word.X*.24;Y=.12+$word.Y*.20;W=$word.W*.24;H=$word.H*.20}})
       $observation.Level=Visible-Level $mapped
-      if($SelfTest -and !$observation.Level){foreach($w in $detail.Words){[Console]::Out.WriteLine(('LEVEL CROP FIXTURE: [{0}] height {1:N3}' -f $w.Text,$w.H))}}
       if($observation.Level -gt 0){break}
      }finally{$crop.Dispose();if($detail){$detail.Bitmap.Dispose()}}
     }
@@ -317,7 +316,7 @@ function Read-Observation($bitmap){
    if($observation.State -in @('DISC_EDIT','TREKKER_EDIT') -and $observation.Cost -lt 0){
     $priceY=.68;if($observation.State -eq 'TREKKER_EDIT'){$priceY=.75}
     $values=@()
-    foreach($bright in @($true,$false)){$n=[CommissionDesktop]::Number($bitmap,.82,$priceY,.08,.06,$bright,.012,.045);if($n -ge 0){$values+=$n}}
+    foreach($bright in @($true,$false)){$n=[CommissionDesktop]::Number($bitmap,.82,$priceY,.08,.08,$bright,.012,.045);if($n -ge 0){$values+=$n}}
     $values=@($values | Select-Object -Unique);if($values.Count -eq 1){$observation.Cost=$values[0]}
    }
   }
@@ -589,14 +588,27 @@ if($SelfTest){
      $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
      $o=Read-Observation $bitmap
      if($o.State -ne ($kind+'_'+$screen) -or ($screen -ne 'LIST' -and $o.Level -ne 1) -or ($screen -eq 'EDIT' -and $o.Cost -ne 0)){
-      $fixtureBytes=[IO.MemoryStream]::new();try{$bitmap.Save($fixtureBytes,[Drawing.Imaging.ImageFormat]::Png);[Console]::Out.WriteLine('SYNTHETIC_IMAGE|'+[Convert]::ToBase64String($fixtureBytes.ToArray()))}finally{$fixtureBytes.Dispose()}
       $diagnostic=Read-Image $bitmap
       try{foreach($line in $diagnostic.Words){[Console]::Out.WriteLine(('UPGRADE FIXTURE {0}/{1}: {2} at {3:N3},{4:N3} height {5:N3}' -f $kind,$screen,$line.Text,$line.X,$line.Y,$line.H))}}finally{$diagnostic.Bitmap.Dispose()}
      }
      Check ($o.State -eq ($kind+'_'+$screen)) ('Upgrade OCR failed: '+$kind+'/'+$screen+' -> '+$o.State)
      if($screen -eq 'LIST'){Check ($null -ne $o.Cards) 'List candidate set missing'}
      else{Check ($o.Level -eq 1) 'Detail/editor level OCR missing'}
-     if($screen -eq 'EDIT'){Check ($o.Cost -eq 0) ('Editor cost OCR missing: '+$o.Cost)}
+     if($screen -eq 'EDIT'){
+      Check ($o.Cost -eq 0) ('Editor cost OCR missing: '+$o.Cost)
+      foreach($costValue in @(100,0)){
+       $bg=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(30,50,100))
+       try{
+        $g.FillRectangle($bg,920,90,180,140);$g.DrawString('2',$levelFont,[Drawing.Brushes]::White,990,135)
+        $g.FillRectangle($bg,1050,($priceY-10),100,48)
+        $ink=[Drawing.Brushes]::White
+        if($costValue -eq 0){$g.FillRectangle([Drawing.Brushes]::White,1070,$priceY,75,42);$ink=[Drawing.Brushes]::DarkBlue}
+        $g.DrawString([string]$costValue,$smallFont,$ink,1090,$priceY);$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+        $changed=Read-Observation $bitmap
+        Check ($changed.State -eq ($kind+'_EDIT') -and $changed.Level -eq 2 -and $changed.Cost -eq $costValue) ('Numeric preview/commit fixture failed: '+$kind+' level='+$changed.Level+' cost='+$changed.Cost)
+       }finally{$bg.Dispose()}
+      }
+     }
     }
    }
   }finally{$smallFont.Dispose();$levelFont.Dispose()}
