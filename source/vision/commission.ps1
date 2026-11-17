@@ -641,10 +641,10 @@ if($SelfTest){
   Check ((Next-Action $session ([pscustomobject]@{State='DISC_LIST';Cards=@()}) 2200) -eq 'SELECT_LOW') 'Unreadable tiny labels did not open the inspection candidate'
   Check ((Next-Action $session ([pscustomobject]@{State='DISC_DETAILS';Level=35}) 3400) -eq 'ERR_LOW_LEVEL_NOT_FOUND') 'High-level fallback candidate was upgraded'
   Check ($session.UpgradeCommits -eq 0) 'Unvalidated card spent currency'
-  $session=New-Session 4;$session.UpgradeKind='DISC';$session.UpgradePhase='VERIFY';$session.UpgradeAt=1000;$session.BeforeLevel=1;$session.TargetLevel=2;$session.UpgradeCommits=1
+  $session=New-Session 4;$session.Actions=5;$session.UpgradeKind='DISC';$session.UpgradePhase='VERIFY';$session.UpgradeAt=1000;$session.BeforeLevel=1;$session.TargetLevel=2;$session.UpgradeCommits=1
   Check ((Next-Action $session ([pscustomobject]@{State='DISC_EDIT';Level=2;Cost=100}) 11000) -eq 'ERR_UPGRADE_NOT_CONFIRMED') 'Unconfirmed spend was retried or accepted'
   Check ($session.UpgradeCommits -eq 1) 'Failed upgrade spent twice'
-  $session=New-Session 4;$session.UpgradeKind='DISC';$session.UpgradePhase='EDIT';$session.BeforeLevel=1
+  $session=New-Session 4;$session.Actions=3;$session.UpgradeKind='DISC';$session.UpgradePhase='EDIT';$session.BeforeLevel=1
   Check ((Next-Action $session ([pscustomobject]@{State='DISC_EDIT';Level=3;Cost=500}) 2200) -eq 'ERR_UPGRADE_EXISTING_SELECTION') 'Existing material selection was overwritten'
   $session=New-Session 588;$session.DiscDone=$true;$session.TrekkerDone=$true;$session.Interact=1;$session.Actions=15
   Check ((Next-Action $session $upgradeHome 20000) -eq 'OPEN') 'Completed upgrades did not hand off to Commission'
