@@ -81,34 +81,40 @@ public static class CommissionDesktop {
  }
  static readonly System.Collections.Generic.List<bool[]> DigitTemplates=new System.Collections.Generic.List<bool[]>();
  static readonly System.Collections.Generic.List<int> TemplateDigits=new System.Collections.Generic.List<int>();
- static void MakeDigits(){
-  if(DigitTemplates.Count!=0)return;
-  foreach(string family in new[]{"Segoe UI","Arial","Calibri","Tahoma","Verdana"})foreach(FontStyle style in new[]{FontStyle.Regular,FontStyle.Bold})for(int digit=0;digit<10;digit++){
+ static readonly System.Collections.Generic.List<bool[]> CostTemplates=new System.Collections.Generic.List<bool[]>();
+ static readonly System.Collections.Generic.List<int> CostTemplateDigits=new System.Collections.Generic.List<int>();
+ static void MakeDigits(bool tilted){
+  var templates=tilted?CostTemplates:DigitTemplates;var digits=tilted?CostTemplateDigits:TemplateDigits;
+  if(templates.Count!=0)return;
+  foreach(string family in new[]{"Segoe UI","Arial","Calibri","Tahoma","Verdana"})foreach(FontStyle style in new[]{FontStyle.Regular,FontStyle.Bold})for(int digit=0;digit<10;digit++)foreach(int angle in tilted?new[]{-12,-6,0,6,12}:new[]{0}){
    using(var b=new Bitmap(100,100))using(var g=Graphics.FromImage(b))using(var f=new Font(family,64,style,GraphicsUnit.Pixel)){
-    g.Clear(Color.Black);g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;g.DrawString(digit.ToString(),f,Brushes.White,0,0);g.Flush();
+    g.Clear(Color.Black);g.TranslateTransform(25,10);g.RotateTransform(angle);g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;g.DrawString(digit.ToString(),f,Brushes.White,0,0);g.Flush();
     var mask=new bool[10000];int l=100,t=100,r=0,bt=0;
     for(int y=0;y<100;y++)for(int x=0;x<100;x++)if(b.GetPixel(x,y).R>150){mask[y*100+x]=true;l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);bt=Math.Max(bt,y);}
-    if(r>=l&&bt>=t){DigitTemplates.Add(Normalize(mask,100,l,t,r-l+1,bt-t+1));TemplateDigits.Add(digit);}
+    if(r>=l&&bt>=t){templates.Add(Normalize(mask,100,l,t,r-l+1,bt-t+1));digits.Add(digit);}
    }
   }
  }
- static int Classify(bool[] sample){
+ static int Classify(bool[] sample,bool tilted){
+  var templates=tilted?CostTemplates:DigitTemplates;var digits=tilted?CostTemplateDigits:TemplateDigits;
   var scores=new double[10];for(int d=0;d<10;d++)scores[d]=1;
-  for(int i=0;i<DigitTemplates.Count;i++){
-   bool[] target=DigitTemplates[i];double best=1;
+  for(int i=0;i<templates.Count;i++){
+   bool[] target=templates[i];double best=1;
    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){
     int mismatch=0,union=0;
     for(int y=0;y<32;y++)for(int x=0;x<24;x++){
      bool a=sample[y*24+x],b=x+dx>=0&&x+dx<24&&y+dy>=0&&y+dy<32&&target[(y+dy)*24+x+dx];if(a||b)union++;if(a!=b)mismatch++;
     }if(union>0)best=Math.Min(best,(double)mismatch/union);
-   }scores[TemplateDigits[i]]=Math.Min(scores[TemplateDigits[i]],best);
+   }scores[digits[i]]=Math.Min(scores[digits[i]],best);
   }
   int winner=0;for(int d=1;d<10;d++)if(scores[d]<scores[winner])winner=d;
   double runner=1;for(int d=0;d<10;d++)if(d!=winner)runner=Math.Min(runner,scores[d]);
   return scores[winner]<=0.30&&runner-scores[winner]>=0.035?winner:-1;
  }
- public static int Number(Bitmap source,double rx,double ry,double rw,double rh,bool bright,double minHeight,double maxHeight){
-  MakeDigits();int left=(int)(rx*source.Width),top=(int)(ry*source.Height),w=(int)(rw*source.Width),h=(int)(rh*source.Height);
+ public static int Number(Bitmap source,double rx,double ry,double rw,double rh,bool bright,double minHeight,double maxHeight){return ReadNumber(source,rx,ry,rw,rh,bright,minHeight,maxHeight,false);}
+ public static int CostNumber(Bitmap source,double rx,double ry,double rw,double rh,bool bright,double minHeight,double maxHeight){return ReadNumber(source,rx,ry,rw,rh,bright,minHeight,maxHeight,true);}
+ static int ReadNumber(Bitmap source,double rx,double ry,double rw,double rh,bool bright,double minHeight,double maxHeight,bool tilted){
+  MakeDigits(tilted);int left=(int)(rx*source.Width),top=(int)(ry*source.Height),w=(int)(rw*source.Width),h=(int)(rh*source.Height);
   var mask=new bool[w*h];var seen=new bool[w*h];var queue=new int[w*h];var components=new System.Collections.Generic.List<int[]>();
   for(int y=0;y<h;y++)for(int x=0;x<w;x++){
    Color c=source.GetPixel(left+x,top+y);mask[y*w+x]=bright?(c.R>150&&c.G>140&&(c.B<180||(c.R>190&&c.G>190&&c.B>190))):(c.R<130&&c.G<150&&c.B<220);
@@ -124,7 +130,7 @@ public static class CommissionDesktop {
   if(components.Count==0)return -1;int tallest=0;foreach(var c in components)tallest=Math.Max(tallest,c[3]);
   components.RemoveAll(c=>c[3]<tallest*0.80);components.Sort((a,b)=>a[0].CompareTo(b[0]));
   if(components.Count==0||components.Count>6)return -1;int result=0;
-  foreach(var c in components){int digit=Classify(Normalize(mask,w,c[0],c[1],c[2],c[3]));if(digit<0)return -1;result=result*10+digit;}return result;
+  foreach(var c in components){int digit=Classify(Normalize(mask,w,c[0],c[1],c[2],c[3]),tilted);if(digit<0)return -1;result=result*10+digit;}return result;
  }
  public static Bitmap Capture(){
   Rect r=View();Point p=new Point();if(!ClientToScreen(Window,ref p))throw new Exception("CONTEXT");
@@ -341,6 +347,18 @@ function Disc-Layout($bitmap,$session,[bool]$discCaption=$false){
  if(!$session -or $session.UpgradeKind -ne 'DISC'){return $null}
  return Disc-Layout-FromChecks (Disc-Layout-Checks $bitmap) $session $discCaption
 }
+function Read-Disc-Cost($bitmap){
+ # Exclude the currency icon left of the digits. It is taller than the zero
+ # and was previously selected as the largest numeric component.
+ $values=@()
+ foreach($bright in @($true,$false)){
+  $n=[CommissionDesktop]::CostNumber($bitmap,.842,.68,.058,.08,$bright,.012,.045)
+  if($n -ge 0){$values+=$n}
+ }
+ $values=@($values | Select-Object -Unique)
+ if($values.Count -eq 1){return [int]$values[0]}
+ return -1
+}
 function Read-Observation($bitmap,$session=$null){
  $read=Read-Image $bitmap
  try {
@@ -394,10 +412,12 @@ function Read-Observation($bitmap,$session=$null){
   if($observation.State -in @('DISC_DETAILS','TREKKER_DETAILS','DISC_EDIT','TREKKER_EDIT')){
    if(!$observation.Level -and !($discTop -and $observation.Layout)){$n=[CommissionDesktop]::Number($bitmap,.72,$levelY,.14,$levelH,$true,.032,.10);if($n -gt 0){$observation.Level=$n}}
    if($observation.State -in @('DISC_EDIT','TREKKER_EDIT') -and $observation.Cost -lt 0){
-    $priceY=.68;if($observation.State -eq 'TREKKER_EDIT'){$priceY=.75}
-    $values=@()
-    foreach($bright in @($true,$false)){$n=[CommissionDesktop]::Number($bitmap,.82,$priceY,.08,.08,$bright,.012,.045);if($n -ge 0){$values+=$n}}
-    $values=@($values | Select-Object -Unique);if($values.Count -eq 1){$observation.Cost=$values[0]}
+    if($observation.State -eq 'DISC_EDIT'){$observation.Cost=Read-Disc-Cost $bitmap}
+    else{
+     $values=@()
+     foreach($bright in @($true,$false)){$n=[CommissionDesktop]::Number($bitmap,.82,.75,.08,.08,$bright,.012,.045);if($n -ge 0){$values+=$n}}
+     $values=@($values | Select-Object -Unique);if($values.Count -eq 1){$observation.Cost=$values[0]}
+    }
    }
   }
   if($observation.State -in @('DISC_LIST','TREKKER_LIST') -and $observation.Cards.Count -eq 0){
@@ -886,6 +906,28 @@ if($SelfTest){
    try{$g.FillRectangle($dim,0,0,$bitmap.Width,$bitmap.Height);$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)}finally{$dim.Dispose()}
    Check ($null -eq (Disc-Layout $bitmap $session)) 'Dimmed/modal-covered layout was accepted'
   }finally{$counter.Dispose();$price.Dispose()}
+  # Actual cost control: a taller currency icon precedes small digits on a
+  # slightly tilted white card. Never confuse the icon or an empty crop with 0.
+  $bubbleFont=[Drawing.Font]::new('Segoe UI',18,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  try{
+   foreach($angle in @(-8,0,8)){
+    foreach($item in @(@('0',0),@('100',100),@('2,860',2860))){
+     $g.Clear([Drawing.Color]::FromArgb(60,95,155));$saved=$g.Save()
+     try{
+      $g.TranslateTransform([single](.817*$bitmap.Width),[single](.69*$bitmap.Height));$g.RotateTransform([single]$angle)
+      $g.FillRectangle([Drawing.Brushes]::White,0,0,180,34)
+      $g.FillRectangle([Drawing.Brushes]::DarkSlateBlue,8,1,18,29)
+      $g.FillRectangle([Drawing.Brushes]::White,12,5,3,20);$g.FillRectangle([Drawing.Brushes]::White,17,10,3,10)
+      $g.DrawString($item[0],$bubbleFont,[Drawing.Brushes]::DarkSlateBlue,38,4)
+     }finally{$g.Restore($saved)}
+     $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+     $readCost=Read-Disc-Cost $bitmap
+     Check ($readCost -eq $item[1]) ('Tilted icon-bearing cost failed at '+$angle+': '+$item[0]+' -> '+$readCost)
+    }
+   }
+   $g.Clear([Drawing.Color]::FromArgb(60,95,155));$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+   Check ((Read-Disc-Cost $bitmap) -eq -1) 'Missing cost pixels were treated as zero'
+  }finally{$bubbleFont.Dispose()}
   Signal 'SELF_TEST_PASS'
  }finally{$g.Dispose();$bitmap.Dispose();if($font){$font.Dispose()}}
  exit 0

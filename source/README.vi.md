@@ -1,3 +1,9 @@
+## Tách biểu tượng tiền khỏi chi phí Disc — 1.3.2-upgrade-preview.6
+
+Ảnh thực tế xác nhận đã vào editor và đọc được cấp 1, nhưng báo ERR_UPGRADE_COST_UNREADABLE khi chi phí hiển thị 0. Vùng số trước đây bắt đầu ở x=82% và bao gồm biểu tượng tiền cao hơn chữ số, làm bộ phân đoạn chọn nhầm thành phần lớn nhất. Bản này đọc phần số Disc từ x=84,2%, không đổi vùng Trekker; mẫu chữ số chi phí riêng có các góc nghiêng nhỏ để đọc thẻ giá. Bộ đọc cấp vẫn dùng mẫu thẳng như trước.
+
+Kiểm thử mới có biểu tượng cao hơn chữ, giá 0/100/2,860 và thẻ trắng nghiêng -8/0/+8 độ, đồng thời yêu cầu ảnh không có chữ phải trả không đọc được, không mặc định là 0. Cổng editor cấp 1–9, giá trống 0, chuẩn bị 1 level rồi xác nhận tối đa một lần giữ nguyên. Đây là sửa vùng đọc dựa trên ảnh đã gửi, vẫn cần kiểm tra auto trong game.
+
 ## Dùng kết quả Inspect thực tế để sửa Details — 1.3.2-upgrade-preview.5
 
 Inspect của chủ tool tại Details: Disc label 1, Header/House True, DetailsActive/UpgradeInactive True, hai cờ Melody/Harmony False, Commit False; editor thì nhận đúng DISC_EDIT và cấp 1. Vì vậy Details được nhận bằng caption Disc ở header cùng header/home icon và trạng thái hai tab đã được đo đúng; không còn bắt buộc cờ màu hai thanh kỹ năng khi caption đã xác nhận. Vẫn yêu cầu ngữ cảnh Disc đã chọn, trạng thái tab không mâu thuẫn và không có nút xác nhận editor. Khi không có caption, phương án hai thanh kỹ năng cũ vẫn có điều kiện đầy đủ.
