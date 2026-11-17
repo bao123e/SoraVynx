@@ -1054,12 +1054,13 @@ if($SelfTest){
   # a right-side entry button, lower price and no Disc bottom Upgrade tab.
   $tkFont=[Drawing.Font]::new('Segoe UI',56,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
   $tkSmall=[Drawing.Font]::new('Segoe UI',18,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  $tkHeader=[Drawing.Font]::new('Segoe UI',24,[Drawing.FontStyle]::Regular,[Drawing.GraphicsUnit]::Pixel)
   function Paint-Trekker([bool]$training,[int]$level,[int]$cost){
    $g.Clear([Drawing.Color]::FromArgb(30,50,100))
    Paint-Region ([Drawing.Brushes]::DarkBlue) 0 .03 .27 .06
    Paint-Region ([Drawing.Brushes]::White) .285 .045 .019 .03
    if(!$training){
-    $g.DrawString('Trekker Details',$font,[Drawing.Brushes]::White,[single](.12*$bitmap.Width),[single](.03*$bitmap.Height))
+    $g.DrawString('Trekker Details',$tkHeader,[Drawing.Brushes]::White,[single](.12*$bitmap.Width),[single](.03*$bitmap.Height))
     Paint-Region ([Drawing.Brushes]::WhiteSmoke) .05 .89 .90 .064
     Paint-Region ([Drawing.Brushes]::DarkBlue) .055 .89 .15 .064
     foreach($y in @(.382,.423,.466)){Paint-Region ([Drawing.Brushes]::WhiteSmoke) .75 $y .225 .032}
@@ -1068,7 +1069,7 @@ if($SelfTest){
     $g.DrawString('8',$tkSmall,[Drawing.Brushes]::DarkBlue,[single](.776*$bitmap.Width),[single](.22*$bitmap.Height))
     $g.DrawString([string]$level,$tkFont,[Drawing.Brushes]::Gold,[single](.815*$bitmap.Width),[single](.21*$bitmap.Height))
    }else{
-    $g.DrawString('Trekker Training',$font,[Drawing.Brushes]::White,[single](.12*$bitmap.Width),[single](.03*$bitmap.Height))
+    $g.DrawString('Trekker Training',$tkHeader,[Drawing.Brushes]::White,[single](.12*$bitmap.Width),[single](.03*$bitmap.Height))
     Paint-Region ([Drawing.Brushes]::WhiteSmoke) .684 .689 .104 .051
     Paint-Region ([Drawing.Brushes]::WhiteSmoke) .818 .689 .104 .051
     Paint-Region ([Drawing.Brushes]::DarkTurquoise) .735 .794 .138 .064
@@ -1085,6 +1086,11 @@ if($SelfTest){
    $session=New-Session 8;$session.Actions=2;$session.UpgradeKind='TREKKER';$session.UpgradePhase='DETAILS'
    Paint-Trekker $false 1 0
    $o=Read-Observation $bitmap $session
+   if($o.State -ne 'TREKKER_DETAILS' -or $o.Level -ne 1){
+    $facts=Trekker-Layout-Checks $bitmap;foreach($property in $facts.PSObject.Properties){[Console]::Out.WriteLine(('TREKKER FIXTURE {0}: {1}' -f $property.Name,$property.Value))}
+    $fixtureRead=Read-Image $bitmap
+    try{foreach($line in $fixtureRead.Lines){[Console]::Out.WriteLine(('TREKKER FIXTURE TEXT: {0}' -f $line.Text))}}finally{$fixtureRead.Bitmap.Dispose()}
+   }
    Check ($o.State -eq 'TREKKER_DETAILS' -and $o.Layout -and $o.Level -eq 1) ('Trekker Details layout/level failed: '+$o.State+'/'+$o.Level)
    Check ((Next-Action $session $o 2200) -eq 'OPEN_UPGRADE') 'Trekker Details did not open Training'
    Check ([Math]::Abs($session.TargetX-.865) -lt .001 -and [Math]::Abs($session.TargetY-.73) -lt .001) 'Disc tab coordinates were used for Trekker'
@@ -1139,7 +1145,7 @@ if($SelfTest){
     $session.UpgradePhase='EDIT'
     Check ($null -eq (Trekker-Layout $bitmap $session $read.Lines)) 'Dimmed Training layout was accepted'
    }finally{$read.Bitmap.Dispose()}
-  }finally{$tkFont.Dispose();$tkSmall.Dispose()}
+  }finally{$tkFont.Dispose();$tkSmall.Dispose();$tkHeader.Dispose()}
   Signal 'SELF_TEST_PASS'
  }finally{$g.Dispose();$bitmap.Dispose();if($font){$font.Dispose()}}
  exit 0
