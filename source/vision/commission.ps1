@@ -637,6 +637,16 @@ if($SelfTest){
      Check ($o.State -eq ($kind+'_'+$screen)) ('Upgrade OCR failed: '+$kind+'/'+$screen+' -> '+$o.State)
      if($screen -eq 'LIST'){Check ($null -ne $o.Cards) 'List candidate set missing'}
      else{Check ($o.Level -eq 1) 'Detail/editor level OCR missing'}
+     if($kind -eq 'DISC' -and $screen -eq 'DETAILS'){
+      $bg=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(30,50,100))
+      try{
+       $g.FillRectangle($bg,975,0,160,85);$g.DrawString('10',$levelFont,[Drawing.Brushes]::White,990,5);$g.DrawString('/10',$smallFont,[Drawing.Brushes]::White,1070,35)
+       $g.FillRectangle($bg,450,630,220,70);$g.DrawString('Harmony Skill',$smallFont,[Drawing.Brushes]::White,900,390)
+       $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+       $capped=Read-Observation $bitmap
+       Check ($capped.State -eq 'DISC_DETAILS' -and $capped.Level -eq 10) ('Actual-layout 10/10 without full-frame Upgrade tab was not recognized: '+$capped.State+'/'+$capped.Level)
+      }finally{$bg.Dispose()}
+     }
      if($screen -eq 'EDIT'){
       Check ($o.Cost -eq 0) ('Editor cost OCR missing: '+$o.Cost)
       foreach($costValue in @(100,0)){
