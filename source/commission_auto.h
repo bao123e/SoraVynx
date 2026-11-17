@@ -41,6 +41,8 @@ static void commission_code(const char *code){
   {"STATE_STORY",L"Story overlay recognized (Esc Skip and Space Next)."},{"STATE_ITEMS",L"Items Obtained overlay recognized."},
   {"STATE_RESULT",L"Commission Complete and Dispatch Again recognized."},{"STATE_UNKNOWN",L"Waiting for a recognized Commission screen; no input on unknown screens."},
   {"STATE_NO_REWARDS",L"Claim All is not enabled."},
+  {"STATE_POWER_UP",L"Power Up result recognized. Closing it before checking the editor and returning home."},
+  {"ACTION_CLOSE_POWER_UP",L"Dismissing the upgrade result. No additional upgrade request is sent."},
   {"STATE_DISC_LIST",L"Disc list recognized."},{"STATE_TREKKER_LIST",L"Trekker list recognized."},
   {"STATE_DISC_DETAILS",L"Disc details recognized."},{"STATE_TREKKER_DETAILS",L"Trekker details recognized."},
   {"STATE_DISC_EDIT",L"Disc upgrade screen recognized."},{"STATE_TREKKER_EDIT",L"Trekker training screen recognized."},

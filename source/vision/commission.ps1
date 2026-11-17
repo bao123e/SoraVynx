@@ -359,7 +359,21 @@ function Read-Disc-Cost($bitmap){
  if($values.Count -eq 1){return [int]$values[0]}
  return -1
 }
+function Upgrade-Result-Overlay($bitmap,$session){
+ # Only recognize the full-width Power Up result after this run confirmed an
+ # upgrade. The banner itself is not proof of the committed editor state.
+ if(!$session -or $session.UpgradeKind -notin @('DISC','TREKKER') -or $session.UpgradePhase -ne 'VERIFY' -or $session.UpgradeCommits -lt 1){return $null}
+ if((Color-Patch $bitmap .05 .36 .14 .025 'CYAN') -and
+    (Color-Patch $bitmap .82 .36 .14 .025 'CYAN') -and
+    (Color-Patch $bitmap .05 .46 .16 .13 'WHITE') -and
+    (Color-Patch $bitmap .80 .46 .15 .13 'WHITE')){
+  return [pscustomobject]@{State='POWER_UP';X=.80;Y=.50}
+ }
+ return $null
+}
 function Read-Observation($bitmap,$session=$null){
+ $resultOverlay=Upgrade-Result-Overlay $bitmap $session
+ if($resultOverlay){return $resultOverlay}
  $read=Read-Image $bitmap
  try {
   $tokens=''
@@ -446,7 +460,7 @@ function Read-Observation($bitmap,$session=$null){
   return $observation
  }finally{$read.Bitmap.Dispose()}
 }
-function New-Session([int]$selectedTasks=512) {return @{DiscEnabled=($selectedTasks -band 4) -ne 0;TrekkerEnabled=($selectedTasks -band 8) -ne 0;DiscDone=$false;TrekkerDone=$false;TriedCards=@();UpgradeKind='';UpgradePhase='';UpgradeAt=0;BeforeLevel=0;TargetLevel=0;UpgradeCommits=0;UpgradeOpenAttempts=0;TargetX=0.0;TargetY=0.0;HomeEnabled=($selectedTasks -band 64) -ne 0;DispatchEnabled=($selectedTasks -band 512) -ne 0;Interact=0;Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
+function New-Session([int]$selectedTasks=512) {return @{DiscEnabled=($selectedTasks -band 4) -ne 0;TrekkerEnabled=($selectedTasks -band 8) -ne 0;DiscDone=$false;TrekkerDone=$false;TriedCards=@();UpgradeKind='';UpgradePhase='';UpgradeAt=0;BeforeLevel=0;TargetLevel=0;UpgradeCommits=0;UpgradeOpenAttempts=0;UpgradeOverlayCloses=0;TargetX=0.0;TargetY=0.0;HomeEnabled=($selectedTasks -band 64) -ne 0;DispatchEnabled=($selectedTasks -band 512) -ne 0;Interact=0;Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
 function Next-Upgrade($session,$observation,[long]$now){
  $kind=$session.UpgradeKind
  if(!$kind){
@@ -458,7 +472,7 @@ function Next-Upgrade($session,$observation,[long]$now){
   $prefix='Disc';if($kind -eq 'TREKKER'){$prefix='Trekker'}
   $x=$observation.($prefix+'X');$y=$observation.($prefix+'Y')
   if(!$x -or !$y){return 'ERR_UPGRADE_ENTRY_NOT_FOUND'}
-  $session.TriedCards=@();$session.UpgradeKind=$kind;$session.UpgradePhase='LIST';$session.UpgradeAt=$now
+  $session.TriedCards=@();$session.UpgradeOverlayCloses=0;$session.UpgradeKind=$kind;$session.UpgradePhase='LIST';$session.UpgradeAt=$now
   $session.TargetX=$x;$session.TargetY=$y;return ('ENTER_'+$kind)
  }
  $phase=$session.UpgradePhase
@@ -523,6 +537,14 @@ function Next-Upgrade($session,$observation,[long]$now){
    $session.TargetX=$observation.CommitX;$session.TargetY=$observation.CommitY
    $session.UpgradePhase='VERIFY';$session.UpgradeAt=$now;return 'COMMIT_UPGRADE'
   }
+ }
+ if($phase -eq 'VERIFY' -and $observation.State -eq 'POWER_UP'){
+  if($now-$session.UpgradeAt -ge 10000){return 'ERR_UPGRADE_OVERLAY_NOT_CLOSED'}
+  if($session.UpgradeOverlayCloses -gt 0 -and $now-$session.Last -lt 1800){return 'WAIT'}
+  if($session.UpgradeOverlayCloses -ge 2){return 'WAIT'}
+  $session.UpgradeOverlayCloses++
+  $session.TargetX=$observation.X;$session.TargetY=$observation.Y
+  return 'CLOSE_POWER_UP'
  }
  if($phase -eq 'VERIFY' -and $observation.State -eq ($kind+'_EDIT')){
   # Selection must clear AND the new level remain visible. A preview alone
@@ -928,6 +950,44 @@ if($SelfTest){
    $g.Clear([Drawing.Color]::FromArgb(60,95,155));$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
    Check ((Read-Disc-Cost $bitmap) -eq -1) 'Missing cost pixels were treated as zero'
   }finally{$bubbleFont.Dispose()}
+  # Post-upgrade Power Up result: close first, validate committed editor,
+  # then return home. The same full-width result layout applies to both tasks.
+  function Paint-PowerUp {
+   $g.Clear([Drawing.Color]::FromArgb(30,50,100))
+   Paint-Region ([Drawing.Brushes]::DarkTurquoise) 0 .35 1 .06
+   Paint-Region ([Drawing.Brushes]::WhiteSmoke) 0 .41 1 .25
+   $g.DrawString('Power Up!',$font,[Drawing.Brushes]::White,[single](.43*$bitmap.Width),[single](.33*$bitmap.Height))
+   $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+  }
+  Paint-PowerUp
+  foreach($kind in @('DISC','TREKKER')){
+   $mask=4;if($kind -eq 'TREKKER'){$mask=8}
+   $session=New-Session $mask;$session.Actions=5;$session.UpgradeKind=$kind;$session.UpgradePhase='VERIFY';$session.UpgradeCommits=1;$session.TargetLevel=2;$session.BeforeLevel=1;$session.Last=1000;$session.UpgradeAt=1000
+   $o=Read-Observation $bitmap $session
+   Check ($o.State -eq 'POWER_UP') 'Committed upgrade result was not recognized'
+   Check ((Next-Action $session $o 2200) -eq 'CLOSE_POWER_UP') 'Power Up dismissal missing'
+   Check ($session.UpgradeCommits -eq 1 -and !$session.DiscDone -and !$session.TrekkerDone -and $session.UpgradePhase -eq 'VERIFY') 'Overlay alone proved completion or sent another spend'
+   Check ((Next-Action $session $o 3000) -eq 'WAIT') 'Power Up dismissal did not settle'
+   $editor=[pscustomobject]@{State=($kind+'_EDIT');Level=2;Cost=0}
+   Check ((Next-Action $session $editor 4000) -eq 'RETURN_HOME') 'Closed result did not validate the editor and return home'
+   Check ((Next-Action $session $upgradeHome 5200) -eq 'WAIT') 'Return-home transition was missed'
+   Check ((Next-Action $session $upgradeHome 6400) -eq 'DONE') 'Upgrade-only result flow did not complete at home'
+   Check ($session.UpgradeCommits -eq 1) 'Result cleanup repeated upgrade spending'
+  }
+  $session=New-Session 4;$session.Actions=5;$session.UpgradeKind='DISC';$session.UpgradePhase='VERIFY';$session.UpgradeCommits=1;$session.TargetLevel=2;$session.Last=1000;$session.UpgradeAt=1000
+  $o=Read-Observation $bitmap $session;$null=Next-Action $session $o 2200
+  Check ((Next-Action $session $o 4300) -eq 'CLOSE_POWER_UP') 'Still-recognized result did not receive its one dismissal retry'
+  Check ((Next-Action $session $o 6500) -eq 'WAIT') 'Result dismissal was retried beyond its bound'
+  Check ((Next-Action $session $o 12000) -eq 'ERR_UPGRADE_OVERLAY_NOT_CLOSED') 'Persistent result did not stop'
+  Check ($session.UpgradeOverlayCloses -eq 2 -and $session.UpgradeCommits -eq 1) 'Result click or spend limits were violated'
+  $session.UpgradePhase='PREPARED'
+  Check ($null -eq (Upgrade-Result-Overlay $bitmap $session)) 'Result handler ran before a committed upgrade'
+  $session.UpgradePhase='VERIFY';$session.UpgradeCommits=0
+  Check ($null -eq (Upgrade-Result-Overlay $bitmap $session)) 'Unrelated overlay was dismissed without a spend from this run'
+  Check ($null -eq (Upgrade-Result-Overlay $bitmap $null)) 'Result handler ran without task context'
+  $session.UpgradeCommits=1
+  Paint-Region ([Drawing.Brushes]::DarkBlue) .82 .35 .18 .06
+  Check ($null -eq (Upgrade-Result-Overlay $bitmap $session)) 'Incomplete Power Up layout was accepted'
   Signal 'SELF_TEST_PASS'
  }finally{$g.Dispose();$bitmap.Dispose();if($font){$font.Dispose()}}
  exit 0
@@ -969,7 +1029,7 @@ try {
   # is not character detection. Require recognized HOME before sending it.
   $targetX=$observation.X;$targetY=$observation.Y
   if($action -eq 'INTERACT'){$targetX=0.50;$targetY=0.50}
-  if($action -in @('ENTER_DISC','ENTER_TREKKER','SELECT_LOW','BACK_LIST','OPEN_UPGRADE','REOPEN_UPGRADE','PREPARE_LEVEL','COMMIT_UPGRADE','RETURN_HOME')){$targetX=$session.TargetX;$targetY=$session.TargetY}
+  if($action -in @('ENTER_DISC','ENTER_TREKKER','SELECT_LOW','BACK_LIST','OPEN_UPGRADE','REOPEN_UPGRADE','PREPARE_LEVEL','COMMIT_UPGRADE','CLOSE_POWER_UP','RETURN_HOME')){$targetX=$session.TargetX;$targetY=$session.TargetY}
   [CommissionDesktop]::Act(($action -eq 'ESC'),$targetX,$targetY)
   Start-Sleep -Milliseconds 500
  }

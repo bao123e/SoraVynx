@@ -1,3 +1,11 @@
+## Đóng Power Up rồi về Home — 1.3.2-upgrade-preview.7
+
+Ảnh của chủ tool xác nhận nâng Disc thành công lên cấp 2, sau đó dừng vì chưa xử lý bảng Power Up. Bản này nhận bảng kết quả bằng dải cyan toàn chiều ngang và bảng sáng ở giữa, chỉ trong phase VERIFY sau khi lượt hiện tại đã gửi xác nhận nâng. Nhấp vùng trống bên phải bảng; nếu animation còn hiện thì có tối đa một lần thử đóng lại sau 1,8 giây, vẫn nhận diện lại bảng trước mỗi nhấp.
+
+Không xem overlay là bằng chứng hoàn tất. Sau khi đóng phải đọc lại editor, thấy cấp mới >= cấp đã chuẩn bị và chi phí về 0, rồi mới bấm ngôi nhà. Không chọn nguyên liệu hay nâng thêm. Nếu bảng không đóng trong giới hạn thì ERR_UPGRADE_OVERLAY_NOT_CLOSED. Luồng không có overlay vẫn kiểm tra editor như trước. Mã chung hỗ trợ bảng tương tự ở Trekker, nhưng chỉ Disc được chủ tool xác nhận tới bước nâng thực tế.
+
+Khi phiên cũ đã dừng, bảng đang mở có thể đóng bằng một nhấp tay rồi về Home; không cần nâng thêm chỉ để nhận lại phần đã hoàn thành. Bản sửa áp dụng cho các lượt auto tiếp theo. Kiểm thử Windows mô phỏng kiểm tra đầy đủ overlay -> editor -> Home, giới hạn đóng bảng và không lặp chi tiêu; cần xác nhận giao diện thực tế.
+
 ## Tách biểu tượng tiền khỏi chi phí Disc — 1.3.2-upgrade-preview.6
 
 Ảnh thực tế xác nhận đã vào editor và đọc được cấp 1, nhưng báo ERR_UPGRADE_COST_UNREADABLE khi chi phí hiển thị 0. Vùng số trước đây bắt đầu ở x=82% và bao gồm biểu tượng tiền cao hơn chữ số, làm bộ phân đoạn chọn nhầm thành phần lớn nhất. Bản này đọc phần số Disc từ x=84,2%, không đổi vùng Trekker; mẫu chữ số chi phí riêng có các góc nghiêng nhỏ để đọc thẻ giá. Bộ đọc cấp vẫn dùng mẫu thẳng như trước.

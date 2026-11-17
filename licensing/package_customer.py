@@ -25,6 +25,7 @@ Tool đọc UI tiếng Anh: mở Commission, Claim All, Dispatch Again một l�
 Sau Dispatch Again, quan sát ít nhất 8 giây và chờ trang Commission ổn định 2,5 giây rồi kết thúc. Không có overlay thì không gửi Esc/click dư.
 Nếu vẫn ở cùng màn chi tiết sau khi mở Upgrade, thử lại chuyển màn đúng một lần; ERR_UPGRADE_TAB_NOT_OPENED nghĩa là cả hai lần không mở được. Không thử lại nút xác nhận chi tiêu.
 Nếu cần kiểm tra nhận diện: chạy Inspect-Screen.cmd rồi đưa game lên trước trong 8 giây. Chỉ đọc nhãn/bố cục, không nhấp hay dùng nguyên liệu, không lưu ảnh/log. Có thể gửi phần kết quả chữ.
+Sau khi xác nhận nâng: đóng Power Up nếu xuất hiện, kiểm tra editor thấy cấp mới và chi phí 0, rồi về Home. Không gửi thêm xác nhận nâng.
 Giữ game có focus, không đổi kích thước/chuyển ứng dụng trong lúc chạy. F1 dừng và hiện lại tool; Disable all cũng dừng.
 Không có thưởng, không nhận ra màn hình hoặc thiếu English OCR thì dừng, không bấm đoán. Nếu báo thiếu OCR, cần thành phần OCR tiếng Anh của Windows.
 Ảnh/chữ OCR chỉ xử lý cục bộ trong bộ nhớ, không lưu/gửi ảnh, không tạo log. Không đổi key/issuer/private PEM hoặc bot/SePay.
