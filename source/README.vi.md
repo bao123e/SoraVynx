@@ -1,3 +1,11 @@
+## Disc / Trekker upgrade — 1.3.2-upgrade-preview.1
+
+Mở màn chính, Auto Daily chọn USE/SKIP cho Upgrade Disc once, Upgrade Trekker once, Interact with home Trekker và Dispatch 1 commission rồi **Run selected daily steps**. Giữ key cũ, giải nén đầy đủ ZIP; không cần F9. Thứ tự các mục USE: Home interaction -> Disc -> Trekker -> Commission. Mỗi mục nâng xong sẽ nhấp icon ngôi nhà và đợi màn chính trước khi chuyển bước.
+
+Theo ảnh hướng dẫn của chủ tool, đọc nhãn cấp trên các thẻ đang nhìn thấy và chọn cấp thấp nhất trong khoảng 1–10. Không tự cuộn hay chọn mục không đọc được cấp. Mở màn nâng, bấm Upgrade 1 level để game chọn nguyên liệu, đợi mức xem trước tăng và chi phí dương rồi bấm Upgrade đúng một lần. Sau đó yêu cầu mức mới vẫn hiện và phần chọn nguyên liệu/chi phí đã về 0 trước khi về Home. Chi tiêu Upgrade không được thử lại trong cùng lượt. Đã chọn sẵn nguyên liệu, thiếu nguyên liệu, không đọc được UI hoặc không thấy thay đổi thì dừng với mã lỗi. Không dùng Upgrade to Max, Crescendo hoặc Ascension.
+
+Hai thao tác này dùng nguyên liệu và tiền game theo nút Upgrade 1 level. Chỉ USE những mục bạn muốn chạy. Kiểm thử Windows dùng màn hình tổng hợp, không chạy trên tài khoản game; Disc/Trekker mới cần chủ tool xác nhận trong game. Kết thúc luồng không chứng minh nhiệm vụ đã Complete; chưa phải toàn bộ Auto Daily. Player/Event, issuer và cấu hình bot/thanh toán không đổi; không tạo log sản phẩm.
+
 ## Home interaction + Commission — 1.3.1-home-commission-preview.1
 
 Chủ tool cho biết nhiệm vụ Interact with home Trekker chỉ cần nhấp nhân vật ở màn chính. Bản này thêm một lần nhấp tại giữa vùng client (50%, 50%) theo ảnh giao diện đã cung cấp, chỉ khi OCR nhận ra màn hình HOME. Đây là điểm theo bố cục tham chiếu, không phải nhận diện hình nhân vật. Không nhấp lại trong cùng lượt chạy; không tự kiểm tra nhiệm vụ qua server.

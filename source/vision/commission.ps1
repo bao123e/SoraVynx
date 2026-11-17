@@ -476,7 +476,7 @@ if($SelfTest){
      }else{
       $g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,135)
       if($screen -eq 'DETAILS'){
-       if($kind -eq 'DISC'){$g.DrawString('Melody Skill',$smallFont,[Drawing.Brushes]::White,890,165);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,500,655)}
+       if($kind -eq 'DISC'){$g.DrawString('Melody Skill',$smallFont,[Drawing.Brushes]::White,890,230);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,500,655)}
        else{$g.FillRectangle([Drawing.Brushes]::Turquoise,950,510,240,65);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,990,525)}
       }else{
        $g.DrawString('Upgrade 1 level',$smallFont,[Drawing.Brushes]::White,860,460)
