@@ -71,6 +71,60 @@ public static class CommissionDesktop {
    g.DrawImage(source,new Rectangle(0,0,w*3,h*3),x,y,w,h,GraphicsUnit.Pixel,attributes);
   }return output;
  }
+ // Numeric fallback for isolated counters that Windows OCR omits. Templates
+ // are generated locally from installed Windows fonts; never from account data.
+ static bool[] Normalize(bool[] source,int sw,int l,int t,int w,int h){
+  var result=new bool[24*32];double scale=Math.Min(20.0/w,28.0/h);int nw=Math.Max(1,(int)Math.Round(w*scale)),nh=Math.Max(1,(int)Math.Round(h*scale));
+  int ox=(24-nw)/2,oy=(32-nh)/2;
+  for(int y=0;y<nh;y++)for(int x=0;x<nw;x++)result[(y+oy)*24+x+ox]=source[(t+Math.Min(h-1,(int)(y/scale)))*sw+l+Math.Min(w-1,(int)(x/scale))];return result;
+ }
+ static readonly System.Collections.Generic.List<bool[]> DigitTemplates=new System.Collections.Generic.List<bool[]>();
+ static readonly System.Collections.Generic.List<int> TemplateDigits=new System.Collections.Generic.List<int>();
+ static void MakeDigits(){
+  if(DigitTemplates.Count!=0)return;
+  foreach(string family in new[]{"Segoe UI","Arial","Calibri","Tahoma","Verdana"})foreach(FontStyle style in new[]{FontStyle.Regular,FontStyle.Bold})for(int digit=0;digit<10;digit++){
+   using(var b=new Bitmap(100,100))using(var g=Graphics.FromImage(b))using(var f=new Font(family,64,style,GraphicsUnit.Pixel)){
+    g.Clear(Color.Black);g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;g.DrawString(digit.ToString(),f,Brushes.White,0,0);g.Flush();
+    var mask=new bool[10000];int l=100,t=100,r=0,bt=0;
+    for(int y=0;y<100;y++)for(int x=0;x<100;x++)if(b.GetPixel(x,y).R>150){mask[y*100+x]=true;l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);bt=Math.Max(bt,y);}
+    if(r>=l&&bt>=t){DigitTemplates.Add(Normalize(mask,100,l,t,r-l+1,bt-t+1));TemplateDigits.Add(digit);}
+   }
+  }
+ }
+ static int Classify(bool[] sample){
+  var scores=new double[10];for(int d=0;d<10;d++)scores[d]=1;
+  for(int i=0;i<DigitTemplates.Count;i++){
+   bool[] target=DigitTemplates[i];double best=1;
+   for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){
+    int mismatch=0,union=0;
+    for(int y=0;y<32;y++)for(int x=0;x<24;x++){
+     bool a=sample[y*24+x],b=x+dx>=0&&x+dx<24&&y+dy>=0&&y+dy<32&&target[(y+dy)*24+x+dx];if(a||b)union++;if(a!=b)mismatch++;
+    }if(union>0)best=Math.Min(best,(double)mismatch/union);
+   }scores[TemplateDigits[i]]=Math.Min(scores[TemplateDigits[i]],best);
+  }
+  int winner=0;for(int d=1;d<10;d++)if(scores[d]<scores[winner])winner=d;
+  double runner=1;for(int d=0;d<10;d++)if(d!=winner)runner=Math.Min(runner,scores[d]);
+  return scores[winner]<=0.30&&runner-scores[winner]>=0.035?winner:-1;
+ }
+ public static int Number(Bitmap source,double rx,double ry,double rw,double rh,bool bright,double minHeight,double maxHeight){
+  MakeDigits();int left=(int)(rx*source.Width),top=(int)(ry*source.Height),w=(int)(rw*source.Width),h=(int)(rh*source.Height);
+  var mask=new bool[w*h];var seen=new bool[w*h];var queue=new int[w*h];var components=new System.Collections.Generic.List<int[]>();
+  for(int y=0;y<h;y++)for(int x=0;x<w;x++){
+   Color c=source.GetPixel(left+x,top+y);mask[y*w+x]=bright?(c.R>150&&c.G>140&&(c.B<180||(c.R>190&&c.G>190&&c.B>190))):(c.R<130&&c.G<150&&c.B<220);
+  }
+  for(int p=0;p<mask.Length;p++)if(mask[p]&&!seen[p]){
+   int head=0,tail=0,l=w,t=h,r=0,bt=0;queue[tail++]=p;seen[p]=true;
+   while(head<tail){int v=queue[head++],x=v%w,y=v/w;l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);bt=Math.Max(bt,y);
+    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){int nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;int n=ny*w+nx;if(mask[n]&&!seen[n]){seen[n]=true;queue[tail++]=n;}}
+   }
+   int ch=bt-t+1,cw=r-l+1;
+   if(l>0&&t>0&&r<w-1&&bt<h-1&&ch>=minHeight*source.Height&&ch<=maxHeight*source.Height&&cw>=2&&cw<=ch*1.1)components.Add(new[]{l,t,cw,ch});
+  }
+  if(components.Count==0)return -1;int tallest=0;foreach(var c in components)tallest=Math.Max(tallest,c[3]);
+  components.RemoveAll(c=>c[3]<tallest*0.80);components.Sort((a,b)=>a[0].CompareTo(b[0]));
+  if(components.Count==0||components.Count>6)return -1;int result=0;
+  foreach(var c in components){int digit=Classify(Normalize(mask,w,c[0],c[1],c[2],c[3]));if(digit<0)return -1;result=result*10+digit;}return result;
+ }
  public static Bitmap Capture(){
   Rect r=View();Point p=new Point();if(!ClientToScreen(Window,ref p))throw new Exception("CONTEXT");
   var bitmap=new Bitmap(Width,Height,PixelFormat.Format32bppArgb);
@@ -256,6 +310,15 @@ function Read-Observation($bitmap){
       if($observation.Level -gt 0){break}
      }finally{$crop.Dispose();if($detail){$detail.Bitmap.Dispose()}}
     }
+   }
+  }
+  if($observation.State -in @('DISC_DETAILS','TREKKER_DETAILS','DISC_EDIT','TREKKER_EDIT')){
+   if(!$observation.Level){$n=[CommissionDesktop]::Number($bitmap,.72,.12,.14,.20,$true,.032,.10);if($n -gt 0){$observation.Level=$n}}
+   if($observation.State -in @('DISC_EDIT','TREKKER_EDIT') -and $observation.Cost -lt 0){
+    $priceY=.68;if($observation.State -eq 'TREKKER_EDIT'){$priceY=.75}
+    $values=@()
+    foreach($bright in @($true,$false)){$n=[CommissionDesktop]::Number($bitmap,.82,$priceY,.08,.06,$bright,.012,.045);if($n -ge 0){$values+=$n}}
+    $values=@($values | Select-Object -Unique);if($values.Count -eq 1){$observation.Cost=$values[0]}
    }
   }
   if($observation.State -in @('DISC_LIST','TREKKER_LIST') -and $observation.Cards.Count -eq 0){
