@@ -19,7 +19,7 @@ Giải nén TOÀN BỘ ZIP, giữ thư mục automation/commission.ps1 cạnh EX
 Thoát game/tool cũ, mở cặp mới bằng key hiện tại, vào màn chính hoặc Commission và chờ READY.
 Auto Daily -> chọn USE/SKIP cho Upgrade Disc once, Upgrade Trekker once, Interact with home Trekker, Dispatch 1 commission -> Run selected daily steps. Không cần F9.
 Bắt đầu màn chính. Các mục USE chạy theo thứ tự Home interaction -> Disc -> Trekker -> Commission.
-Disc/Trekker: ưu tiên cấp thấp nhất đọc được trên các thẻ đang thấy; nếu nhãn nhỏ thiếu thì mở thẻ đầu để kiểm tra cấp lớn, chỉ nâng cấp 1–10, dùng Upgrade 1 level, xác nhận Upgrade một lần rồi về Home. Có dùng nguyên liệu/tiền game. Không dùng Max hoặc thử lại chi tiêu khi không rõ kết quả.
+Disc/Trekker: ưu tiên cấp thấp nhất đọc được trên các thẻ đang thấy; nếu nhãn nhỏ thiếu thì kiểm tra cấp lớn ở màn chi tiết từng thẻ, chỉ nâng cấp 1–9. Bỏ qua cấp >=10/không đọc rõ, xem tối đa 10 Disc hoặc 12 Trekker trên hai hàng đang thấy, dùng Upgrade 1 level, xác nhận Upgrade một lần rồi về Home. Có dùng nguyên liệu/tiền game. Không dùng Max hoặc thử lại chi tiêu khi không rõ kết quả.
 Nếu Home USE: bắt đầu ở màn chính, tool nhấp nhân vật một lần tại giữa màn hình theo bố cục tham chiếu (không nhận diện hình nhân vật). Nếu Dispatch cũng USE thì chạy Commission tiếp; chỉ Home USE thì dừng sau bước này.
 Tool đọc UI tiếng Anh: mở Commission, Claim All, Dispatch Again một lần; Esc Skip và Items Obtained được xử lý nếu xuất hiện ở cả trước lẫn sau Dispatch Again.
 Sau Dispatch Again, quan sát ít nhất 8 giây và chờ trang Commission ổn định 2,5 giây rồi kết thúc. Không có overlay thì không gửi Esc/click dư.

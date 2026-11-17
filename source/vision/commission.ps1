@@ -216,12 +216,13 @@ function Low-Cards($words){
    $numbers=@($words | Where-Object {$_.Text -match '^\d{1,3}$' -and [Math]::Abs($_.Y-$word.Y) -lt .02 -and $_.X -ge $word.X+$word.W-.005 -and $_.X -lt $word.X+$word.W+.035})
    if($numbers.Count -eq 1){$level=[int]$numbers[0].Text}
   }
-  if($level -ge 1 -and $level -le 10){$cards+=[pscustomobject]@{Level=$level;X=$word.X+$word.W/2;Y=$word.Y-.08}}
+  if($level -ge 1 -and $level -lt 10){$cards+=[pscustomobject]@{Level=$level;X=$word.X+$word.W/2;Y=$word.Y-.08}}
  }
  return @($cards | Sort-Object Level,Y,X)
 }
-function Visible-Level($words){
- $values=@($words | Where-Object {$_.Text -match '^\d{1,3}(?:/\d{1,3})?$' -and $_.X -gt .70 -and $_.X -lt .85 -and $_.Y -gt .13 -and $_.Y -lt .30 -and $_.H -gt .032})
+function Visible-Level($words,[bool]$discTop=$false){
+ $minY=.13;$maxY=.30;if($discTop){$minY=.01;$maxY=.12}
+ $values=@($words | Where-Object {$_.Text -match '^\d{1,3}(?:/\d{1,3})?$' -and $_.X -gt .70 -and $_.X -lt .85 -and $_.Y -gt $minY -and $_.Y -lt $maxY -and $_.H -gt .032})
  if($values.Count -eq 1){return [int]($values[0].Text.Split('/')[0])}
  return 0
 }
@@ -248,7 +249,11 @@ function Upgrade-Observation($lines,$words,$bitmap){
  if($kind -eq 'DISC'){
   $tab=@(Label $lines 'upgrade' .34 .52 .88 1)
   $skill=@(Label $lines 'melodyskill' .65 .9 .15 .35)
-  if($tab.Count -eq 1 -and $skill.Count -eq 1){return [pscustomobject]@{State='DISC_DETAILS';X=$tab[0].X+$tab[0].W/2;Y=$tab[0].Y+$tab[0].H/2;Level=$level}}
+  $harmony=@(Label $lines 'harmonyskill' .65 .95 .40 .65)
+  if($skill.Count -eq 1 -and ($tab.Count -eq 1 -or $harmony.Count -eq 1)){
+   $x=.435;$y=.923;if($tab.Count -eq 1){$x=$tab[0].X+$tab[0].W/2;$y=$tab[0].Y+$tab[0].H/2}
+   return [pscustomobject]@{State='DISC_DETAILS';X=$x;Y=$y;Level=(Visible-Level $words $true)}
+  }
  }elseif($page -eq 'DETAILS' -and $confirm.Count -eq 1){
   return [pscustomobject]@{State='TREKKER_DETAILS';X=$confirm[0].X+$confirm[0].W/2;Y=$confirm[0].Y+$confirm[0].H/2;Level=$level}
  }
@@ -298,21 +303,43 @@ function Read-Observation($bitmap){
    }
   }
   $observation=Observe $read.Lines $read.Bitmap $tokens $read.Words
+  if($observation.State -eq 'UNKNOWN'){
+   $regions=@(@(.08,.015,.23,.085),@(.69,.18,.29,.09),@(.69,.52,.29,.08),@(.35,.89,.15,.075))
+   foreach($region in $regions){
+    $crop=[CommissionDesktop]::Region($bitmap,$region[0],$region[1],$region[2],$region[3],$false);$detail=$null
+    try{
+     $detail=Read-Image $crop
+     # Replace overlapping full-frame lines instead of duplicating labels.
+     $kept=@($read.Lines | Where-Object {!($_.X -ge $region[0] -and $_.X -lt ($region[0]+$region[2]) -and $_.Y -ge $region[1] -and $_.Y -lt ($region[1]+$region[3]))})
+     $mapped=@(foreach($line in $detail.Lines){
+      $mw=@(foreach($word in $line.Words){[pscustomobject]@{Text=$word.Text;X=$region[0]+$word.X*$region[2];Y=$region[1]+$word.Y*$region[3];W=$word.W*$region[2];H=$word.H*$region[3]}})
+      [pscustomobject]@{Text=$line.Text;Words=$mw;X=$region[0]+$line.X*$region[2];Y=$region[1]+$line.Y*$region[3];W=$line.W*$region[2];H=$line.H*$region[3]}
+     })
+     $read.Lines=@($kept)+@($mapped)
+     $observation=Observe $read.Lines $read.Bitmap $tokens $read.Words
+     if($observation.State -ne 'UNKNOWN'){break}
+     # Continue lower Disc regions only when the header indicates a Disc page.
+     if($region[1] -lt .1 -and @(Label $read.Lines 'disc' 0 .3 0 .12).Count -ne 1){break}
+    }finally{$crop.Dispose();if($detail){$detail.Bitmap.Dispose()}}
+   }
+  }
+  $discTop=$observation.State -eq 'DISC_DETAILS'
+  $levelY=.12;$levelH=.20;if($discTop){$levelY=.01;$levelH=.10}
   if($observation.State -in @('DISC_DETAILS','TREKKER_DETAILS','DISC_EDIT','TREKKER_EDIT')){
    if($observation.Level -eq 0){
     foreach($invert in @($false,$true)){
-     $crop=[CommissionDesktop]::Region($bitmap,.68,.12,.24,.20,$invert);$detail=$null
+     $crop=[CommissionDesktop]::Region($bitmap,.68,$levelY,.24,$levelH,$invert);$detail=$null
      try{
       $detail=Read-Image $crop
-      $mapped=@(foreach($word in $detail.Words){[pscustomobject]@{Text=$word.Text;X=.68+$word.X*.24;Y=.12+$word.Y*.20;W=$word.W*.24;H=$word.H*.20}})
-      $observation.Level=Visible-Level $mapped
+      $mapped=@(foreach($word in $detail.Words){[pscustomobject]@{Text=$word.Text;X=.68+$word.X*.24;Y=$levelY+$word.Y*$levelH;W=$word.W*.24;H=$word.H*$levelH}})
+      $observation.Level=Visible-Level $mapped $discTop
       if($observation.Level -gt 0){break}
      }finally{$crop.Dispose();if($detail){$detail.Bitmap.Dispose()}}
     }
    }
   }
   if($observation.State -in @('DISC_DETAILS','TREKKER_DETAILS','DISC_EDIT','TREKKER_EDIT')){
-   if(!$observation.Level){$n=[CommissionDesktop]::Number($bitmap,.72,.12,.14,.20,$true,.032,.10);if($n -gt 0){$observation.Level=$n}}
+   if(!$observation.Level){$n=[CommissionDesktop]::Number($bitmap,.72,$levelY,.14,$levelH,$true,.032,.10);if($n -gt 0){$observation.Level=$n}}
    if($observation.State -in @('DISC_EDIT','TREKKER_EDIT') -and $observation.Cost -lt 0){
     $priceY=.68;if($observation.State -eq 'TREKKER_EDIT'){$priceY=.75}
     $values=@()
@@ -346,7 +373,7 @@ function Read-Observation($bitmap){
   return $observation
  }finally{$read.Bitmap.Dispose()}
 }
-function New-Session([int]$selectedTasks=512) {return @{DiscEnabled=($selectedTasks -band 4) -ne 0;TrekkerEnabled=($selectedTasks -band 8) -ne 0;DiscDone=$false;TrekkerDone=$false;UpgradeKind='';UpgradePhase='';UpgradeAt=0;BeforeLevel=0;TargetLevel=0;UpgradeCommits=0;TargetX=0.0;TargetY=0.0;HomeEnabled=($selectedTasks -band 64) -ne 0;DispatchEnabled=($selectedTasks -band 512) -ne 0;Interact=0;Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
+function New-Session([int]$selectedTasks=512) {return @{DiscEnabled=($selectedTasks -band 4) -ne 0;TrekkerEnabled=($selectedTasks -band 8) -ne 0;DiscDone=$false;TrekkerDone=$false;TriedCards=@();UpgradeKind='';UpgradePhase='';UpgradeAt=0;BeforeLevel=0;TargetLevel=0;UpgradeCommits=0;TargetX=0.0;TargetY=0.0;HomeEnabled=($selectedTasks -band 64) -ne 0;DispatchEnabled=($selectedTasks -band 512) -ne 0;Interact=0;Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
 function Next-Upgrade($session,$observation,[long]$now){
  $kind=$session.UpgradeKind
  if(!$kind){
@@ -358,7 +385,7 @@ function Next-Upgrade($session,$observation,[long]$now){
   $prefix='Disc';if($kind -eq 'TREKKER'){$prefix='Trekker'}
   $x=$observation.($prefix+'X');$y=$observation.($prefix+'Y')
   if(!$x -or !$y){return 'ERR_UPGRADE_ENTRY_NOT_FOUND'}
-  $session.UpgradeKind=$kind;$session.UpgradePhase='LIST';$session.UpgradeAt=$now
+  $session.TriedCards=@();$session.UpgradeKind=$kind;$session.UpgradePhase='LIST';$session.UpgradeAt=$now
   $session.TargetX=$x;$session.TargetY=$y;return ('ENTER_'+$kind)
  }
  $phase=$session.UpgradePhase
@@ -367,16 +394,30 @@ function Next-Upgrade($session,$observation,[long]$now){
  }
  if($now-$session.Last -lt 900){return 'WAIT'}
  if($phase -eq 'LIST' -and $observation.State -eq ($kind+'_LIST')){
-  # If tiny card levels are omitted by OCR, open the first reference card
-  # for inspection only. Its large detail level must pass before any spend.
-  $p=[pscustomobject]@{X=.14;Y=.31}
-  if($observation.Cards.Count -gt 0){$p=$observation.Cards[0]}
-  $session.TargetX=$p.X;$session.TargetY=$p.Y
+  # Inspect each visible reference cell at most once. Readable low levels
+  # are preferred, but every selected card must pass the detail-level gate.
+  $columns=5;if($kind -eq 'TREKKER'){$columns=6}
+  $queue=@()
+  foreach($card in $observation.Cards){
+   if($card.Level -ge 10){continue}
+   $row=0;if($card.Y -gt .5){$row=1}
+   $col=[Math]::Max(0,[Math]::Min($columns-1,[int][Math]::Floor(($card.X-.05)/(.90/$columns))))
+   $queue+=($row*$columns+$col)
+  }
+  $queue+=@(0..($columns*2-1))
+  $chosen=-1
+  foreach($index in $queue){if($session.TriedCards -notcontains $index){$chosen=$index;break}}
+  if($chosen -lt 0){return 'ERR_LOW_LEVEL_NOT_FOUND'}
+  $session.TriedCards+=@($chosen)
+  $session.TargetX=.05+($chosen%$columns+.5)*(.90/$columns)
+  $session.TargetY=.31;if($chosen -ge $columns){$session.TargetY=.68}
   $session.UpgradePhase='DETAILS';$session.UpgradeAt=$now;return 'SELECT_LOW'
  }
  if($phase -eq 'DETAILS' -and $observation.State -eq ($kind+'_DETAILS')){
-  if($observation.Level -lt 1){return 'ERR_UPGRADE_LEVEL_UNREADABLE'}
-  if($observation.Level -gt 10){return 'ERR_LOW_LEVEL_NOT_FOUND'}
+  if($observation.Level -lt 1 -or $observation.Level -ge 10){
+   $session.TargetX=.046;$session.TargetY=.061
+   $session.UpgradePhase='LIST';$session.UpgradeAt=$now;return 'BACK_LIST'
+  }
   $session.BeforeLevel=$observation.Level;$session.TargetX=$observation.X;$session.TargetY=$observation.Y
   $session.UpgradePhase='EDIT';$session.UpgradeAt=$now;return 'OPEN_UPGRADE'
  }
@@ -411,7 +452,7 @@ function Next-Upgrade($session,$observation,[long]$now){
 }
 function Next-Action($session,$observation,[long]$now){
  if(!$session.HomeEnabled -and !$session.DispatchEnabled -and !$session.DiscEnabled -and !$session.TrekkerEnabled){return 'ERR_NO_TASKS'}
- if($session.Actions -ge 32){return 'ERR_ACTION_LIMIT'}
+ if($session.Actions -ge 80){return 'ERR_ACTION_LIMIT'}
  if((($session.HomeEnabled -and !$session.Interact) -or (($session.DiscEnabled -or $session.TrekkerEnabled) -and !$session.Actions)) -and $observation.State -ne 'HOME' -and $observation.State -ne 'UNKNOWN'){return 'ERR_HOME_REQUIRED'}
  # Home touch runs first. Upgrades then return home before Commission starts.
  if(!($observation.State -eq 'HOME' -and $session.HomeEnabled -and !$session.Interact)){
@@ -573,9 +614,11 @@ if($SelfTest){
       $g.FillRectangle([Drawing.Brushes]::WhiteSmoke,80,140,230,220)
       $g.DrawString('Lv.1',$smallFont,[Drawing.Brushes]::DarkBlue,100,320)
      }else{
-      $g.DrawString(($kind+' Level'),$smallFont,[Drawing.Brushes]::White,800,165);$g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,135);$g.DrawString('/10',$smallFont,[Drawing.Brushes]::White,1045,165)
+      if($kind -eq 'DISC' -and $screen -eq 'DETAILS'){
+       $g.DrawString('Disc Level',$smallFont,[Drawing.Brushes]::White,800,30);$g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,5);$g.DrawString('/10',$smallFont,[Drawing.Brushes]::White,1045,35)
+      }else{$g.DrawString(($kind+' Level'),$smallFont,[Drawing.Brushes]::White,800,165);$g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,135);$g.DrawString('/10',$smallFont,[Drawing.Brushes]::White,1045,165)}
       if($screen -eq 'DETAILS'){
-       if($kind -eq 'DISC'){$g.DrawString('Melody Skill',$smallFont,[Drawing.Brushes]::White,890,230);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,500,655)}
+       if($kind -eq 'DISC'){$g.DrawString('Melody Skill',$smallFont,[Drawing.Brushes]::White,900,150);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,500,655)}
        else{$g.FillRectangle([Drawing.Brushes]::Turquoise,950,510,240,65);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,990,525)}
       }else{
        $g.DrawString('Upgrade 1 level',$smallFont,[Drawing.Brushes]::White,860,460)
@@ -639,8 +682,21 @@ if($SelfTest){
   }
   $session=New-Session 4;$null=Next-Action $session $upgradeHome 1000
   Check ((Next-Action $session ([pscustomobject]@{State='DISC_LIST';Cards=@()}) 2200) -eq 'SELECT_LOW') 'Unreadable tiny labels did not open the inspection candidate'
-  Check ((Next-Action $session ([pscustomobject]@{State='DISC_DETAILS';Level=35}) 3400) -eq 'ERR_LOW_LEVEL_NOT_FOUND') 'High-level fallback candidate was upgraded'
+  Check ((Next-Action $session ([pscustomobject]@{State='DISC_DETAILS';Level=35}) 3400) -eq 'BACK_LIST') 'High-level fallback candidate was upgraded'
   Check ($session.UpgradeCommits -eq 0) 'Unvalidated card spent currency'
+  foreach($kind in @('DISC','TREKKER')){
+   $mask=4;if($kind -eq 'TREKKER'){$mask=8}
+   $session=New-Session $mask;$null=Next-Action $session $upgradeHome 1000
+   $list=[pscustomobject]@{State=($kind+'_LIST');Cards=@()}
+   $null=Next-Action $session $list 2200;$firstX=$session.TargetX
+   Check ((Next-Action $session ([pscustomobject]@{State=($kind+'_DETAILS');Level=10}) 3400) -eq 'BACK_LIST') '10/10 was treated as upgradable'
+   Check ($session.UpgradeCommits -eq 0) 'Capped item spent materials'
+   Check ((Next-Action $session $list 4600) -eq 'SELECT_LOW') 'Did not inspect the next card'
+   Check ($session.TargetX -gt $firstX -and $session.TriedCards.Count -eq 2) 'Capped first card was selected repeatedly'
+   Check ((Next-Action $session ([pscustomobject]@{State=($kind+'_DETAILS');Level=1;X=.43;Y=.92}) 5800) -eq 'OPEN_UPGRADE') 'Did not continue on low-level second card'
+   $session.UpgradePhase='LIST';$session.TriedCards=@(0..9);if($kind -eq 'TREKKER'){$session.TriedCards=@(0..11)}
+   Check ((Next-Action $session $list 8000) -eq 'ERR_LOW_LEVEL_NOT_FOUND') 'Visible inventory search did not stop at its bound'
+  }
   $session=New-Session 4;$session.Actions=5;$session.UpgradeKind='DISC';$session.UpgradePhase='VERIFY';$session.UpgradeAt=1000;$session.BeforeLevel=1;$session.TargetLevel=2;$session.UpgradeCommits=1
   Check ((Next-Action $session ([pscustomobject]@{State='DISC_EDIT';Level=2;Cost=100}) 11000) -eq 'ERR_UPGRADE_NOT_CONFIRMED') 'Unconfirmed spend was retried or accepted'
   Check ($session.UpgradeCommits -eq 1) 'Failed upgrade spent twice'
@@ -670,7 +726,7 @@ try {
   # is not character detection. Require recognized HOME before sending it.
   $targetX=$observation.X;$targetY=$observation.Y
   if($action -eq 'INTERACT'){$targetX=0.50;$targetY=0.50}
-  if($action -in @('ENTER_DISC','ENTER_TREKKER','SELECT_LOW','OPEN_UPGRADE','PREPARE_LEVEL','COMMIT_UPGRADE','RETURN_HOME')){$targetX=$session.TargetX;$targetY=$session.TargetY}
+  if($action -in @('ENTER_DISC','ENTER_TREKKER','SELECT_LOW','BACK_LIST','OPEN_UPGRADE','PREPARE_LEVEL','COMMIT_UPGRADE','RETURN_HOME')){$targetX=$session.TargetX;$targetY=$session.TargetY}
   [CommissionDesktop]::Act(($action -eq 'ESC'),$targetX,$targetY)
   Start-Sleep -Milliseconds 500
  }

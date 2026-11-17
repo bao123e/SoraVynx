@@ -1,3 +1,9 @@
+## Sửa chọn mục đầy cấp và nhận diện Disc — 1.3.2-upgrade-preview.2
+
+Preview.1 đã chọn Daylight Garden 10/10 rồi dừng ERR_UNKNOWN_SCREEN, không đạt yêu cầu chọn cấp thấp. Preview.2 đọc cấp Disc Details ở góc trên phải, tách khỏi vùng cấp trong màn Upgrade; đọc lại header/tab/skill bằng các vùng phóng to nếu OCR toàn khung bỏ sót. Chỉ nâng cấp 1–9. Cấp từ 10 trở lên hoặc không đọc rõ thì quay lại danh sách, kiểm tra thẻ khác; không mở màn chi tiêu cho thẻ bị loại.
+
+Tìm trong hai hàng đang thấy: tối đa 10 Disc hoặc 12 Trekker. Ưu tiên nhãn cấp thấp đọc được; mỗi ô thẻ chỉ kiểm tra một lần trong một lượt. Nếu không tìm thấy mục phù hợp thì dừng trước khi dùng nguyên liệu, không tự cuộn hay Ascension. Các bước Upgrade 1 level, xác nhận một lần, kiểm tra kết quả và về Home giữ nguyên. Dùng key cũ, giải nén đủ ZIP mới. Chưa xác nhận bản sửa trong game thật.
+
 ## Disc / Trekker upgrade — 1.3.2-upgrade-preview.1
 
 Mở màn chính, Auto Daily chọn USE/SKIP cho Upgrade Disc once, Upgrade Trekker once, Interact with home Trekker và Dispatch 1 commission rồi **Run selected daily steps**. Giữ key cũ, giải nén đầy đủ ZIP; không cần F9. Thứ tự các mục USE: Home interaction -> Disc -> Trekker -> Commission. Mỗi mục nâng xong sẽ nhấp icon ngôi nhà và đợi màn chính trước khi chuyển bước.
