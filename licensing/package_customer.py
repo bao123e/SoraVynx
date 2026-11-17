@@ -18,11 +18,12 @@ readme="""SoraVynx — Auto Commission OCR preview
 Giải nén TOÀN BỘ ZIP, giữ thư mục automation/commission.ps1 cạnh EXE/DLL. Không sửa file script; tool kiểm tra nó khớp binary.
 Thoát game/tool cũ, mở cặp mới bằng key hiện tại, vào màn chính hoặc Commission và chờ READY.
 Auto Daily -> để Dispatch 1 commission ở USE -> bấm Auto Commission. Riêng module này không cần F9.
-Tool đọc UI tiếng Anh: mở Commission nếu đang ở màn chính, Claim All, Esc khi đúng hội thoại, nhấp đóng Items Obtained rồi Dispatch Again.
+Tool đọc UI tiếng Anh: mở Commission, Claim All, Dispatch Again một lần; Esc Skip và Items Obtained được xử lý nếu xuất hiện ở cả trước lẫn sau Dispatch Again.
+Sau Dispatch Again, quan sát ít nhất 8 giây và chờ trang Commission ổn định 2,5 giây rồi kết thúc. Không có overlay thì không gửi Esc/click dư.
 Giữ game có focus, không đổi kích thước/chuyển ứng dụng trong lúc chạy. F1 dừng và hiện lại tool; Disable all cũng dừng.
 Không có thưởng, không nhận ra màn hình hoặc thiếu English OCR thì dừng, không bấm đoán. Nếu báo thiếu OCR, cần thành phần OCR tiếng Anh của Windows.
 Ảnh/chữ OCR chỉ xử lý cục bộ trong bộ nhớ, không lưu/gửi ảnh, không tạo log. Không đổi key/issuer/private PEM hoặc bot/SePay.
-Kiểm thử Windows OCR dùng ảnh giả lập có chữ; CHƯA xác minh nhận diện tự động trên game thật. Kết thúc input không đồng nghĩa server/daily đã xác nhận.
+Chủ tool xác nhận preview.2 mở Commission và Dispatch Again hoạt động. Thay đổi xử lý overlay sau Dispatch Again của preview.3 cần thử lại trong game; kiểm thử Windows OCR dùng ảnh giả lập có chữ. Kết thúc input không đồng nghĩa server/daily đã xác nhận.
 Đây mới là module Commission, chưa phải tự chạy toàn bộ daily. Chế độ F9 thủ công vẫn có nếu cần.
 """
 checks=''.join(hashlib.sha256((build/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in ['SoraVynx.exe','SoraVynx.Runtime.dll'])

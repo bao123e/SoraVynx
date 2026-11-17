@@ -14,7 +14,7 @@ static struct {
  char pending[128];size_t used;
  wchar_t message[256];
 } commission_auto;
-static const wchar_t *commission_auto_message(void){return commission_auto.message[0]?commission_auto.message:L"Open the main screen or Commission. Auto Commission reads the screen, claims rewards, skips recognized story/loot overlays, then uses Dispatch Again.";}
+static const wchar_t *commission_auto_message(void){return commission_auto.message[0]?commission_auto.message:L"Open the main screen or Commission. Auto Commission reads the screen, claims rewards, uses Dispatch Again once, and clears recognized story/loot overlays before or after it.";}
 static void commission_status(const wchar_t *text){wcsncpy(commission_auto.message,text,255);commission_auto.message[255]=0;}
 /* Only enumerated progress codes cross the pipe; no OCR text or screenshot is returned. */
 static void commission_code(const char *code){
@@ -39,7 +39,7 @@ static void commission_code(const char *code){
   {"STATE_NO_REWARDS",L"Claim All is not enabled."},
   {"ACTION_OPEN",L"Opening Commission."},{"ACTION_CLAIM",L"Clicking the recognized Claim All button."},
   {"ACTION_ESC",L"Sending Esc to the recognized story overlay."},{"ACTION_CONTINUE",L"Closing the recognized Items Obtained overlay."},
-  {"ACTION_AGAIN",L"Clicking the recognized Dispatch Again button once."}
+  {"ACTION_AGAIN",L"Clicking Dispatch Again once; continuing to watch for story and reward overlays."}
  };
  for(size_t i=0;i<sizeof(messages)/sizeof(messages[0]);i++)if(!strcmp(code,messages[i].code)){if(!commission_auto.terminal)commission_status(messages[i].text);return;}
  commission_auto.terminal=-1;commission_status(L"Stopped: unknown helper output.");

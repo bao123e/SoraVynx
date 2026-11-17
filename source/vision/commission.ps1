@@ -165,15 +165,33 @@ function Read-Observation($bitmap){
   return $observation
  }finally{$read.Bitmap.Dispose()}
 }
-function New-Session {return @{Entry=0;Claim=0;Skip=0;Items=0;Again=0;Last=0;Unknown=0;Actions=0;Commission=$false}}
+function New-Session {return @{Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
 function Next-Action($session,$observation,[long]$now){
  if($session.Actions -ge 12){return 'ERR_ACTION_LIMIT'}
+ # Dispatch Again can be followed by delayed dialogue and reward overlays.
+ # Finish only on a recognized Commission page after an observation window,
+ # never merely because the dispatch input was sent or its modal persists.
+ if($session.Again -gt 0){
+  if($observation.State -in @('CLAIM','NO_REWARDS')){
+   $session.Unknown=0
+   if($session.StableState -ne $observation.State){$session.StableSince=$now;$session.StableState=$observation.State}
+   if($now-$session.AgainAt -ge 8000 -and $now-$session.StableSince -ge 2500){return 'DONE'}
+   return 'WAIT'
+  }
+  $session.StableSince=-1;$session.StableState=''
+  if($observation.State -eq 'RESULT'){
+   $session.Unknown=0
+   if($now-$session.Last -lt 8000){return 'WAIT'}
+   return 'ERR_DISPATCH_NOT_CHANGED'
+  }
+  if($observation.State -eq 'HOME'){return 'ERR_LEFT_COMMISSION'}
+ }
  switch($observation.State){
   'HOME' {if($session.Entry -gt 0){if($now-$session.Last -lt 3000){return 'WAIT'};return 'ERR_ENTRY_NOT_CHANGED'};$session.Entry++;$action='OPEN'}
-  'CLAIM' {$session.Commission=$true;if($session.Again -gt 0){return 'DONE'};if($now-$session.Last -lt 1500){return 'WAIT'};if($session.Claim -ge 2){return 'ERR_CLAIM_NOT_CHANGED'};$session.Claim++;$action='CLAIM'}
+  'CLAIM' {$session.Commission=$true;if($now-$session.Last -lt 1500){return 'WAIT'};if($session.Claim -ge 2){return 'ERR_CLAIM_NOT_CHANGED'};$session.Claim++;$action='CLAIM'}
   'STORY' {if(!$session.Commission){return 'ERR_NOT_COMMISSION'};if($now-$session.Last -lt 800){return 'WAIT'};if($session.Skip -ge 4){return 'ERR_STORY_LIMIT'};$session.Skip++;$action='ESC'}
   'ITEMS' {if(!$session.Commission){return 'ERR_NOT_COMMISSION'};if($now-$session.Last -lt 800){return 'WAIT'};if($session.Items -ge 4){return 'ERR_ITEMS_LIMIT'};$session.Items++;$action='CONTINUE'}
-  'RESULT' {$session.Commission=$true;if($session.Again -gt 0){return 'DONE'};if($now-$session.Last -lt 800){return 'WAIT'};$session.Again++;$action='AGAIN'}
+  'RESULT' {$session.Commission=$true;if($now-$session.Last -lt 800){return 'WAIT'};$session.Again++;$session.AgainAt=$now;$action='AGAIN'}
   'NO_REWARDS' {if($session.Claim -gt 0){if($now-$session.Last -lt 4000){return 'WAIT'};return 'ERR_REWARD_RESULT_NOT_RECOGNIZED'};return 'NO_REWARDS'}
   default {$session.Unknown++;if($session.Unknown -ge 8){return 'ERR_UNKNOWN_SCREEN'};return 'WAIT'}
  }
@@ -224,7 +242,30 @@ if($SelfTest){
   Check ((Next-Action $session $story 3000) -eq 'ESC') 'Story skip missing'
   Check ((Next-Action $session $items 4000) -eq 'CONTINUE') 'Overlay dismissal missing'
   Check ((Next-Action $session $result 5000) -eq 'AGAIN') 'Repeat missing'
-  Check ((Next-Action $session $result 6000) -eq 'DONE') 'Repeat was duplicated'
+  Check ((Next-Action $session $result 6000) -eq 'WAIT') 'Persistent result ended the run early'
+  Check ((Next-Action $session $result 13000) -eq 'ERR_DISPATCH_NOT_CHANGED') 'Unchanged Dispatch Again modal was accepted'
+  Check ($session.Again -eq 1) 'Repeat was duplicated'
+  # Normal run without optional overlays still observes the page before ending.
+  $session=New-Session;$null=Next-Action $session $result 1000
+  $page=[pscustomobject]@{State='NO_REWARDS'}
+  Check ((Next-Action $session $page 2000) -eq 'WAIT') 'Dispatch ended without observing delayed overlays'
+  Check ((Next-Action $session $page 8999) -eq 'WAIT') 'Post-dispatch observation window was shortened'
+  Check ((Next-Action $session $page 9000) -eq 'DONE') 'Stable Commission page did not finish'
+  # Optional dialogue/loot can appear after Dispatch Again, even after a page.
+  $session=New-Session;$null=Next-Action $session $result 1000
+  $null=Next-Action $session $page 2000
+  Check ((Next-Action $session $story 7000) -eq 'ESC') 'Delayed post-dispatch story was ignored'
+  Check ((Next-Action $session $items 7200) -eq 'WAIT') 'Post-story cooldown was skipped'
+  Check ((Next-Action $session $items 8000) -eq 'CONTINUE') 'Post-dispatch loot was ignored'
+  Check ((Next-Action $session $page 9000) -eq 'WAIT') 'Overlay exit did not reset page stability'
+  Check ((Next-Action $session $page 11499) -eq 'WAIT') 'Page stability window was shortened'
+  Check ((Next-Action $session $page 11500) -eq 'DONE') 'Post-dispatch overlays did not finish cleanly'
+  Check ($session.Again -eq 1 -and $session.Claim -eq 0) 'Post-dispatch cleanup sent another claim/dispatch'
+  $session=New-Session;$null=Next-Action $session $result 1000
+  for($i=0;$i -lt 8;$i++){$last=Next-Action $session ([pscustomobject]@{State='UNKNOWN'}) (2000+$i*1000)}
+  Check ($last -eq 'ERR_UNKNOWN_SCREEN') 'Post-dispatch unknown screen was accepted'
+  $session=New-Session;$null=Next-Action $session $result 1000
+  Check ((Next-Action $session ([pscustomobject]@{State='HOME'}) 2000) -eq 'ERR_LEFT_COMMISSION') 'Post-dispatch navigated home again'
   $session=New-Session;Check ((Next-Action $session $result 1000) -eq 'AGAIN') 'Resume at results failed'
   $session=New-Session;Check ((Next-Action $session ([pscustomobject]@{State='NO_REWARDS'}) 2000) -eq 'NO_REWARDS') 'Disabled claim was clicked'
   for($i=0;$i -lt 8;$i++){$last=Next-Action $session ([pscustomobject]@{State='UNKNOWN'}) (3000+$i*1000)};Check ($last -eq 'ERR_UNKNOWN_SCREEN') 'Unknown screen did not stop'
@@ -250,7 +291,6 @@ try {
   if($action -eq 'WAIT'){Start-Sleep -Milliseconds 450;continue}
   Signal ('ACTION_'+$action)
   [CommissionDesktop]::Act(($action -eq 'ESC'),$observation.X,$observation.Y)
-  if($action -eq 'AGAIN'){Signal 'DONE';exit 0}
   Start-Sleep -Milliseconds 500
  }
  Signal 'ERR_TIMEOUT';exit 3

@@ -1,3 +1,9 @@
+## Xử lý overlay sau Dispatch Again — 1.3.0-commission-ocr-preview.3
+
+Chủ tool xác nhận preview.2 đã tự chạy được, nhưng hội thoại Esc Skip và Items Obtained đôi khi xuất hiện sau Dispatch Again. Preview.3 tiếp tục đọc màn hình sau nút này, xử lý hội thoại/vật phẩm được nhận diện ở cả trước lẫn sau Dispatch Again. Chỉ kết thúc khi thấy lại trang Commission ổn định ít nhất 2,5 giây và đã quan sát tối thiểu 8 giây sau Dispatch Again. Không bấm Dispatch Again hoặc Claim All thêm trong giai đoạn này; modal không đổi hoặc màn hình không rõ sẽ dừng có lỗi. Không xác minh tiến độ nhiệm vụ qua server.
+
+Giải nén toàn bộ ZIP mới, giữ key cũ. Chạy từ màn chính hoặc Commission như preview.2. F1 vẫn dừng. Hội thoại không xuất hiện thì tool chỉ chờ quan sát rồi kết thúc; không gửi Esc/click dư. Bản sửa thứ tự này chưa được chủ tool thử trong game.
+
 ## Sửa nhận diện màn chính — 1.3.0-commission-ocr-preview.2
 
 Chủ tool báo preview.1 dừng `ERR_UNKNOWN_SCREEN` ngay màn chính, chưa mở Commission. Preview.2 đọc vị trí từng từ thay cho so khớp nguyên dòng (OCR có thể gộp Purchase và Commission), thêm đọc phóng to vùng biểu tượng góc phải với hai kiểu màu. Vẫn chỉ bấm khi nhận diện duy nhất chữ Commission trong vùng màn chính; không đoán điểm bấm khi thiếu chữ. Dùng key cũ và giải nén toàn bộ ZIP mới, không chỉ thay script. Bản sửa chưa được xác nhận trong game thật.
