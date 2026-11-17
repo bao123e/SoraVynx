@@ -526,6 +526,7 @@ if($SelfTest){
      $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
      $o=Read-Observation $bitmap
      if($o.State -ne ($kind+'_'+$screen) -or ($screen -ne 'LIST' -and $o.Level -ne 1) -or ($screen -eq 'EDIT' -and $o.Cost -ne 0)){
+      $fixtureBytes=[IO.MemoryStream]::new();try{$bitmap.Save($fixtureBytes,[Drawing.Imaging.ImageFormat]::Png);[Console]::Out.WriteLine('SYNTHETIC_IMAGE|'+[Convert]::ToBase64String($fixtureBytes.ToArray()))}finally{$fixtureBytes.Dispose()}
       $diagnostic=Read-Image $bitmap
       try{foreach($line in $diagnostic.Words){[Console]::Out.WriteLine(('UPGRADE FIXTURE {0}/{1}: {2} at {3:N3},{4:N3} height {5:N3}' -f $kind,$screen,$line.Text,$line.X,$line.Y,$line.H))}}finally{$diagnostic.Bitmap.Dispose()}
      }
