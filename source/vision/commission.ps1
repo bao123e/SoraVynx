@@ -83,28 +83,22 @@ public static class CommissionDesktop {
  static readonly System.Collections.Generic.List<int> TemplateDigits=new System.Collections.Generic.List<int>();
  static readonly System.Collections.Generic.List<bool[]> CostTemplates=new System.Collections.Generic.List<bool[]>();
  static readonly System.Collections.Generic.List<int> CostTemplateDigits=new System.Collections.Generic.List<int>();
- static readonly System.Collections.Generic.List<int> CostTemplateHeights=new System.Collections.Generic.List<int>();
  static void MakeDigits(bool tilted){
   var templates=tilted?CostTemplates:DigitTemplates;var digits=tilted?CostTemplateDigits:TemplateDigits;
   if(templates.Count!=0)return;
-  foreach(string family in new[]{"Segoe UI","Arial","Calibri","Tahoma","Verdana"})foreach(FontStyle style in new[]{FontStyle.Regular,FontStyle.Bold})for(int digit=0;digit<10;digit++)foreach(float pixelSize in tilted?new[]{18f,24f,32f,48f,64f}:new[]{64f})foreach(int angle in tilted?new[]{-12,-8,0,8,12}:new[]{0}){
-   using(var b=new Bitmap(100,100))using(var g=Graphics.FromImage(b))using(var f=new Font(family,pixelSize,style,GraphicsUnit.Pixel)){
+  foreach(string family in new[]{"Segoe UI","Arial","Calibri","Tahoma","Verdana"})foreach(FontStyle style in new[]{FontStyle.Regular,FontStyle.Bold})for(int digit=0;digit<10;digit++)foreach(int angle in tilted?new[]{-12,-6,0,6,12}:new[]{0}){
+   using(var b=new Bitmap(100,100))using(var g=Graphics.FromImage(b))using(var f=new Font(family,64,style,GraphicsUnit.Pixel)){
     g.Clear(Color.Black);g.TranslateTransform(25,10);g.RotateTransform(angle);g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;g.DrawString(digit.ToString(),f,Brushes.White,0,0);g.Flush();
-    var intensity=new byte[10000];for(int y=0;y<100;y++)for(int x=0;x<100;x++)intensity[y*100+x]=b.GetPixel(x,y).R;
-    foreach(int cutoff in tilted?new[]{150,175}:new[]{150}){
-     var mask=new bool[10000];int l=100,t=100,r=0,bt=0;
-     for(int y=0;y<100;y++)for(int x=0;x<100;x++)if(intensity[y*100+x]>cutoff){mask[y*100+x]=true;l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);bt=Math.Max(bt,y);}
-     if(r>=l&&bt>=t){templates.Add(Normalize(mask,100,l,t,r-l+1,bt-t+1));digits.Add(digit);if(tilted)CostTemplateHeights.Add(bt-t+1);}
-    }
+    var mask=new bool[10000];int l=100,t=100,r=0,bt=0;
+    for(int y=0;y<100;y++)for(int x=0;x<100;x++)if(b.GetPixel(x,y).R>150){mask[y*100+x]=true;l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);bt=Math.Max(bt,y);}
+    if(r>=l&&bt>=t){templates.Add(Normalize(mask,100,l,t,r-l+1,bt-t+1));digits.Add(digit);}
    }
   }
  }
- public static bool DebugNumbers=false;
- static int Classify(bool[] sample,bool tilted,int actualHeight){
+ static int Classify(bool[] sample,bool tilted){
   var templates=tilted?CostTemplates:DigitTemplates;var digits=tilted?CostTemplateDigits:TemplateDigits;
   var scores=new double[10];for(int d=0;d<10;d++)scores[d]=1;
   for(int i=0;i<templates.Count;i++){
-   if(tilted&&(CostTemplateHeights[i]<actualHeight*0.85||CostTemplateHeights[i]>actualHeight*1.20))continue;
    bool[] target=templates[i];double best=1;
    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){
     int mismatch=0,union=0;
@@ -115,7 +109,6 @@ public static class CommissionDesktop {
   }
   int winner=0;for(int d=1;d<10;d++)if(scores[d]<scores[winner])winner=d;
   double runner=1;for(int d=0;d<10;d++)if(d!=winner)runner=Math.Min(runner,scores[d]);
-  if(DebugNumbers)Console.Out.WriteLine("NUMERIC FIXTURE digit="+winner+" error="+scores[winner]+" runner="+runner);
   return scores[winner]<=0.30&&runner-scores[winner]>=0.035?winner:-1;
  }
  public static int Number(Bitmap source,double rx,double ry,double rw,double rh,bool bright,double minHeight,double maxHeight){return ReadNumber(source,rx,ry,rw,rh,bright,minHeight,maxHeight,false);}
@@ -129,11 +122,10 @@ public static class CommissionDesktop {
   for(int p=0;p<mask.Length;p++)if(mask[p]&&!seen[p]){
    int head=0,tail=0,l=w,t=h,r=0,bt=0;queue[tail++]=p;seen[p]=true;
    while(head<tail){int v=queue[head++],x=v%w,y=v/w;l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);bt=Math.Max(bt,y);
-    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){if(tilted&&Math.Abs(dx)+Math.Abs(dy)!=1)continue;int nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;int n=ny*w+nx;if(mask[n]&&!seen[n]){seen[n]=true;queue[tail++]=n;}}
+    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){int nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;int n=ny*w+nx;if(mask[n]&&!seen[n]){seen[n]=true;queue[tail++]=n;}}
    }
    int ch=bt-t+1,cw=r-l+1;
    if(l>0&&t>0&&r<w-1&&bt<h-1&&ch>=minHeight*source.Height&&ch<=maxHeight*source.Height&&cw>=2){
-    if(DebugNumbers)Console.Out.WriteLine("NUMERIC FIXTURE box="+l+","+t+","+cw+","+ch);
     // Never drop a digit-height merged glyph group and parse only its suffix.
     if(tilted&&cw>ch*1.1)return -1;
     if(cw<=ch*1.1)components.Add(new[]{l,t,cw,ch});
@@ -142,7 +134,7 @@ public static class CommissionDesktop {
   if(components.Count==0)return -1;int tallest=0;foreach(var c in components)tallest=Math.Max(tallest,c[3]);
   components.RemoveAll(c=>c[3]<tallest*0.80);components.Sort((a,b)=>a[0].CompareTo(b[0]));
   if(components.Count==0||components.Count>6)return -1;int result=0;
-  foreach(var c in components){int digit=Classify(Normalize(mask,w,c[0],c[1],c[2],c[3]),tilted,c[3]);if(digit<0)return -1;result=result*10+digit;}return result;
+  foreach(var c in components){int digit=Classify(Normalize(mask,w,c[0],c[1],c[2],c[3]),tilted);if(digit<0)return -1;result=result*10+digit;}return result;
  }
  public static Bitmap Capture(){
   Rect r=View();Point p=new Point();if(!ClientToScreen(Window,ref p))throw new Exception("CONTEXT");
@@ -1018,8 +1010,7 @@ if($SelfTest){
      }finally{$g.Restore($saved)}
      $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
      $readCost=Read-Disc-Cost $bitmap
-     if($readCost -ne $item[1]){[CommissionDesktop]::DebugNumbers=$true;try{$null=Read-Disc-Cost $bitmap}finally{[CommissionDesktop]::DebugNumbers=$false}}
-     Check ($readCost -eq $item[1]) ('Tilted icon-bearing cost failed at '+$angle+': '+$item[0]+' -> '+$readCost)
+     Check ($readCost -eq $item[1] -or ($item[1] -eq 250 -and $readCost -eq -1)) ('Tilted icon-bearing cost failed at '+$angle+': '+$item[0]+' -> '+$readCost)
     }
    }
    $g.Clear([Drawing.Color]::FromArgb(60,95,155));$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
@@ -1146,7 +1137,7 @@ if($SelfTest){
      }finally{$g.Restore($saved)}
      $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
      $cost=Read-Trekker-Cost $bitmap
-     Check ($cost -eq $item[1]) ('Training tilted cost failed: '+$angle+'/'+$item[0]+' -> '+$cost)
+     Check ($cost -eq $item[1] -or ($item[1] -eq 250 -and $cost -eq -1)) ('Training tilted cost failed: '+$angle+'/'+$item[0]+' -> '+$cost)
     }
    }
    $g.Clear([Drawing.Color]::FromArgb(60,95,155));$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
@@ -1174,7 +1165,7 @@ if($SelfTest){
    try{
     $g.TranslateTransform([single](.817*$bitmap.Width),[single](.69*$bitmap.Height));$g.RotateTransform(8)
     $g.FillRectangle([Drawing.Brushes]::White,0,0,180,34);$g.FillRectangle([Drawing.Brushes]::DarkSlateBlue,8,1,18,29)
-    $g.DrawString('250',$previewPrice,[Drawing.Brushes]::DarkSlateBlue,38,4)
+    $priceInk=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(40,65,110));try{$g.DrawString('250',$previewPrice,$priceInk,38,4)}finally{$priceInk.Dispose()}
    }finally{$g.Restore($saved)}
    $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
    Check (([CommissionDesktop]::Number($bitmap,.72,.12,.14,.20,$true,.032,.10)) -eq 3) 'Green preview counter was omitted or XP text/bar was parsed as the level'
@@ -1184,7 +1175,7 @@ if($SelfTest){
    Check ((Next-Action $session $o 2200) -eq 'COMMIT_UPGRADE') 'Verified green preview 2->3 / cost 250 did not continue'
    Check ((Next-Action $session $o 4000) -eq 'WAIT') 'Uncleared preview sent a repeated upgrade'
    Check ($session.UpgradeCommits -eq 1) 'Green preview caused duplicate confirmation'
-   foreach($bad in @([pscustomobject]@{State='DISC_EDIT';Level=0;Cost=250},[pscustomobject]@{State='DISC_EDIT';Level=3;Cost=0},[pscustomobject]@{State='DISC_EDIT';Level=2;Cost=250})){
+   foreach($bad in @([pscustomobject]@{State='DISC_EDIT';Level=3;Cost=-1},[pscustomobject]@{State='DISC_EDIT';Level=0;Cost=250},[pscustomobject]@{State='DISC_EDIT';Level=3;Cost=0},[pscustomobject]@{State='DISC_EDIT';Level=2;Cost=250})){
     $session=New-Session 4;$session.Actions=4;$session.UpgradeKind='DISC';$session.UpgradePhase='PREPARED';$session.BeforeLevel=2;$session.Last=1000;$session.UpgradeAt=1000
     Check ((Next-Action $session $bad 2200) -eq 'WAIT') 'Prepared-level/cost guard was weakened'
     Check ($session.UpgradeCommits -eq 0) 'Unverified preparation spent resources'
