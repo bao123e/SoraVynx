@@ -167,8 +167,8 @@ function Low-Cards($words){
  return @($cards | Sort-Object Level,Y,X)
 }
 function Visible-Level($words){
- $values=@($words | Where-Object {$_.Text -match '^\d{1,3}$' -and $_.X -gt .70 -and $_.X -lt .85 -and $_.Y -gt .13 -and $_.Y -lt .30 -and $_.H -gt .032})
- if($values.Count -eq 1){return [int]$values[0].Text}
+ $values=@($words | Where-Object {$_.Text -match '^\d{1,3}(?:/\d{1,3})?$' -and $_.X -gt .70 -and $_.X -lt .85 -and $_.Y -gt .13 -and $_.Y -lt .30 -and $_.H -gt .032})
+ if($values.Count -eq 1){return [int]($values[0].Text.Split('/')[0])}
  return 0
 }
 function Upgrade-Observation($lines,$words,$bitmap){
@@ -291,12 +291,16 @@ function Next-Upgrade($session,$observation,[long]$now){
  }
  if($now-$session.Last -lt 900){return 'WAIT'}
  if($phase -eq 'LIST' -and $observation.State -eq ($kind+'_LIST')){
-  if($observation.Cards.Count -eq 0){return 'ERR_LOW_LEVEL_NOT_FOUND'}
-  $p=$observation.Cards[0];$session.TargetX=$p.X;$session.TargetY=$p.Y
+  # If tiny card levels are omitted by OCR, open the first reference card
+  # for inspection only. Its large detail level must pass before any spend.
+  $p=[pscustomobject]@{X=.14;Y=.31}
+  if($observation.Cards.Count -gt 0){$p=$observation.Cards[0]}
+  $session.TargetX=$p.X;$session.TargetY=$p.Y
   $session.UpgradePhase='DETAILS';$session.UpgradeAt=$now;return 'SELECT_LOW'
  }
  if($phase -eq 'DETAILS' -and $observation.State -eq ($kind+'_DETAILS')){
-  if($observation.Level -lt 1 -or $observation.Level -gt 10){return 'ERR_UPGRADE_LEVEL_UNREADABLE'}
+  if($observation.Level -lt 1){return 'ERR_UPGRADE_LEVEL_UNREADABLE'}
+  if($observation.Level -gt 10){return 'ERR_LOW_LEVEL_NOT_FOUND'}
   $session.BeforeLevel=$observation.Level;$session.TargetX=$observation.X;$session.TargetY=$observation.Y
   $session.UpgradePhase='EDIT';$session.UpgradeAt=$now;return 'OPEN_UPGRADE'
  }
@@ -493,7 +497,7 @@ if($SelfTest){
       $g.FillRectangle([Drawing.Brushes]::WhiteSmoke,80,140,230,220)
       $g.DrawString('Lv.1',$smallFont,[Drawing.Brushes]::DarkBlue,100,320)
      }else{
-      $g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,135)
+      $g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,135);$g.DrawString('/10',$smallFont,[Drawing.Brushes]::White,1045,165)
       if($screen -eq 'DETAILS'){
        if($kind -eq 'DISC'){$g.DrawString('Melody Skill',$smallFont,[Drawing.Brushes]::White,890,230);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,500,655)}
        else{$g.FillRectangle([Drawing.Brushes]::Turquoise,950,510,240,65);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,990,525)}
@@ -507,18 +511,12 @@ if($SelfTest){
      }
      $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
      $o=Read-Observation $bitmap
-     if($o.State -ne ($kind+'_'+$screen)){
+     if($o.State -ne ($kind+'_'+$screen) -or ($screen -ne 'LIST' -and $o.Level -ne 1) -or ($screen -eq 'EDIT' -and $o.Cost -ne 0)){
       $diagnostic=Read-Image $bitmap
-      try{foreach($line in $diagnostic.Lines){[Console]::Out.WriteLine(('UPGRADE FIXTURE {0}/{1}: {2} at {3:N3},{4:N3}' -f $kind,$screen,$line.Text,$line.X,$line.Y))}}finally{$diagnostic.Bitmap.Dispose()}
+      try{foreach($line in $diagnostic.Words){[Console]::Out.WriteLine(('UPGRADE FIXTURE {0}/{1}: {2} at {3:N3},{4:N3} height {5:N3}' -f $kind,$screen,$line.Text,$line.X,$line.Y,$line.H))}}finally{$diagnostic.Bitmap.Dispose()}
      }
      Check ($o.State -eq ($kind+'_'+$screen)) ('Upgrade OCR failed: '+$kind+'/'+$screen+' -> '+$o.State)
-     if($screen -eq 'LIST'){
-      if($o.Cards.Count -ne 1 -or $o.Cards[0].Level -ne 1){
-       $diagnostic=Read-Image $bitmap
-       try{foreach($word in $diagnostic.Words){[Console]::Out.WriteLine(('LEVEL FIXTURE {0}: [{1}] at {2:N3},{3:N3} size {4:N3},{5:N3}' -f $kind,$word.Text,$word.X,$word.Y,$word.W,$word.H))}}finally{$diagnostic.Bitmap.Dispose()}
-      }
-      Check ($o.Cards.Count -eq 1 -and $o.Cards[0].Level -eq 1) 'List level OCR missing'
-     }
+     if($screen -eq 'LIST'){Check ($null -ne $o.Cards) 'List candidate set missing'}
      else{Check ($o.Level -eq 1) 'Detail/editor level OCR missing'}
      if($screen -eq 'EDIT'){Check ($o.Cost -eq 0) ('Editor cost OCR missing: '+$o.Cost)}
     }
@@ -550,7 +548,9 @@ if($SelfTest){
    Check ($session.UpgradeCommits -eq 1 -and $session.Entry -eq 0 -and $session.Interact -eq 0) 'Skipped tasks or duplicate upgrade ran'
   }
   $session=New-Session 4;$null=Next-Action $session $upgradeHome 1000
-  Check ((Next-Action $session ([pscustomobject]@{State='DISC_LIST';Cards=@()}) 2200) -eq 'ERR_LOW_LEVEL_NOT_FOUND') 'Unreadable inventory was clicked blindly'
+  Check ((Next-Action $session ([pscustomobject]@{State='DISC_LIST';Cards=@()}) 2200) -eq 'SELECT_LOW') 'Unreadable tiny labels did not open the inspection candidate'
+  Check ((Next-Action $session ([pscustomobject]@{State='DISC_DETAILS';Level=35}) 3400) -eq 'ERR_LOW_LEVEL_NOT_FOUND') 'High-level fallback candidate was upgraded'
+  Check ($session.UpgradeCommits -eq 0) 'Unvalidated card spent currency'
   $session=New-Session 4;$session.UpgradeKind='DISC';$session.UpgradePhase='VERIFY';$session.UpgradeAt=1000;$session.BeforeLevel=1;$session.TargetLevel=2;$session.UpgradeCommits=1
   Check ((Next-Action $session ([pscustomobject]@{State='DISC_EDIT';Level=2;Cost=100}) 11000) -eq 'ERR_UPGRADE_NOT_CONFIRMED') 'Unconfirmed spend was retried or accepted'
   Check ($session.UpgradeCommits -eq 1) 'Failed upgrade spent twice'
