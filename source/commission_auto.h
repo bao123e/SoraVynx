@@ -48,7 +48,7 @@ static void commission_code(const char *code){
   {"STATE_DISC_EDIT",L"Disc upgrade screen recognized."},{"STATE_TREKKER_EDIT",L"Trekker training screen recognized."},
   {"ACTION_ENTER_DISC",L"Opening Disc list."},{"ACTION_ENTER_TREKKER",L"Opening Trekker list."},
   {"ACTION_BACK_LIST",L"Skipping an unreadable or capped item. Checking another visible card."},
-  {"ACTION_SELECT_LOW",L"Inspecting a candidate; only a readable detail level 1-9 can be upgraded."},
+  {"ACTION_SELECT_LOW",L"Inspecting a candidate; only a readable detail level 1-89 can be upgraded."},
   {"ACTION_REOPEN_UPGRADE",L"Upgrade page did not open; retrying this navigation once. No upgrade spend was repeated."},
   {"ACTION_OPEN_UPGRADE",L"Opening the selected item's upgrade screen."},
   {"ACTION_PREPARE_LEVEL",L"Selecting materials with Upgrade 1 level."},

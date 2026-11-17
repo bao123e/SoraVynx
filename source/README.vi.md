@@ -1,3 +1,9 @@
+## Điều kiện chọn cấp dưới 90 — 1.3.3-trekker-preview.2
+
+Theo yêu cầu mới của chủ tool, cả Disc và Trekker chỉ bỏ qua mục từ cấp 90 trở lên; cấp 1–89 đều được chọn, không còn ngưỡng 10. Áp dụng ở danh sách, màn chi tiết và màn nâng trước chọn nguyên liệu. Nâng từ 89 lên 90 vẫn được xác nhận đúng một lần rồi về Home. Các cổng đọc cấp, chọn nguyên liệu 1 level, chi phí hợp lệ và kiểm tra kết quả giữ nguyên; điều kiện chọn không tự mở khóa mốc nâng của game.
+
+Bản này đồng thời sửa đọc cấp xem trước màu xanh theo Inspect thực tế (cấp 0 nhưng ảnh là 3, giá 250) và dùng điểm nền tối dưới Power Up (50%, 85%) do chủ tool xác nhận đóng được. Kiểm thử có biên 10/35/89 được chọn, 90 bị bỏ, 89->90 được nâng, màu xanh/giá 250, không lặp xác nhận và điểm nhấp nền đúng. Cần xác nhận các lượt auto trên game thật.
+
 ## Cấp xem trước màu xanh / điểm đóng Power Up — 1.3.3-trekker-preview.2
 
 Inspect thực tế của Disc: DISC_EDIT, cấp 0, chi phí 250; ảnh cho thấy cấp xem trước màu xanh là 3. Bộ mask cũ yêu cầu R>150, loại mất phần màu xanh có kênh đỏ thấp. Thêm nhánh màu xanh cho bộ đọc cấp (không thay bộ số giá), vẫn loại nền cyan và không coi thanh XP/dòng 910/1150 là cấp. Giữ nguyên điều kiện cấp xem trước tăng so với ban đầu và chi phí >0 trước xác nhận, không suy đoán cấp hay bỏ cổng kiểm tra.

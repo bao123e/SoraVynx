@@ -37,7 +37,7 @@
   },
   "disc_upgrade": {
     "status": "owner-inspection-level-0-cost-250-for-green-preview-3;green-counter-fix-awaiting-auto-retest",
-    "mode": "inspect-up-to-10-visible-cells;skip-level-ge10-or-unreadable;upgrade-1-level-once",
+    "mode": "inspect-up-to-10-visible-cells;skip-level-ge90-or-unreadable;upgrade-1-level-once",
     "spend_retry": false,
     "owner_verified_effect": "Disc level 2 shown in Power Up result"
   },
@@ -54,5 +54,12 @@
       0.5,
       0.85
     ]
+  },
+  "upgrade_selection_policy": {
+    "minimum_level": 1,
+    "maximum_eligible_level": 89,
+    "skip_at_or_above": 90,
+    "source": "owner-explicit-request",
+    "game_material_and_preparation_checks_required": true
   }
 }

@@ -83,26 +83,28 @@ public static class CommissionDesktop {
  static readonly System.Collections.Generic.List<int> TemplateDigits=new System.Collections.Generic.List<int>();
  static readonly System.Collections.Generic.List<bool[]> CostTemplates=new System.Collections.Generic.List<bool[]>();
  static readonly System.Collections.Generic.List<int> CostTemplateDigits=new System.Collections.Generic.List<int>();
+ static readonly System.Collections.Generic.List<int> CostTemplateHeights=new System.Collections.Generic.List<int>();
  static void MakeDigits(bool tilted){
   var templates=tilted?CostTemplates:DigitTemplates;var digits=tilted?CostTemplateDigits:TemplateDigits;
   if(templates.Count!=0)return;
-  foreach(string family in new[]{"Segoe UI","Arial","Calibri","Tahoma","Verdana"})foreach(FontStyle style in new[]{FontStyle.Regular,FontStyle.Bold})for(int digit=0;digit<10;digit++)foreach(float pixelSize in tilted?new[]{18f,24f,64f}:new[]{64f})foreach(int angle in tilted?new[]{-12,-8,0,8,12}:new[]{0}){
+  foreach(string family in new[]{"Segoe UI","Arial","Calibri","Tahoma","Verdana"})foreach(FontStyle style in new[]{FontStyle.Regular,FontStyle.Bold})for(int digit=0;digit<10;digit++)foreach(float pixelSize in tilted?new[]{18f,24f,32f,48f,64f}:new[]{64f})foreach(int angle in tilted?new[]{-12,-8,0,8,12}:new[]{0}){
    using(var b=new Bitmap(100,100))using(var g=Graphics.FromImage(b))using(var f=new Font(family,pixelSize,style,GraphicsUnit.Pixel)){
     g.Clear(Color.Black);g.TranslateTransform(25,10);g.RotateTransform(angle);g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;g.DrawString(digit.ToString(),f,Brushes.White,0,0);g.Flush();
     var intensity=new byte[10000];for(int y=0;y<100;y++)for(int x=0;x<100;x++)intensity[y*100+x]=b.GetPixel(x,y).R;
     foreach(int cutoff in tilted?new[]{150,175}:new[]{150}){
      var mask=new bool[10000];int l=100,t=100,r=0,bt=0;
      for(int y=0;y<100;y++)for(int x=0;x<100;x++)if(intensity[y*100+x]>cutoff){mask[y*100+x]=true;l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);bt=Math.Max(bt,y);}
-     if(r>=l&&bt>=t){templates.Add(Normalize(mask,100,l,t,r-l+1,bt-t+1));digits.Add(digit);}
+     if(r>=l&&bt>=t){templates.Add(Normalize(mask,100,l,t,r-l+1,bt-t+1));digits.Add(digit);if(tilted)CostTemplateHeights.Add(bt-t+1);}
     }
    }
   }
  }
  public static bool DebugNumbers=false;
- static int Classify(bool[] sample,bool tilted){
+ static int Classify(bool[] sample,bool tilted,int actualHeight){
   var templates=tilted?CostTemplates:DigitTemplates;var digits=tilted?CostTemplateDigits:TemplateDigits;
   var scores=new double[10];for(int d=0;d<10;d++)scores[d]=1;
   for(int i=0;i<templates.Count;i++){
+   if(tilted&&(CostTemplateHeights[i]<actualHeight*0.85||CostTemplateHeights[i]>actualHeight*1.20))continue;
    bool[] target=templates[i];double best=1;
    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){
     int mismatch=0,union=0;
@@ -140,7 +142,7 @@ public static class CommissionDesktop {
   if(components.Count==0)return -1;int tallest=0;foreach(var c in components)tallest=Math.Max(tallest,c[3]);
   components.RemoveAll(c=>c[3]<tallest*0.80);components.Sort((a,b)=>a[0].CompareTo(b[0]));
   if(components.Count==0||components.Count>6)return -1;int result=0;
-  foreach(var c in components){int digit=Classify(Normalize(mask,w,c[0],c[1],c[2],c[3]),tilted);if(digit<0)return -1;result=result*10+digit;}return result;
+  foreach(var c in components){int digit=Classify(Normalize(mask,w,c[0],c[1],c[2],c[3]),tilted,c[3]);if(digit<0)return -1;result=result*10+digit;}return result;
  }
  public static Bitmap Capture(){
   Rect r=View();Point p=new Point();if(!ClientToScreen(Window,ref p))throw new Exception("CONTEXT");
@@ -233,7 +235,7 @@ function Low-Cards($words){
    $numbers=@($words | Where-Object {$_.Text -match '^\d{1,3}$' -and [Math]::Abs($_.Y-$word.Y) -lt .02 -and $_.X -ge $word.X+$word.W-.005 -and $_.X -lt $word.X+$word.W+.035})
    if($numbers.Count -eq 1){$level=[int]$numbers[0].Text}
   }
-  if($level -ge 1 -and $level -lt 10){$cards+=[pscustomobject]@{Level=$level;X=$word.X+$word.W/2;Y=$word.Y-.08}}
+  if($level -ge 1 -and $level -lt 90){$cards+=[pscustomobject]@{Level=$level;X=$word.X+$word.W/2;Y=$word.Y-.08}}
  }
  return @($cards | Sort-Object Level,Y,X)
 }
@@ -555,7 +557,7 @@ function Next-Upgrade($session,$observation,[long]$now){
   $columns=5;if($kind -eq 'TREKKER'){$columns=6}
   $queue=@()
   foreach($card in $observation.Cards){
-   if($card.Level -ge 10){continue}
+   if($card.Level -ge 90){continue}
    $row=0;if($card.Y -gt .5){$row=1}
    $col=[Math]::Max(0,[Math]::Min($columns-1,[int][Math]::Floor(($card.X-.05)/(.90/$columns))))
    $queue+=($row*$columns+$col)
@@ -570,7 +572,7 @@ function Next-Upgrade($session,$observation,[long]$now){
   $session.UpgradePhase='DETAILS';$session.UpgradeAt=$now;return 'SELECT_LOW'
  }
  if($phase -eq 'DETAILS' -and $observation.State -eq ($kind+'_DETAILS')){
-  if($observation.Level -ge 10){
+  if($observation.Level -ge 90){
    $session.TargetX=.046;$session.TargetY=.061
    $session.UpgradePhase='LIST';$session.UpgradeAt=$now;return 'BACK_LIST'
   }
@@ -593,7 +595,7 @@ function Next-Upgrade($session,$observation,[long]$now){
   # Opening the editor spends nothing. An unreadable detail counter may
   # reach this point, but the editor's level and empty selection are mandatory.
   if($observation.Level -lt 1){return 'ERR_UPGRADE_LEVEL_UNREADABLE'}
-  if($observation.Level -ge 10){$session.TargetX=.046;$session.TargetY=.061;$session.UpgradePhase='LIST';if($kind -eq 'TREKKER'){$session.UpgradePhase='BACK_DETAILS'};$session.UpgradeAt=$now;return 'BACK_LIST'}
+  if($observation.Level -ge 90){$session.TargetX=.046;$session.TargetY=.061;$session.UpgradePhase='LIST';if($kind -eq 'TREKKER'){$session.UpgradePhase='BACK_DETAILS'};$session.UpgradeAt=$now;return 'BACK_LIST'}
   if(!$session.BeforeLevel){$session.BeforeLevel=$observation.Level}
   if($observation.Cost -lt 0){return 'ERR_UPGRADE_COST_UNREADABLE'}
   if($observation.Cost -ne 0 -or $observation.Level -ne $session.BeforeLevel){return 'ERR_UPGRADE_EXISTING_SELECTION'}
@@ -883,14 +885,14 @@ if($SelfTest){
   }
   $session=New-Session 4;$null=Next-Action $session $upgradeHome 1000
   Check ((Next-Action $session ([pscustomobject]@{State='DISC_LIST';Cards=@()}) 2200) -eq 'SELECT_LOW') 'Unreadable tiny labels did not open the inspection candidate'
-  Check ((Next-Action $session ([pscustomobject]@{State='DISC_DETAILS';Level=35}) 3400) -eq 'BACK_LIST') 'High-level fallback candidate was upgraded'
+  Check ((Next-Action $session ([pscustomobject]@{State='DISC_DETAILS';Level=90}) 3400) -eq 'BACK_LIST') 'High-level fallback candidate was upgraded'
   Check ($session.UpgradeCommits -eq 0) 'Unvalidated card spent currency'
   foreach($kind in @('DISC','TREKKER')){
    $mask=4;if($kind -eq 'TREKKER'){$mask=8}
    $session=New-Session $mask;$null=Next-Action $session $upgradeHome 1000
    $list=[pscustomobject]@{State=($kind+'_LIST');Cards=@()}
    $null=Next-Action $session $list 2200;$firstX=$session.TargetX
-   Check ((Next-Action $session ([pscustomobject]@{State=($kind+'_DETAILS');Level=10}) 3400) -eq 'BACK_LIST') '10/10 was treated as upgradable'
+   Check ((Next-Action $session ([pscustomobject]@{State=($kind+'_DETAILS');Level=90}) 3400) -eq 'BACK_LIST') 'Level 90 was treated as eligible'
    Check ($session.UpgradeCommits -eq 0) 'Capped item spent materials'
    Check ((Next-Action $session $list 4600) -eq 'SELECT_LOW') 'Did not inspect the next card'
    Check ($session.TargetX -gt $firstX -and $session.TriedCards.Count -eq 2) 'Capped first card was selected repeatedly'
@@ -1128,9 +1130,9 @@ if($SelfTest){
    Check ($session.TrekkerDone -and !$session.DiscDone -and $session.UpgradeCommits -eq 1) 'Trekker flow upgraded another task or repeated spending'
    # Capped only becomes readable in Training: back to Details, then List.
    $session=New-Session 8;$session.Actions=4;$session.UpgradeKind='TREKKER';$session.UpgradePhase='EDIT';$session.TriedCards=@(0)
-   Check ((Next-Action $session ([pscustomobject]@{State='TREKKER_EDIT';Level=10;Cost=0}) 2000) -eq 'BACK_LIST') 'Capped Training was not rejected'
+   Check ((Next-Action $session ([pscustomobject]@{State='TREKKER_EDIT';Level=90;Cost=0}) 2000) -eq 'BACK_LIST') 'Capped Training was not rejected'
    Check ($session.UpgradePhase -eq 'BACK_DETAILS') 'Training skipped its intermediate Details screen'
-   Check ((Next-Action $session ([pscustomobject]@{State='TREKKER_DETAILS';Level=10}) 3200) -eq 'BACK_LIST') 'Second back to List was missing'
+   Check ((Next-Action $session ([pscustomobject]@{State='TREKKER_DETAILS';Level=90}) 3200) -eq 'BACK_LIST') 'Second back to List was missing'
    Check ((Next-Action $session ([pscustomobject]@{State='TREKKER_LIST';Cards=@()}) 4400) -eq 'SELECT_LOW') 'Training rejection did not continue candidate search'
    Check ($session.TargetX -gt .125 -and $session.UpgradeCommits -eq 0) 'Capped Training candidate repeated or spent materials'
    # Training prices have their own icon and vertical offset.
@@ -1195,6 +1197,31 @@ if($SelfTest){
    $r=Trekker-Level-Region 'TREKKER_EDIT'
    Check (([CommissionDesktop]::Number($bitmap,$r.X,$r.Y,$r.W,$r.H,$true,.032,.10)) -eq 3) 'Green Training preview did not use its own counter region'
   }finally{$previewFont.Dispose();$previewPrice.Dispose();$previewInk.Dispose()}
+  # Owner-selected hard cap: all levels 1..89 are eligible; 90 is skipped.
+  $cardWords=@([pscustomobject]@{Text='Lv.10';X=.12;Y=.44;W=.03;H=.02},[pscustomobject]@{Text='Lv.35';X=.30;Y=.44;W=.03;H=.02},[pscustomobject]@{Text='Lv.89';X=.48;Y=.44;W=.03;H=.02},[pscustomobject]@{Text='Lv.90';X=.66;Y=.44;W=.03;H=.02})
+  $eligible=@(Low-Cards $cardWords)
+  Check ($eligible.Count -eq 3 -and $eligible[0].Level -eq 10 -and $eligible[2].Level -eq 89) 'Visible card filter did not apply the requested level-90 boundary'
+  foreach($kind in @('DISC','TREKKER')){
+   $mask=4;if($kind -eq 'TREKKER'){$mask=8}
+   foreach($level in @(10,35,89)){
+    $session=New-Session $mask;$session.Actions=2;$session.UpgradeKind=$kind;$session.UpgradePhase='DETAILS'
+    Check ((Next-Action $session ([pscustomobject]@{State=($kind+'_DETAILS');Level=$level;X=.8;Y=.7}) 2200) -eq 'OPEN_UPGRADE') 'A level below 90 was rejected at details'
+    $editor=[pscustomobject]@{State=($kind+'_EDIT');Level=$level;Cost=0;OneX=.7;OneY=.7}
+    Check ((Next-Action $session $editor 3400) -eq 'PREPARE_LEVEL') 'A level below 90 was rejected at the editor'
+    Check ($session.UpgradeCommits -eq 0) 'Eligibility check spent resources'
+   }
+   $session=New-Session $mask;$session.Actions=2;$session.UpgradeKind=$kind;$session.UpgradePhase='DETAILS'
+   Check ((Next-Action $session ([pscustomobject]@{State=($kind+'_DETAILS');Level=90}) 2200) -eq 'BACK_LIST') 'Level 90 was not skipped at details'
+   $session=New-Session $mask;$session.Actions=3;$session.UpgradeKind=$kind;$session.UpgradePhase='EDIT'
+   Check ((Next-Action $session ([pscustomobject]@{State=($kind+'_EDIT');Level=90;Cost=0}) 2200) -eq 'BACK_LIST') 'Level 90 was not skipped before material selection'
+   Check ($session.UpgradeCommits -eq 0) 'A level-90 candidate spent resources'
+   $session=New-Session $mask;$session.Actions=4;$session.UpgradeKind=$kind;$session.UpgradePhase='PREPARED';$session.BeforeLevel=89
+   $preview=[pscustomobject]@{State=($kind+'_EDIT');Level=90;Cost=250;CommitX=.8;CommitY=.8}
+   Check ((Next-Action $session $preview 2200) -eq 'COMMIT_UPGRADE') 'An authorized 89 -> 90 upgrade was blocked'
+   $preview.Cost=0
+   Check ((Next-Action $session $preview 4000) -eq 'RETURN_HOME') 'Committed level 90 was incorrectly treated as a new candidate'
+   Check ($session.UpgradeCommits -eq 1) '89 -> 90 upgrade was repeated'
+  }
   Signal 'SELF_TEST_PASS'
  }finally{$g.Dispose();$bitmap.Dispose();if($font){$font.Dispose()}}
  exit 0
