@@ -493,7 +493,13 @@ if($SelfTest){
       try{foreach($line in $diagnostic.Lines){[Console]::Out.WriteLine(('UPGRADE FIXTURE {0}/{1}: {2} at {3:N3},{4:N3}' -f $kind,$screen,$line.Text,$line.X,$line.Y))}}finally{$diagnostic.Bitmap.Dispose()}
      }
      Check ($o.State -eq ($kind+'_'+$screen)) ('Upgrade OCR failed: '+$kind+'/'+$screen+' -> '+$o.State)
-     if($screen -eq 'LIST'){Check ($o.Cards.Count -eq 1 -and $o.Cards[0].Level -eq 1) 'List level OCR missing'}
+     if($screen -eq 'LIST'){
+      if($o.Cards.Count -ne 1 -or $o.Cards[0].Level -ne 1){
+       $diagnostic=Read-Image $bitmap
+       try{foreach($word in $diagnostic.Words){[Console]::Out.WriteLine(('LEVEL FIXTURE {0}: [{1}] at {2:N3},{3:N3} size {4:N3},{5:N3}' -f $kind,$word.Text,$word.X,$word.Y,$word.W,$word.H))}}finally{$diagnostic.Bitmap.Dispose()}
+      }
+      Check ($o.Cards.Count -eq 1 -and $o.Cards[0].Level -eq 1) 'List level OCR missing'
+     }
      else{Check ($o.Level -eq 1) 'Detail/editor level OCR missing'}
      if($screen -eq 'EDIT'){Check ($o.Cost -eq 0) ('Editor cost OCR missing: '+$o.Cost)}
     }
