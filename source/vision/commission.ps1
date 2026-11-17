@@ -54,6 +54,14 @@ public static class CommissionDesktop {
    g.DrawImage(source,new Rectangle(0,0,w*2,h*2),0,0,w,h,GraphicsUnit.Pixel,attributes);
   }return output;
  }
+ public static Bitmap Region(Bitmap source,double rx,double ry,double rw,double rh,bool invert){
+  int x=(int)(source.Width*rx),y=(int)(source.Height*ry),w=Math.Max(1,(int)(source.Width*rw)),h=Math.Max(1,(int)(source.Height*rh));
+  var output=new Bitmap(w*3,h*3,PixelFormat.Format32bppArgb);
+  using(var g=Graphics.FromImage(output))using(var attributes=new ImageAttributes()){
+   if(invert)attributes.SetColorMatrix(new ColorMatrix(new float[][]{new float[]{-1,0,0,0,0},new float[]{0,-1,0,0,0},new float[]{0,0,-1,0,0},new float[]{0,0,0,1,0},new float[]{1,1,1,0,1}}));
+   g.DrawImage(source,new Rectangle(0,0,w*3,h*3),x,y,w,h,GraphicsUnit.Pixel,attributes);
+  }return output;
+ }
  public static Bitmap HomeCrop(Bitmap source,bool invert){
   int x=(int)(source.Width*0.68),y=(int)(source.Height*0.10);
   int w=source.Width-x,h=Math.Max(1,(int)(source.Height*0.20));
@@ -236,6 +244,17 @@ function Read-Observation($bitmap){
    }
   }
   $observation=Observe $read.Lines $read.Bitmap $tokens $read.Words
+  if($observation.State -in @('DISC_LIST','TREKKER_LIST') -and $observation.Cards.Count -eq 0){
+   foreach($invert in @($false,$true)){
+    $crop=[CommissionDesktop]::Region($bitmap,.04,.30,.91,.58,$invert);$detail=$null
+    try{
+     $detail=Read-Image $crop
+     $mapped=@(foreach($word in $detail.Words){[pscustomobject]@{Text=$word.Text;X=.04+$word.X*.91;Y=.30+$word.Y*.58;W=$word.W*.91;H=$word.H*.58}})
+     $observation.Cards=@(Low-Cards $mapped)
+     if($observation.Cards.Count -gt 0){break}
+    }finally{$crop.Dispose();if($detail){$detail.Bitmap.Dispose()}}
+   }
+  }
   if($observation.State -ne 'UNKNOWN'){return Home-Targets $observation $read.Words}
   # WinRT often merges neighboring home labels into one line. Use individual
   # word boxes and retry only the icon strip at higher scale in both polarities.
