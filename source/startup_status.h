@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#define SV_BUILD_VERSION "1.3.2-upgrade-preview.7"
+#define SV_BUILD_VERSION "1.3.3-trekker-preview.1"
 enum StartupCode {
  SV_STARTING, SV_WAIT_MODULE, SV_WAIT_DOMAIN, SV_WAIT_HOTFIX, SV_BIND_BACKEND,
  SV_READY, SV_DUPLICATE_RUNTIME, SV_MODULE_TIMEOUT, SV_BINARY_CHECK_FAILED,

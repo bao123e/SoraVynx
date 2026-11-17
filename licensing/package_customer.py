@@ -24,7 +24,9 @@ Nếu Home USE: bắt đầu ở màn chính, tool nhấp nhân vật một lầ
 Tool đọc UI tiếng Anh: mở Commission, Claim All, Dispatch Again một lần; Esc Skip và Items Obtained được xử lý nếu xuất hiện ở cả trước lẫn sau Dispatch Again.
 Sau Dispatch Again, quan sát ít nhất 8 giây và chờ trang Commission ổn định 2,5 giây rồi kết thúc. Không có overlay thì không gửi Esc/click dư.
 Nếu vẫn ở cùng màn chi tiết sau khi mở Upgrade, thử lại chuyển màn đúng một lần; ERR_UPGRADE_TAB_NOT_OPENED nghĩa là cả hai lần không mở được. Không thử lại nút xác nhận chi tiêu.
-Nếu cần kiểm tra nhận diện: chạy Inspect-Screen.cmd rồi đưa game lên trước trong 8 giây. Chỉ đọc nhãn/bố cục, không nhấp hay dùng nguyên liệu, không lưu ảnh/log. Có thể gửi phần kết quả chữ.
+Trekker dùng Trekker Details -> nút Upgrade bên phải -> Trekker Training -> Upgrade 1 level -> xác nhận một lần -> đóng Power Up -> kiểm tra kết quả -> Home. Chỉ USE Upgrade Trekker once để thử riêng.
+Nếu cần kiểm tra Trekker: dùng Inspect-Trekker.cmd (chỉ đọc như Inspect-Screen.cmd).
+Nếu cần kiểm tra nhận diện Disc: chạy Inspect-Screen.cmd rồi đưa game lên trước trong 8 giây. Chỉ đọc nhãn/bố cục, không nhấp hay dùng nguyên liệu, không lưu ảnh/log. Có thể gửi phần kết quả chữ.
 Sau khi xác nhận nâng: đóng Power Up nếu xuất hiện, kiểm tra editor thấy cấp mới và chi phí 0, rồi về Home. Không gửi thêm xác nhận nâng.
 Giữ game có focus, không đổi kích thước/chuyển ứng dụng trong lúc chạy. F1 dừng và hiện lại tool; Disable all cũng dừng.
 Không có thưởng, không nhận ra màn hình hoặc thiếu English OCR thì dừng, không bấm đoán. Nếu báo thiếu OCR, cần thành phần OCR tiếng Anh của Windows.
@@ -37,6 +39,7 @@ with ZipFile(archive,'w',ZIP_DEFLATED,compresslevel=9) as z:
  for name in ['SoraVynx.exe','SoraVynx.Runtime.dll']:z.write(build/name,name)
  z.write(root/'source/vision/commission.ps1','automation/commission.ps1')
  z.write(root/'source/vision/Inspect-Screen.cmd','Inspect-Screen.cmd')
+ z.write(root/'source/vision/Inspect-Trekker.cmd','Inspect-Trekker.cmd')
  z.writestr('README.vi.txt',readme);z.writestr('build.json',json.dumps(metadata,indent=2)+'\n');z.writestr('SHA256SUMS.txt',checks)
  z.write(root/'LICENSE.txt','LICENSE.txt');z.write(root/'config.example.ini','config.example.ini')
 with ZipFile(archive) as z:

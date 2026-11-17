@@ -1,3 +1,11 @@
+## Trekker Details / Training riêng — 1.3.3-trekker-preview.1
+
+Nối đầy đủ luồng Trekker theo các ảnh chủ tool đã gửi: Home -> Trekker List (6 cột) -> Trekker Details -> nút Upgrade bên phải -> Trekker Training -> Upgrade 1 level -> xác nhận một lần -> Power Up -> kiểm tra Training thấy cấp mới và chi phí 0 -> Home. Chọn Upgrade Trekker once USE, các mục khác SKIP để thử riêng, bấm Run selected daily steps. Giữ key hiện tại, giải nén toàn bộ ZIP và khởi động lại game/tool cũ.
+
+Details và Training có profile riêng: header/caption, nút nâng, bảng chỉ số, cấp tránh huy hiệu chân dung, giá nằm thấp/phải hơn Disc. Phần số giá loại biểu tượng tiền, hỗ trợ thẻ hơi nghiêng. Nếu chỉ đọc được cấp >=10 ở Training, bấm Back qua Details rồi về List trước khi chọn ứng viên khác; tối đa 12 ô trong hai hàng, không tự cuộn. Không dùng vị trí tab Upgrade của Disc cho Trekker.
+
+Có Inspect-Trekker.cmd riêng (chỉ đọc, không nhấp/phím/log/ảnh lưu), in nhãn Trekker và cờ bố cục/cấp/giá. Chỉ cần dùng nếu lỗi cần đối chiếu game thật. Script/helper được pin nguyên byte như trước. Kiểm thử mô phỏng kiểm tra cả luồng, tránh đọc nhầm huy hiệu, giá có icon ở độ nghiêng khác nhau, hai bước Back, đúng USE/SKIP và xác nhận nâng tối đa một lần. Chưa xác minh tự động Trekker trong game thật; không xác nhận nhiệm vụ từ server. Các bước Disc/Home/Commission và issuer giữ nguyên.
+
 ## Đóng Power Up rồi về Home — 1.3.2-upgrade-preview.7
 
 Ảnh của chủ tool xác nhận nâng Disc thành công lên cấp 2, sau đó dừng vì chưa xử lý bảng Power Up. Bản này nhận bảng kết quả bằng dải cyan toàn chiều ngang và bảng sáng ở giữa, chỉ trong phase VERIFY sau khi lượt hiện tại đã gửi xác nhận nâng. Nhấp vùng trống bên phải bảng; nếu animation còn hiện thì có tối đa một lần thử đóng lại sau 1,8 giây, vẫn nhận diện lại bảng trước mỗi nhấp.

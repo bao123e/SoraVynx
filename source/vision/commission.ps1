@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-param([long]$GameWindow=0,[int]$GamePid=0,[int]$Tasks=512,[switch]$SelfTest,[switch]$Inspect)
+param([long]$GameWindow=0,[int]$GamePid=0,[int]$Tasks=512,[switch]$SelfTest,[switch]$Inspect,[ValidateSet('DISC','TREKKER')][string]$InspectKind='DISC')
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 function Signal([string]$code){[Console]::Out.WriteLine('SV1|'+$code);[Console]::Out.Flush()}
@@ -247,6 +247,7 @@ function Upgrade-Observation($lines,$words,$bitmap){
  $max=@(Label $lines 'upgradetomax' .78 .98 .60 .78)
  $confirm=@(Label $lines 'upgrade' .65 .95 .68 .88 | Where-Object {Cyan-Button $bitmap $_})
  $level=Visible-Level $words
+ if($kind -eq 'TREKKER'){$level=Trekker-Level $words ('TREKKER_'+$page)}
  if($one.Count -eq 1 -and $max.Count -eq 1 -and $confirm.Count -eq 1){
   $minY=.68;$maxY=.75;if($kind -eq 'TREKKER'){$minY=.75;$maxY=.81}
   $prices=@($words | Where-Object {$_.Text -match '^\d[\d,]*$' -and $_.X -gt .82 -and $_.X -lt .90 -and $_.Y -gt $minY -and $_.Y -lt $maxY})
@@ -347,6 +348,62 @@ function Disc-Layout($bitmap,$session,[bool]$discCaption=$false){
  if(!$session -or $session.UpgradeKind -ne 'DISC'){return $null}
  return Disc-Layout-FromChecks (Disc-Layout-Checks $bitmap) $session $discCaption
 }
+function Trekker-Level-Region([string]$state){
+ if($state -eq 'TREKKER_DETAILS'){return [pscustomobject]@{X=.805;Y=.20;W=.065;H=.105}}
+ return [pscustomobject]@{X=.75;Y=.18;W=.065;H=.115}
+}
+function Trekker-Level($words,[string]$state){
+ $r=Trekker-Level-Region $state
+ $localWords=@($words | Where-Object {$_.X -ge $r.X -and $_.X -lt $r.X+$r.W -and $_.Y -ge $r.Y -and $_.Y -lt $r.Y+$r.H})
+ return Visible-Level $localWords
+}
+function Trekker-Layout-Checks($bitmap){
+ return [pscustomobject]@{
+  Header=(Color-Patch $bitmap .085 .04 .009 .025 'BLUE')
+  House=(Color-Patch $bitmap .29 .055 .009 .012 'WHITE')
+  DetailsActive=(Color-Patch $bitmap .17 .943 .015 .006 'BLUE')
+  SkillsInactive=(Color-Patch $bitmap .30 .943 .015 .006 'WHITE')
+  HP=(Color-Patch $bitmap .88 .389 .035 .010 'WHITE')
+  ATK=(Color-Patch $bitmap .88 .43 .035 .010 'WHITE')
+  DEF=(Color-Patch $bitmap .88 .473 .035 .010 'WHITE')
+  OpenUpgrade=(Color-Patch $bitmap .81 .704 .09 .012 'CYAN')
+  OnePill=(Color-Patch $bitmap .71 .695 .04 .008 'WHITE')
+  MaxPill=(Color-Patch $bitmap .84 .695 .04 .008 'WHITE')
+  Commit=(Color-Patch $bitmap .75 .800 .07 .007 'CYAN')
+ }
+}
+function Trekker-Layout($bitmap,$session,$lines){
+ if(!$session -or $session.UpgradeKind -ne 'TREKKER'){return $null}
+ $c=Trekker-Layout-Checks $bitmap
+ if(!$c.Header -or !$c.House){return $null}
+ $details=@(Label $lines 'trekkerdetails' 0 .30 0 .12).Count -eq 1
+ $training=@(Label $lines 'trekkertraining' 0 .30 0 .12).Count -eq 1
+ if($session.UpgradePhase -in @('DETAILS','EDIT','BACK_DETAILS') -and $details -and $c.DetailsActive -and $c.SkillsInactive -and $c.HP -and $c.ATK -and $c.DEF -and $c.OpenUpgrade -and !$c.Commit){
+  return [pscustomobject]@{State='TREKKER_DETAILS';X=.865;Y=.73;Level=0;Layout=$true}
+ }
+ if($session.UpgradePhase -in @('EDIT','PREPARED','VERIFY') -and $training -and $c.OnePill -and $c.MaxPill -and $c.Commit -and !$c.OpenUpgrade){
+  return [pscustomobject]@{State='TREKKER_EDIT';X=0.0;Y=0.0;Level=0;Cost=-1;OneX=.737;OneY=.715;CommitX=.804;CommitY=.826;Layout=$true}
+ }
+ return $null
+}
+function Upgrade-Layout($bitmap,$session,$lines){
+ if(!$session){return $null}
+ if($session.UpgradeKind -eq 'TREKKER'){return Trekker-Layout $bitmap $session $lines}
+ $caption=@(Label $lines 'disc' 0 .30 0 .12).Count -eq 1
+ return Disc-Layout $bitmap $session $caption
+}
+function Read-Trekker-Cost($bitmap){
+ # Training's price is lower and farther right than the Disc price. Exclude
+ # its own currency icon and retain tilted-digit recognition for this card.
+ $values=@()
+ foreach($bright in @($true,$false)){
+  $n=[CommissionDesktop]::CostNumber($bitmap,.859,.75,.064,.078,$bright,.012,.045)
+  if($n -ge 0){$values+=$n}
+ }
+ $values=@($values | Select-Object -Unique)
+ if($values.Count -eq 1){return [int]$values[0]}
+ return -1
+}
 function Read-Disc-Cost($bitmap){
  # Exclude the currency icon left of the digits. It is taller than the zero
  # and was previously selected as the largest numeric component.
@@ -387,7 +444,7 @@ function Read-Observation($bitmap,$session=$null){
    }
   }
   $observation=Observe $read.Lines $read.Bitmap $tokens $read.Words
-  if($observation.State -eq 'UNKNOWN'){$discCaption=@(Label $read.Lines 'disc' 0 .30 0 .12).Count -eq 1;$layout=Disc-Layout $bitmap $session $discCaption;if($layout){$observation=$layout}}
+  if($observation.State -eq 'UNKNOWN'){$layout=Upgrade-Layout $bitmap $session $read.Lines;if($layout){$observation=$layout}}
   if($observation.State -eq 'UNKNOWN'){
    $regions=@(@(.08,.015,.23,.085),@(.69,.18,.29,.09),@(.69,.52,.29,.08),@(.35,.89,.15,.075))
    foreach($region in $regions){
@@ -402,6 +459,7 @@ function Read-Observation($bitmap,$session=$null){
      })
      $read.Lines=@($kept)+@($mapped)
      $observation=Observe $read.Lines $read.Bitmap $tokens $read.Words
+     if($observation.State -eq 'UNKNOWN'){$layout=Upgrade-Layout $bitmap $session $read.Lines;if($layout){$observation=$layout}}
      if($observation.State -ne 'UNKNOWN'){break}
      # Continue lower Disc regions only when the header indicates a Disc page.
      if($region[1] -lt .1 -and @(Label $read.Lines 'disc' 0 .3 0 .12).Count -ne 1){break}
@@ -409,14 +467,16 @@ function Read-Observation($bitmap,$session=$null){
    }
   }
   $discTop=$observation.State -eq 'DISC_DETAILS'
-  $levelY=.12;$levelH=.20;if($discTop){$levelY=.01;$levelH=.10}
+  $levelX=.72;$levelW=.14;$levelY=.12;$levelH=.20
+  if($discTop){$levelY=.01;$levelH=.10}
+  if($observation.State -in @('TREKKER_DETAILS','TREKKER_EDIT')){$r=Trekker-Level-Region $observation.State;$levelX=$r.X;$levelY=$r.Y;$levelW=$r.W;$levelH=$r.H}
   if($observation.State -in @('DISC_DETAILS','TREKKER_DETAILS','DISC_EDIT','TREKKER_EDIT')){
    if($observation.Level -eq 0 -and !($discTop -and $observation.Layout)){
     foreach($invert in @($false,$true)){
-     $crop=[CommissionDesktop]::Region($bitmap,.68,$levelY,.24,$levelH,$invert);$detail=$null
+     $crop=[CommissionDesktop]::Region($bitmap,$levelX,$levelY,$levelW,$levelH,$invert);$detail=$null
      try{
       $detail=Read-Image $crop
-      $mapped=@(foreach($word in $detail.Words){[pscustomobject]@{Text=$word.Text;X=.68+$word.X*.24;Y=$levelY+$word.Y*$levelH;W=$word.W*.24;H=$word.H*$levelH}})
+      $mapped=@(foreach($word in $detail.Words){[pscustomobject]@{Text=$word.Text;X=$levelX+$word.X*$levelW;Y=$levelY+$word.Y*$levelH;W=$word.W*$levelW;H=$word.H*$levelH}})
       $observation.Level=Visible-Level $mapped $discTop
       if($observation.Level -gt 0){break}
      }finally{$crop.Dispose();if($detail){$detail.Bitmap.Dispose()}}
@@ -424,14 +484,10 @@ function Read-Observation($bitmap,$session=$null){
    }
   }
   if($observation.State -in @('DISC_DETAILS','TREKKER_DETAILS','DISC_EDIT','TREKKER_EDIT')){
-   if(!$observation.Level -and !($discTop -and $observation.Layout)){$n=[CommissionDesktop]::Number($bitmap,.72,$levelY,.14,$levelH,$true,.032,.10);if($n -gt 0){$observation.Level=$n}}
+   if(!$observation.Level -and !($discTop -and $observation.Layout)){$n=[CommissionDesktop]::Number($bitmap,$levelX,$levelY,$levelW,$levelH,$true,.032,.10);if($n -gt 0){$observation.Level=$n}}
    if($observation.State -in @('DISC_EDIT','TREKKER_EDIT') -and $observation.Cost -lt 0){
     if($observation.State -eq 'DISC_EDIT'){$observation.Cost=Read-Disc-Cost $bitmap}
-    else{
-     $values=@()
-     foreach($bright in @($true,$false)){$n=[CommissionDesktop]::Number($bitmap,.82,.75,.08,.08,$bright,.012,.045);if($n -ge 0){$values+=$n}}
-     $values=@($values | Select-Object -Unique);if($values.Count -eq 1){$observation.Cost=$values[0]}
-    }
+    else{$observation.Cost=Read-Trekker-Cost $bitmap}
    }
   }
   if($observation.State -in @('DISC_LIST','TREKKER_LIST') -and $observation.Cards.Count -eq 0){
@@ -480,6 +536,9 @@ function Next-Upgrade($session,$observation,[long]$now){
   $session.UpgradeKind='';$session.UpgradePhase='';$session.Unknown=0;return 'WAIT'
  }
  if($now-$session.Last -lt 900){return 'WAIT'}
+ if($phase -eq 'BACK_DETAILS' -and $observation.State -eq 'TREKKER_DETAILS'){
+  $session.TargetX=.046;$session.TargetY=.061;$session.UpgradePhase='LIST';$session.UpgradeAt=$now;return 'BACK_LIST'
+ }
  if($phase -eq 'LIST' -and $observation.State -eq ($kind+'_LIST')){
   # Inspect each visible reference cell at most once. Readable low levels
   # are preferred, but every selected card must pass the detail-level gate.
@@ -524,7 +583,7 @@ function Next-Upgrade($session,$observation,[long]$now){
   # Opening the editor spends nothing. An unreadable detail counter may
   # reach this point, but the editor's level and empty selection are mandatory.
   if($observation.Level -lt 1){return 'ERR_UPGRADE_LEVEL_UNREADABLE'}
-  if($observation.Level -ge 10){$session.TargetX=.046;$session.TargetY=.061;$session.UpgradePhase='LIST';$session.UpgradeAt=$now;return 'BACK_LIST'}
+  if($observation.Level -ge 10){$session.TargetX=.046;$session.TargetY=.061;$session.UpgradePhase='LIST';if($kind -eq 'TREKKER'){$session.UpgradePhase='BACK_DETAILS'};$session.UpgradeAt=$now;return 'BACK_LIST'}
   if(!$session.BeforeLevel){$session.BeforeLevel=$observation.Level}
   if($observation.Cost -lt 0){return 'ERR_UPGRADE_COST_UNREADABLE'}
   if($observation.Cost -ne 0 -or $observation.Level -ne $session.BeforeLevel){return 'ERR_UPGRADE_EXISTING_SELECTION'}
@@ -562,6 +621,7 @@ function Next-Upgrade($session,$observation,[long]$now){
   switch($phase){
    'LIST' {return 'ERR_UPGRADE_LIST_NOT_OPENED'}
    'DETAILS' {return 'ERR_UPGRADE_DETAILS_NOT_OPENED'}
+   'BACK_DETAILS' {return 'ERR_UPGRADE_DETAILS_NOT_OPENED'}
    'EDIT' {return 'ERR_UPGRADE_TAB_NOT_OPENED'}
    'RETURN' {return 'ERR_UPGRADE_HOME_NOT_OPENED'}
   }
@@ -735,15 +795,17 @@ if($SelfTest){
      }else{
       if($kind -eq 'DISC' -and $screen -eq 'DETAILS'){
        $g.DrawString('Disc Level',$smallFont,[Drawing.Brushes]::White,800,30);$g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,5);$g.DrawString('/10',$smallFont,[Drawing.Brushes]::White,1045,35)
-      }else{$g.DrawString(($kind+' Level'),$smallFont,[Drawing.Brushes]::White,800,165);$g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,135);$g.DrawString('/10',$smallFont,[Drawing.Brushes]::White,1045,165)}
+      }else{if($kind -eq 'TREKKER' -and $screen -eq 'DETAILS'){
+        $g.FillRectangle([Drawing.Brushes]::White,985,145,40,65);$g.DrawString('1',$levelFont,[Drawing.Brushes]::White,1040,150);$g.DrawString('/10',$smallFont,[Drawing.Brushes]::White,1080,180)
+       }else{$g.DrawString(($kind+' Level'),$smallFont,[Drawing.Brushes]::White,800,165);$g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,135);$g.DrawString('/10',$smallFont,[Drawing.Brushes]::White,1045,165)}}
       if($screen -eq 'DETAILS'){
        if($kind -eq 'DISC'){$g.DrawString('Melody Skill',$smallFont,[Drawing.Brushes]::White,900,150);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,500,655)}
        else{$g.FillRectangle([Drawing.Brushes]::Turquoise,950,510,240,65);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,990,525)}
       }else{
        $g.DrawString('Upgrade 1 level',$smallFont,[Drawing.Brushes]::White,860,460)
        $g.DrawString('Upgrade to Max',$smallFont,[Drawing.Brushes]::White,1070,460)
-       $priceY=510;$buttonY=555;if($kind -eq 'TREKKER'){$priceY=550;$buttonY=600}
-       $g.DrawString('0',$smallFont,[Drawing.Brushes]::White,1090,$priceY)
+       $priceY=510;$priceX=1090;$buttonY=555;if($kind -eq 'TREKKER'){$priceY=550;$priceX=1110;$buttonY=600}
+       $g.DrawString('0',$smallFont,[Drawing.Brushes]::White,$priceX,$priceY)
        $g.FillRectangle([Drawing.Brushes]::Turquoise,950,$buttonY,240,65);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,990,($buttonY+15))
       }
      }
@@ -772,10 +834,10 @@ if($SelfTest){
        $bg=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(30,50,100))
        try{
         $g.FillRectangle($bg,920,90,180,140);$g.DrawString('2',$levelFont,[Drawing.Brushes]::White,990,135)
-        $g.FillRectangle($bg,1050,($priceY-10),100,48)
+        $g.FillRectangle($bg,1050,($priceY-10),150,48)
         $ink=[Drawing.Brushes]::White
-        if($costValue -eq 0){$g.FillRectangle([Drawing.Brushes]::White,1070,$priceY,75,42);$ink=[Drawing.Brushes]::DarkBlue}
-        $g.DrawString([string]$costValue,$smallFont,$ink,1090,$priceY);$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+        if($costValue -eq 0){$g.FillRectangle([Drawing.Brushes]::White,($priceX-10),$priceY,90,42);$ink=[Drawing.Brushes]::DarkBlue}
+        $g.DrawString([string]$costValue,$smallFont,$ink,$priceX,$priceY);$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
         $changed=Read-Observation $bitmap
         Check ($changed.State -eq ($kind+'_EDIT') -and $changed.Level -eq 2 -and $changed.Cost -eq $costValue) ('Numeric preview/commit fixture failed: '+$kind+' level='+$changed.Level+' cost='+$changed.Cost)
        }finally{$bg.Dispose()}
@@ -988,6 +1050,96 @@ if($SelfTest){
   $session.UpgradeCommits=1
   Paint-Region ([Drawing.Brushes]::DarkBlue) .82 .35 .18 .06
   Check ($null -eq (Upgrade-Result-Overlay $bitmap $session)) 'Incomplete Power Up layout was accepted'
+  # Trekker has distinct Details/Training headers, badge/counter regions,
+  # a right-side entry button, lower price and no Disc bottom Upgrade tab.
+  $tkFont=[Drawing.Font]::new('Segoe UI',56,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  $tkSmall=[Drawing.Font]::new('Segoe UI',18,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  function Paint-Trekker([bool]$training,[int]$level,[int]$cost){
+   $g.Clear([Drawing.Color]::FromArgb(30,50,100))
+   Paint-Region ([Drawing.Brushes]::DarkBlue) 0 .03 .27 .06
+   Paint-Region ([Drawing.Brushes]::White) .285 .045 .019 .03
+   if(!$training){
+    $g.DrawString('Trekker Details',$font,[Drawing.Brushes]::White,[single](.12*$bitmap.Width),[single](.03*$bitmap.Height))
+    Paint-Region ([Drawing.Brushes]::WhiteSmoke) .05 .89 .90 .064
+    Paint-Region ([Drawing.Brushes]::DarkBlue) .055 .89 .15 .064
+    foreach($y in @(.382,.423,.466)){Paint-Region ([Drawing.Brushes]::WhiteSmoke) .75 $y .225 .032}
+    Paint-Region ([Drawing.Brushes]::DarkTurquoise) .796 .697 .137 .066
+    Paint-Region ([Drawing.Brushes]::White) .772 .208 .030 .075
+    $g.DrawString('8',$tkSmall,[Drawing.Brushes]::DarkBlue,[single](.776*$bitmap.Width),[single](.22*$bitmap.Height))
+    $g.DrawString([string]$level,$tkFont,[Drawing.Brushes]::Gold,[single](.815*$bitmap.Width),[single](.21*$bitmap.Height))
+   }else{
+    $g.DrawString('Trekker Training',$font,[Drawing.Brushes]::White,[single](.12*$bitmap.Width),[single](.03*$bitmap.Height))
+    Paint-Region ([Drawing.Brushes]::WhiteSmoke) .684 .689 .104 .051
+    Paint-Region ([Drawing.Brushes]::WhiteSmoke) .818 .689 .104 .051
+    Paint-Region ([Drawing.Brushes]::DarkTurquoise) .735 .794 .138 .064
+    Paint-Region ([Drawing.Brushes]::White) .70 .20 .03 .08
+    $g.DrawString('8',$tkSmall,[Drawing.Brushes]::DarkBlue,[single](.705*$bitmap.Width),[single](.22*$bitmap.Height))
+    $g.DrawString([string]$level,$tkFont,[Drawing.Brushes]::Gold,[single](.760*$bitmap.Width),[single](.20*$bitmap.Height))
+    Paint-Region ([Drawing.Brushes]::White) .838 .76 .09 .045
+    Paint-Region ([Drawing.Brushes]::DarkSlateBlue) .842 .762 .014 .034
+    $g.DrawString([string]$cost,$tkSmall,[Drawing.Brushes]::DarkSlateBlue,[single](.866*$bitmap.Width),[single](.764*$bitmap.Height))
+   }
+   $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+  }
+  try{
+   $session=New-Session 8;$session.Actions=2;$session.UpgradeKind='TREKKER';$session.UpgradePhase='DETAILS'
+   Paint-Trekker $false 1 0
+   $o=Read-Observation $bitmap $session
+   Check ($o.State -eq 'TREKKER_DETAILS' -and $o.Layout -and $o.Level -eq 1) ('Trekker Details layout/level failed: '+$o.State+'/'+$o.Level)
+   Check ((Next-Action $session $o 2200) -eq 'OPEN_UPGRADE') 'Trekker Details did not open Training'
+   Check ([Math]::Abs($session.TargetX-.865) -lt .001 -and [Math]::Abs($session.TargetY-.73) -lt .001) 'Disc tab coordinates were used for Trekker'
+   $discContext=New-Session 4;$discContext.UpgradeKind='DISC';$discContext.UpgradePhase='DETAILS'
+   $read=Read-Image $bitmap
+   try{Check ($null -eq (Trekker-Layout $bitmap $discContext $read.Lines)) 'Trekker layout ran in Disc context';Check ($null -eq (Trekker-Layout $bitmap $null $read.Lines)) 'Trekker layout ran without context'}finally{$read.Bitmap.Dispose()}
+   Paint-Trekker $true 1 0
+   $o=Read-Observation $bitmap $session
+   Check ($o.State -eq 'TREKKER_EDIT' -and $o.Layout -and $o.Level -eq 1 -and $o.Cost -eq 0) ('Trekker Training numeric layout failed: '+$o.State+'/'+$o.Level+'/'+$o.Cost)
+   Check ((Next-Action $session $o 3400) -eq 'PREPARE_LEVEL') 'Training did not choose Upgrade 1 level'
+   Check ([Math]::Abs($session.TargetY-.715) -lt .001 -and $session.UpgradeCommits -eq 0) 'Training material-selection position or spend guard failed'
+   Paint-Trekker $true 2 100
+   $o=Read-Observation $bitmap $session
+   Check ($o.Level -eq 2 -and $o.Cost -eq 100) 'Training preview was not read'
+   Check ((Next-Action $session $o 4600) -eq 'COMMIT_UPGRADE') 'Training did not send its one confirmation'
+   Check ([Math]::Abs($session.TargetY-.826) -lt .001) 'Disc confirmation position was reused for Training'
+   Paint-PowerUp;$o=Read-Observation $bitmap $session
+   Check ((Next-Action $session $o 5800) -eq 'CLOSE_POWER_UP') 'Trekker Power Up result was not closed'
+   Paint-Trekker $true 2 0;$o=Read-Observation $bitmap $session
+   Check ((Next-Action $session $o 7000) -eq 'RETURN_HOME') 'Trekker result did not verify level/cost before Home'
+   Check ((Next-Action $session $upgradeHome 8200) -eq 'WAIT') 'Training Home transition was missed'
+   Check ((Next-Action $session $upgradeHome 9400) -eq 'DONE') 'Trekker-only flow did not finish'
+   Check ($session.TrekkerDone -and !$session.DiscDone -and $session.UpgradeCommits -eq 1) 'Trekker flow upgraded another task or repeated spending'
+   # Capped only becomes readable in Training: back to Details, then List.
+   $session=New-Session 8;$session.Actions=4;$session.UpgradeKind='TREKKER';$session.UpgradePhase='EDIT';$session.TriedCards=@(0)
+   Check ((Next-Action $session ([pscustomobject]@{State='TREKKER_EDIT';Level=10;Cost=0}) 2000) -eq 'BACK_LIST') 'Capped Training was not rejected'
+   Check ($session.UpgradePhase -eq 'BACK_DETAILS') 'Training skipped its intermediate Details screen'
+   Check ((Next-Action $session ([pscustomobject]@{State='TREKKER_DETAILS';Level=10}) 3200) -eq 'BACK_LIST') 'Second back to List was missing'
+   Check ((Next-Action $session ([pscustomobject]@{State='TREKKER_LIST';Cards=@()}) 4400) -eq 'SELECT_LOW') 'Training rejection did not continue candidate search'
+   Check ($session.TargetX -gt .125 -and $session.UpgradeCommits -eq 0) 'Capped Training candidate repeated or spent materials'
+   # Training prices have their own icon and vertical offset.
+   foreach($angle in @(-8,0,8)){
+    foreach($item in @(@('0',0),@('100',100),@('2,860',2860))){
+     $g.Clear([Drawing.Color]::FromArgb(60,95,155));$saved=$g.Save()
+     try{
+      $g.TranslateTransform([single](.834*$bitmap.Width),[single](.755*$bitmap.Height));$g.RotateTransform([single]$angle)
+      $g.FillRectangle([Drawing.Brushes]::White,0,0,180,34);$g.FillRectangle([Drawing.Brushes]::DarkSlateBlue,8,1,18,29)
+      $g.FillRectangle([Drawing.Brushes]::White,12,5,3,20);$g.DrawString($item[0],$tkSmall,[Drawing.Brushes]::DarkSlateBlue,38,4)
+     }finally{$g.Restore($saved)}
+     $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+     $cost=Read-Trekker-Cost $bitmap
+     Check ($cost -eq $item[1]) ('Training tilted cost failed: '+$angle+'/'+$item[0]+' -> '+$cost)
+    }
+   }
+   $g.Clear([Drawing.Color]::FromArgb(60,95,155));$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+   Check ((Read-Trekker-Cost $bitmap) -eq -1) 'Missing Training cost was treated as zero'
+   Paint-Trekker $true 1 0
+   $read=Read-Image $bitmap
+   try{
+    $dim=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(170,0,0,0))
+    try{$g.FillRectangle($dim,0,0,$bitmap.Width,$bitmap.Height);$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)}finally{$dim.Dispose()}
+    $session.UpgradePhase='EDIT'
+    Check ($null -eq (Trekker-Layout $bitmap $session $read.Lines)) 'Dimmed Training layout was accepted'
+   }finally{$read.Bitmap.Dispose()}
+  }finally{$tkFont.Dispose();$tkSmall.Dispose()}
   Signal 'SELF_TEST_PASS'
  }finally{$g.Dispose();$bitmap.Dispose();if($font){$font.Dispose()}}
  exit 0
@@ -999,17 +1151,18 @@ if($Inspect){
  try{
   [CommissionDesktop]::InspectForeground();$snapshot=[CommissionDesktop]::Capture()
   $read=Read-Image $snapshot
-  [Console]::Out.WriteLine('SoraVynx Disc inspection v1 - labels and layout only; no account text or screenshot saved')
-  foreach($name in @('disc','melodyskill','harmonyskill','upgrade')){
+  [Console]::Out.WriteLine(('SoraVynx {0} inspection v2 - labels and layout only; no account text or screenshot saved' -f $InspectKind))
+  foreach($name in @('disc','melodyskill','harmonyskill','upgrade','trekkerlist','trekkerdetails','trekkertraining')){
    [Console]::Out.WriteLine(('Known label {0}: {1}' -f $name,@(Label $read.Lines $name 0 1 0 1).Count))
   }
   [Console]::Out.WriteLine(('Disc header caption: {0}' -f @(Label $read.Lines 'disc' 0 .30 0 .12).Count))
   $facts=Disc-Layout-Checks $snapshot
+  if($InspectKind -eq 'TREKKER'){$facts=Trekker-Layout-Checks $snapshot}
   foreach($property in $facts.PSObject.Properties){[Console]::Out.WriteLine(('Layout {0}: {1}' -f $property.Name,$property.Value))}
-  $context=New-Session 4;$context.UpgradeKind='DISC';$context.UpgradePhase='EDIT'
+  $context=New-Session 4;$context.UpgradeKind=$InspectKind;$context.UpgradePhase='EDIT'
   $observed=Read-Observation $snapshot $context
   [Console]::Out.WriteLine(('Recognized state: {0}; editor level (0 = not validated): {1}' -f $observed.State,$observed.Level))
-  $editorCost=-1;if($observed.State -eq 'DISC_EDIT'){$editorCost=$observed.Cost};[Console]::Out.WriteLine(('Editor cost (-1 = not validated): {0}' -f $editorCost))
+  $editorCost=-1;if($observed.State -in @('DISC_EDIT','TREKKER_EDIT')){$editorCost=$observed.Cost};[Console]::Out.WriteLine(('Editor cost (-1 = not validated): {0}' -f $editorCost))
  }catch{[Console]::Out.WriteLine('READ_ONLY_INSPECTION_FAILED: keep the unobscured Unity game foreground and try again.')}finally{if($read){$read.Bitmap.Dispose()};if($snapshot){$snapshot.Dispose()}}
  exit 0
 }
