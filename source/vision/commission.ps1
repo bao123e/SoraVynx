@@ -102,9 +102,9 @@ function Read-Image($bitmap){
   $task=$asTask.MakeGenericMethod([Windows.Media.Ocr.OcrResult]).Invoke($null,@($engine.RecognizeAsync($software)))
   if(!$task.Wait(8000)){throw 'OCR_TIMEOUT'}
   $words=@();$lines=@(foreach($line in $task.Result.Lines){
-   $left=1e9;$top=1e9;$right=0;$bottom=0
-   foreach($word in $line.Words){$b=$word.BoundingRect;$words+=[pscustomobject]@{Text=$word.Text;X=$b.X/$copy.Width;Y=$b.Y/$copy.Height;W=$b.Width/$copy.Width;H=$b.Height/$copy.Height};$left=[Math]::Min($left,$b.X);$top=[Math]::Min($top,$b.Y);$right=[Math]::Max($right,$b.X+$b.Width);$bottom=[Math]::Max($bottom,$b.Y+$b.Height)}
-   if($right -gt $left){[pscustomobject]@{Text=$line.Text;X=$left/$copy.Width;Y=$top/$copy.Height;W=($right-$left)/$copy.Width;H=($bottom-$top)/$copy.Height}}
+   $left=1e9;$top=1e9;$right=0;$bottom=0;$lineWords=@()
+   foreach($word in $line.Words){$b=$word.BoundingRect;$wordBox=[pscustomobject]@{Text=$word.Text;X=$b.X/$copy.Width;Y=$b.Y/$copy.Height;W=$b.Width/$copy.Width;H=$b.Height/$copy.Height};$words+=$wordBox;$lineWords+=$wordBox;$left=[Math]::Min($left,$b.X);$top=[Math]::Min($top,$b.Y);$right=[Math]::Max($right,$b.X+$b.Width);$bottom=[Math]::Max($bottom,$b.Y+$b.Height)}
+   if($right -gt $left){[pscustomobject]@{Text=$line.Text;Words=$lineWords;X=$left/$copy.Width;Y=$top/$copy.Height;W=($right-$left)/$copy.Width;H=($bottom-$top)/$copy.Height}}
   })
   $result=[pscustomobject]@{Lines=$lines;Words=$words;Bitmap=$copy};$copy=$null;return $result
  }finally{if($software){$software.Dispose()};if($writer){$writer.Dispose()};if($copy){$copy.Dispose()}}
@@ -117,6 +117,90 @@ function Cyan-Button($bitmap,$line){
   if($x -ge 0 -and $x -lt $bitmap.Width -and $y -ge 0 -and $y -lt $bitmap.Height){$c=$bitmap.GetPixel($x,$y);if($c.G -gt 130 -and $c.B -gt 120 -and $c.G-$c.R -gt 30 -and $c.B-$c.R -gt 20){$hits++}}
  }
  return $hits -ge 2
+}
+# Only printed labels and fixed UI controls from the owner's reference layout
+# are used. No private game objects, item names or account text leave this process.
+function Label($lines,[string]$name,[double]$minX,[double]$maxX,[double]$minY,[double]$maxY){
+ $matchesFound=@()
+ foreach($line in $lines){
+  $candidates=@()
+  if((Normal $line.Text) -eq $name){$candidates=@($line)}
+  elseif($line.Words){
+   $parts=@($line.Words)
+   for($start=0;$start -lt $parts.Count;$start++){
+    $joined=''
+    for($end=$start;$end -lt $parts.Count;$end++){
+     $joined+=(Normal $parts[$end].Text)
+     if($joined -eq $name){
+      $left=$parts[$start].X;$top=1.0;$right=0.0;$bottom=0.0
+      for($i=$start;$i -le $end;$i++){$top=[Math]::Min($top,$parts[$i].Y);$right=[Math]::Max($right,$parts[$i].X+$parts[$i].W);$bottom=[Math]::Max($bottom,$parts[$i].Y+$parts[$i].H)}
+      $candidates+=[pscustomobject]@{Text=$name;X=$left;Y=$top;W=$right-$left;H=$bottom-$top};break
+     }
+     if(!$name.StartsWith($joined)){break}
+    }
+   }
+  }
+  foreach($c in $candidates){if($c.X -ge $minX -and $c.X -lt $maxX -and $c.Y -ge $minY -and $c.Y -lt $maxY){$matchesFound+=$c}}
+ }
+ return $matchesFound
+}
+function Low-Cards($words){
+ $cards=@()
+ foreach($word in $words){
+  if($word.X -lt .04 -or $word.X -gt .94 -or $word.Y -lt .30 -or $word.Y -gt .88){continue}
+  $level=0
+  if($word.Text -match '^([Ll][Vv])[. ]?\s*([0-9]{1,3})$'){$level=[int]$Matches[2]}
+  elseif($word.Text -match '^[Ll][Vv][.]?$'){
+   $numbers=@($words | Where-Object {$_.Text -match '^\d{1,3}$' -and [Math]::Abs($_.Y-$word.Y) -lt .02 -and $_.X -ge $word.X+$word.W-.005 -and $_.X -lt $word.X+$word.W+.035})
+   if($numbers.Count -eq 1){$level=[int]$numbers[0].Text}
+  }
+  if($level -ge 1 -and $level -le 10){$cards+=[pscustomobject]@{Level=$level;X=$word.X+$word.W/2;Y=$word.Y-.08}}
+ }
+ return @($cards | Sort-Object Level,Y,X)
+}
+function Visible-Level($words){
+ $values=@($words | Where-Object {$_.Text -match '^\d{1,3}$' -and $_.X -gt .70 -and $_.X -lt .85 -and $_.Y -gt .13 -and $_.Y -lt .30 -and $_.H -gt .032})
+ if($values.Count -eq 1){return [int]$values[0].Text}
+ return 0
+}
+function Upgrade-Observation($lines,$words,$bitmap){
+ $kind='';$page=''
+ foreach($entry in @(@('disclist','DISC','LIST'),@('trekkerlist','TREKKER','LIST'),@('trekkerdetails','TREKKER','DETAILS'),@('trekkertraining','TREKKER','EDIT'),@('disc','DISC','DETAILS'))){
+  $header=@(Label $lines $entry[0] 0 .30 0 .12)
+  if($header.Count -eq 1){$kind=$entry[1];$page=$entry[2];break}
+ }
+ if(!$kind){return $null}
+ if($page -eq 'LIST'){
+  $cards=@(Low-Cards $words);return [pscustomobject]@{State=($kind+'_LIST');X=0.0;Y=0.0;Cards=$cards}
+ }
+ $one=@(Label $lines 'upgrade1level' .62 .85 .60 .78)
+ $max=@(Label $lines 'upgradetomax' .78 .98 .60 .78)
+ $confirm=@(Label $lines 'upgrade' .65 .95 .68 .88 | Where-Object {Cyan-Button $bitmap $_})
+ $level=Visible-Level $words
+ if($one.Count -eq 1 -and $max.Count -eq 1 -and $confirm.Count -eq 1){
+  $minY=.68;$maxY=.75;if($kind -eq 'TREKKER'){$minY=.75;$maxY=.81}
+  $prices=@($words | Where-Object {$_.Text -match '^\d[\d,]*$' -and $_.X -gt .82 -and $_.X -lt .90 -and $_.Y -gt $minY -and $_.Y -lt $maxY})
+  $cost=-1;if($prices.Count -eq 1){$cost=[int]($prices[0].Text.Replace(',',''))}
+  return [pscustomobject]@{State=($kind+'_EDIT');X=0.0;Y=0.0;Level=$level;Cost=$cost;OneX=$one[0].X+$one[0].W/2;OneY=$one[0].Y+$one[0].H/2;CommitX=$confirm[0].X+$confirm[0].W/2;CommitY=$confirm[0].Y+$confirm[0].H/2}
+ }
+ if($kind -eq 'DISC'){
+  $tab=@(Label $lines 'upgrade' .34 .52 .88 1)
+  $skill=@(Label $lines 'melodyskill' .65 .9 .15 .35)
+  if($tab.Count -eq 1 -and $skill.Count -eq 1){return [pscustomobject]@{State='DISC_DETAILS';X=$tab[0].X+$tab[0].W/2;Y=$tab[0].Y+$tab[0].H/2;Level=$level}}
+ }elseif($page -eq 'DETAILS' -and $confirm.Count -eq 1){
+  return [pscustomobject]@{State='TREKKER_DETAILS';X=$confirm[0].X+$confirm[0].W/2;Y=$confirm[0].Y+$confirm[0].H/2;Level=$level}
+ }
+ return $null
+}
+function Home-Targets($observation,$words){
+ if($observation.State -ne 'HOME'){return $observation}
+ foreach($name in @('Disc','Trekker')){
+  $buttons=@(Label $words $name.ToLowerInvariant() .72 .93 .65 .88)
+  $x=0.0;$y=0.0;if($buttons.Count -eq 1){$x=$buttons[0].X+$buttons[0].W/2;$y=$buttons[0].Y+$buttons[0].H/2}
+  $observation | Add-Member -NotePropertyName ($name+'X') -NotePropertyValue $x -Force
+  $observation | Add-Member -NotePropertyName ($name+'Y') -NotePropertyValue $y -Force
+ }
+ return $observation
 }
 function Observe($lines,$bitmap,[string]$promptTokens='', $homeWords=@()){
  $top=@($lines | Where-Object {$_.X -lt .25 -and $_.Y -lt .18} | ForEach-Object {Normal $_.Text}) -join ''
@@ -132,6 +216,8 @@ function Observe($lines,$bitmap,[string]$promptTokens='', $homeWords=@()){
  $header=@($lines | Where-Object {(Normal $_.Text) -eq 'commission' -and $_.X -lt .4 -and $_.Y -lt .15})
  $claim=@($lines | Where-Object {(Normal $_.Text) -eq 'claimall' -and $_.X -gt .65 -and $_.Y -gt .6})
  if($header.Count -eq 1 -and $claim.Count -eq 1){$p=$claim[0];$state='NO_REWARDS';if(Cyan-Button $bitmap $p){$state='CLAIM'};return [pscustomobject]@{State=$state;X=$p.X+$p.W/2;Y=$p.Y+$p.H/2}}
+ $upgrade=Upgrade-Observation $lines $homeWords $bitmap
+ if($upgrade){return $upgrade}
  $commissionHome=@($homeWords | Where-Object {(Normal $_.Text) -eq 'commission' -and $_.X -gt .7 -and $_.Y -lt .3})
  if($commissionHome.Count -eq 1){$p=$commissionHome[0];return [pscustomobject]@{State='HOME';X=$p.X+$p.W/2;Y=$p.Y+$p.H/2}}
  return [pscustomobject]@{State='UNKNOWN';X=0.0;Y=0.0}
@@ -150,7 +236,7 @@ function Read-Observation($bitmap){
    }
   }
   $observation=Observe $read.Lines $read.Bitmap $tokens $read.Words
-  if($observation.State -ne 'UNKNOWN'){return $observation}
+  if($observation.State -ne 'UNKNOWN'){return Home-Targets $observation $read.Words}
   # WinRT often merges neighboring home labels into one line. Use individual
   # word boxes and retry only the icon strip at higher scale in both polarities.
   foreach($invert in @($false,$true)){
@@ -159,17 +245,84 @@ function Read-Observation($bitmap){
     $detail=Read-Image $crop
     $mapped=@(foreach($word in $detail.Words){[pscustomobject]@{Text=$word.Text;X=.68+$word.X*.32;Y=.10+$word.Y*.20;W=$word.W*.32;H=$word.H*.20}})
     $observation=Observe $read.Lines $read.Bitmap $tokens $mapped
-    if($observation.State -eq 'HOME'){return $observation}
+    if($observation.State -eq 'HOME'){return Home-Targets $observation $read.Words}
    }finally{$crop.Dispose();if($detail){$detail.Bitmap.Dispose()}}
   }
   return $observation
  }finally{$read.Bitmap.Dispose()}
 }
-function New-Session([int]$selectedTasks=512) {return @{HomeEnabled=($selectedTasks -band 64) -ne 0;DispatchEnabled=($selectedTasks -band 512) -ne 0;Interact=0;Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
+function New-Session([int]$selectedTasks=512) {return @{DiscEnabled=($selectedTasks -band 4) -ne 0;TrekkerEnabled=($selectedTasks -band 8) -ne 0;DiscDone=$false;TrekkerDone=$false;UpgradeKind='';UpgradePhase='';UpgradeAt=0;BeforeLevel=0;TargetLevel=0;UpgradeCommits=0;TargetX=0.0;TargetY=0.0;HomeEnabled=($selectedTasks -band 64) -ne 0;DispatchEnabled=($selectedTasks -band 512) -ne 0;Interact=0;Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
+function Next-Upgrade($session,$observation,[long]$now){
+ $kind=$session.UpgradeKind
+ if(!$kind){
+  if($session.DiscEnabled -and !$session.DiscDone){$kind='DISC'}
+  elseif($session.TrekkerEnabled -and !$session.TrekkerDone){$kind='TREKKER'}
+  else{return ''}
+  if($observation.State -eq 'UNKNOWN'){$session.Unknown++;if($session.Unknown -ge 8){return 'ERR_UNKNOWN_SCREEN'};return 'WAIT'}
+  if($observation.State -ne 'HOME'){return 'ERR_HOME_REQUIRED'}
+  $prefix='Disc';if($kind -eq 'TREKKER'){$prefix='Trekker'}
+  $x=$observation.($prefix+'X');$y=$observation.($prefix+'Y')
+  if(!$x -or !$y){return 'ERR_UPGRADE_ENTRY_NOT_FOUND'}
+  $session.UpgradeKind=$kind;$session.UpgradePhase='LIST';$session.UpgradeAt=$now
+  $session.TargetX=$x;$session.TargetY=$y;return ('ENTER_'+$kind)
+ }
+ $phase=$session.UpgradePhase
+ if($phase -eq 'RETURN' -and $observation.State -eq 'HOME'){
+  $session.UpgradeKind='';$session.UpgradePhase='';$session.Unknown=0;return 'WAIT'
+ }
+ if($now-$session.Last -lt 900){return 'WAIT'}
+ if($phase -eq 'LIST' -and $observation.State -eq ($kind+'_LIST')){
+  if($observation.Cards.Count -eq 0){return 'ERR_LOW_LEVEL_NOT_FOUND'}
+  $p=$observation.Cards[0];$session.TargetX=$p.X;$session.TargetY=$p.Y
+  $session.UpgradePhase='DETAILS';$session.UpgradeAt=$now;return 'SELECT_LOW'
+ }
+ if($phase -eq 'DETAILS' -and $observation.State -eq ($kind+'_DETAILS')){
+  if($observation.Level -lt 1 -or $observation.Level -gt 10){return 'ERR_UPGRADE_LEVEL_UNREADABLE'}
+  $session.BeforeLevel=$observation.Level;$session.TargetX=$observation.X;$session.TargetY=$observation.Y
+  $session.UpgradePhase='EDIT';$session.UpgradeAt=$now;return 'OPEN_UPGRADE'
+ }
+ if($phase -eq 'EDIT' -and $observation.State -eq ($kind+'_EDIT')){
+  if($observation.Cost -ne 0 -or $observation.Level -ne $session.BeforeLevel){return 'ERR_UPGRADE_EXISTING_SELECTION'}
+  $session.TargetX=$observation.OneX;$session.TargetY=$observation.OneY
+  $session.UpgradePhase='PREPARED';$session.UpgradeAt=$now;return 'PREPARE_LEVEL'
+ }
+ if($phase -eq 'PREPARED' -and $observation.State -eq ($kind+'_EDIT')){
+  if($observation.Level -gt $session.BeforeLevel -and $observation.Cost -gt 0){
+   $session.TargetLevel=$observation.Level;$session.UpgradeCommits++
+   $session.TargetX=$observation.CommitX;$session.TargetY=$observation.CommitY
+   $session.UpgradePhase='VERIFY';$session.UpgradeAt=$now;return 'COMMIT_UPGRADE'
+  }
+ }
+ if($phase -eq 'VERIFY' -and $observation.State -eq ($kind+'_EDIT')){
+  # Selection must clear AND the new level remain visible. A preview alone
+  # never proves the spend succeeded. Never send the spend a second time.
+  if($observation.Cost -eq 0 -and $observation.Level -ge $session.TargetLevel){
+   if($kind -eq 'DISC'){$session.DiscDone=$true}else{$session.TrekkerDone=$true}
+   $session.UpgradePhase='RETURN';$session.UpgradeAt=$now
+   $session.TargetX=.295;$session.TargetY=.061;return 'RETURN_HOME'
+  }
+ }
+ if($observation.State -eq 'UNKNOWN'){$session.Unknown++;if($session.Unknown -ge 8){return 'ERR_UNKNOWN_SCREEN'}}else{$session.Unknown=0}
+ if($now-$session.UpgradeAt -ge 10000){
+  if($phase -eq 'PREPARED'){return 'ERR_UPGRADE_NOT_PREPARED'}
+  if($phase -eq 'VERIFY'){return 'ERR_UPGRADE_NOT_CONFIRMED'}
+  return 'ERR_UPGRADE_SCREEN_NOT_CHANGED'
+ }
+ return 'WAIT'
+}
 function Next-Action($session,$observation,[long]$now){
- if(!$session.HomeEnabled -and !$session.DispatchEnabled){return 'ERR_NO_TASKS'}
- if($session.Actions -ge 13){return 'ERR_ACTION_LIMIT'}
- if($session.HomeEnabled -and !$session.Interact -and $observation.State -ne 'HOME' -and $observation.State -ne 'UNKNOWN'){return 'ERR_HOME_REQUIRED'}
+ if(!$session.HomeEnabled -and !$session.DispatchEnabled -and !$session.DiscEnabled -and !$session.TrekkerEnabled){return 'ERR_NO_TASKS'}
+ if($session.Actions -ge 32){return 'ERR_ACTION_LIMIT'}
+ if((($session.HomeEnabled -and !$session.Interact) -or (($session.DiscEnabled -or $session.TrekkerEnabled) -and !$session.Actions)) -and $observation.State -ne 'HOME' -and $observation.State -ne 'UNKNOWN'){return 'ERR_HOME_REQUIRED'}
+ # Home touch runs first. Upgrades then return home before Commission starts.
+ if(!($observation.State -eq 'HOME' -and $session.HomeEnabled -and !$session.Interact)){
+  if($session.Interact -gt 0 -and $session.Actions -eq 1 -and $now-$session.Last -lt 1600){return 'WAIT'}
+  $upgradeAction=Next-Upgrade $session $observation $now
+  if($upgradeAction){
+   if($upgradeAction -ne 'WAIT' -and !$upgradeAction.StartsWith('ERR_')){$session.Last=$now;$session.Actions++;$session.Unknown=0}
+   return $upgradeAction
+  }
+ }
  # Dispatch Again can be followed by delayed dialogue and reward overlays.
  # Finish only on a recognized Commission page after an observation window,
  # never merely because the dispatch input was sent or its modal persists.
@@ -306,13 +459,89 @@ if($SelfTest){
   Check ($session.Actions -eq 0) 'Wrong starting page sent input'
   $session=New-Session 0
   Check ((Next-Action $session $homeScreen 1000) -eq 'ERR_NO_TASKS') 'All skipped tasks sent input'
+  # OCR actual synthetic inventory/detail/editor screens, including preview
+  # versus committed level/cost. No real game or desktop input is used.
+  $smallFont=[Drawing.Font]::new('Segoe UI',24,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  $levelFont=[Drawing.Font]::new('Segoe UI',56,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  try{
+   foreach($kind in @('DISC','TREKKER')){
+    foreach($screen in @('LIST','DETAILS','EDIT')){
+     $g.Clear([Drawing.Color]::FromArgb(30,50,100))
+     $caption='Disc';if($kind -eq 'TREKKER'){$caption='Trekker'}
+     if($screen -eq 'LIST'){$caption+=' List'}elseif($kind -eq 'TREKKER'){if($screen -eq 'EDIT'){$caption+=' Training'}else{$caption+=' Details'}}
+     $g.DrawString($caption,$font,[Drawing.Brushes]::White,120,25)
+     if($screen -eq 'LIST'){
+      $g.FillRectangle([Drawing.Brushes]::WhiteSmoke,80,140,230,220)
+      $g.DrawString('Lv.1',$smallFont,[Drawing.Brushes]::DarkBlue,100,320)
+     }else{
+      $g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,135)
+      if($screen -eq 'DETAILS'){
+       if($kind -eq 'DISC'){$g.DrawString('Melody Skill',$smallFont,[Drawing.Brushes]::White,890,165);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,500,655)}
+       else{$g.FillRectangle([Drawing.Brushes]::Turquoise,950,510,240,65);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,990,525)}
+      }else{
+       $g.DrawString('Upgrade 1 level',$smallFont,[Drawing.Brushes]::White,860,460)
+       $g.DrawString('Upgrade to Max',$smallFont,[Drawing.Brushes]::White,1070,460)
+       $priceY=510;$buttonY=555;if($kind -eq 'TREKKER'){$priceY=550;$buttonY=600}
+       $g.DrawString('0',$smallFont,[Drawing.Brushes]::White,1090,$priceY)
+       $g.FillRectangle([Drawing.Brushes]::Turquoise,950,$buttonY,240,65);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,990,($buttonY+15))
+      }
+     }
+     $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+     $o=Read-Observation $bitmap
+     if($o.State -ne ($kind+'_'+$screen)){
+      $diagnostic=Read-Image $bitmap
+      try{foreach($line in $diagnostic.Lines){[Console]::Out.WriteLine(('UPGRADE FIXTURE {0}/{1}: {2} at {3:N3},{4:N3}' -f $kind,$screen,$line.Text,$line.X,$line.Y))}}finally{$diagnostic.Bitmap.Dispose()}
+     }
+     Check ($o.State -eq ($kind+'_'+$screen)) ('Upgrade OCR failed: '+$kind+'/'+$screen+' -> '+$o.State)
+     if($screen -eq 'LIST'){Check ($o.Cards.Count -eq 1 -and $o.Cards[0].Level -eq 1) 'List level OCR missing'}
+     else{Check ($o.Level -eq 1) 'Detail/editor level OCR missing'}
+     if($screen -eq 'EDIT'){Check ($o.Cost -eq 0) ('Editor cost OCR missing: '+$o.Cost)}
+    }
+   }
+  }finally{$smallFont.Dispose();$levelFont.Dispose()}
+  # Upgrade planner: independent selections, no repeated spending, do not
+  # mistake the preview for a committed level or return home too early.
+  $upgradeHome=[pscustomobject]@{State='HOME';DiscX=.88;DiscY=.78;TrekkerX=.81;TrekkerY=.82}
+  foreach($kind in @('DISC','TREKKER')){
+   $mask=4;if($kind -eq 'TREKKER'){$mask=8}
+   $session=New-Session $mask
+   Check ((Next-Action $session $upgradeHome 1000) -eq ('ENTER_'+$kind)) 'Upgrade task did not open correct list'
+   Check ((Next-Action $session $upgradeHome 1500) -eq 'WAIT') 'Upgrade navigation did not settle'
+   $list=[pscustomobject]@{State=($kind+'_LIST');Cards=@([pscustomobject]@{Level=1;X=.13;Y=.35})}
+   Check ((Next-Action $session $list 2200) -eq 'SELECT_LOW') 'Low-level item was not selected'
+   $detail=[pscustomobject]@{State=($kind+'_DETAILS');Level=1;X=.8;Y=.75}
+   Check ((Next-Action $session $detail 3400) -eq 'OPEN_UPGRADE') 'Editor did not open'
+   $edit=[pscustomobject]@{State=($kind+'_EDIT');Level=1;Cost=0;OneX=.72;OneY=.67;CommitX=.8;CommitY=.8}
+   Check ((Next-Action $session $edit 4600) -eq 'PREPARE_LEVEL') 'Upgrade 1 level was not used'
+   Check ((Next-Action $session $edit 5800) -eq 'WAIT') 'Unchanged preview triggered spend'
+   $edit.Level=2;$edit.Cost=100
+   Check ((Next-Action $session $edit 7000) -eq 'COMMIT_UPGRADE') 'Prepared upgrade was not committed'
+   Check ((Next-Action $session $edit 8200) -eq 'WAIT') 'Preview alone was accepted as committed'
+   Check ($session.UpgradeCommits -eq 1) 'Upgrade spend was repeated'
+   $edit.Cost=0
+   Check ((Next-Action $session $edit 9400) -eq 'RETURN_HOME') 'Committed level did not return home'
+   Check ((Next-Action $session $upgradeHome 10600) -eq 'WAIT') 'Return transition was missed'
+   Check ((Next-Action $session $upgradeHome 11800) -eq 'DONE') 'Upgrade-only ran other tasks'
+   Check ($session.UpgradeCommits -eq 1 -and $session.Entry -eq 0 -and $session.Interact -eq 0) 'Skipped tasks or duplicate upgrade ran'
+  }
+  $session=New-Session 4;$null=Next-Action $session $upgradeHome 1000
+  Check ((Next-Action $session ([pscustomobject]@{State='DISC_LIST';Cards=@()}) 2200) -eq 'ERR_LOW_LEVEL_NOT_FOUND') 'Unreadable inventory was clicked blindly'
+  $session=New-Session 4;$session.UpgradeKind='DISC';$session.UpgradePhase='VERIFY';$session.UpgradeAt=1000;$session.BeforeLevel=1;$session.TargetLevel=2;$session.UpgradeCommits=1
+  Check ((Next-Action $session ([pscustomobject]@{State='DISC_EDIT';Level=2;Cost=100}) 11000) -eq 'ERR_UPGRADE_NOT_CONFIRMED') 'Unconfirmed spend was retried or accepted'
+  Check ($session.UpgradeCommits -eq 1) 'Failed upgrade spent twice'
+  $session=New-Session 4;$session.UpgradeKind='DISC';$session.UpgradePhase='EDIT';$session.BeforeLevel=1
+  Check ((Next-Action $session ([pscustomobject]@{State='DISC_EDIT';Level=3;Cost=500}) 2200) -eq 'ERR_UPGRADE_EXISTING_SELECTION') 'Existing material selection was overwritten'
+  $session=New-Session 588;$session.DiscDone=$true;$session.TrekkerDone=$true;$session.Interact=1;$session.Actions=15
+  Check ((Next-Action $session $upgradeHome 20000) -eq 'OPEN') 'Completed upgrades did not hand off to Commission'
+  $session=New-Session 12;$session.DiscDone=$true
+  Check ((Next-Action $session $upgradeHome 2000) -eq 'ENTER_TREKKER') 'Disc did not hand off to Trekker'
   Signal 'SELF_TEST_PASS'
  }finally{$g.Dispose();$bitmap.Dispose();if($font){$font.Dispose()}}
  exit 0
 }
 try {
  [CommissionDesktop]::Init($GameWindow,$GamePid);$session=New-Session $Tasks;$clock=[Diagnostics.Stopwatch]::StartNew();Signal 'READY'
- while($clock.ElapsedMilliseconds -lt 90000){
+ while($clock.ElapsedMilliseconds -lt 180000){
   $bitmap=[CommissionDesktop]::Capture()
   try{$observation=Read-Observation $bitmap}finally{$bitmap.Dispose()}
   $action=Next-Action $session $observation $clock.ElapsedMilliseconds
@@ -326,6 +555,7 @@ try {
   # is not character detection. Require recognized HOME before sending it.
   $targetX=$observation.X;$targetY=$observation.Y
   if($action -eq 'INTERACT'){$targetX=0.50;$targetY=0.50}
+  if($action -in @('ENTER_DISC','ENTER_TREKKER','SELECT_LOW','OPEN_UPGRADE','PREPARE_LEVEL','COMMIT_UPGRADE','RETURN_HOME')){$targetX=$session.TargetX;$targetY=$session.TargetY}
   [CommissionDesktop]::Act(($action -eq 'ESC'),$targetX,$targetY)
   Start-Sleep -Milliseconds 500
  }

@@ -147,9 +147,9 @@ static void refresh_status(void) {
  EnableWindow(GetDlgItem(window,436),!commission_auto.running&&!claim_click.phase&&!claim_click.held&&!claim_click.attempted);
  update_text(GetDlgItem(window,436),claim_click_mode_label());
  update_text(GetDlgItem(window,435),claim_target_label());
- update_text(GetDlgItem(window,437),commission_auto.running?L"Stop Auto":L"Auto Home / Commission");
- EnableWindow(GetDlgItem(window,437),commission_auto.running||(state==1&&!claim_click.phase&&(daily_selection&((1u<<6)|(1u<<9)))));
- update_text(GetDlgItem(window,434),commission_auto.running?L"AUTO HOME / COMMISSION\r\nReading the game screen.\r\nF1 or Disable all stops.":claim_hotkey?claim_click_hint():L"F9 is unavailable.\r\nClose the app using F9,\r\nthen restart the tool.");
+ update_text(GetDlgItem(window,437),commission_auto.running?L"Stop Auto":L"Run selected daily steps");
+ EnableWindow(GetDlgItem(window,437),commission_auto.running||(state==1&&!claim_click.phase&&(daily_selection&((1u<<2)|(1u<<3)|(1u<<6)|(1u<<9)))));
+ update_text(GetDlgItem(window,434),commission_auto.running?L"AUTO DAILY STEPS\r\nReading the game screen.\r\nF1 or Disable all stops.":claim_hotkey?claim_click_hint():L"F9 is unavailable.\r\nClose the app using F9,\r\nthen restart the tool.");
  swprintf(text,256,L"Damage Multiplier  (x%ld / 2 - 50)",(long)read_atomic(&multi_count));update_text(multiplier_hint,text);
  swprintf(text,256,L"Score Multiplier  (x%ld / 2 - 100)",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
  swprintf(text,256,L"Mob Vacuum  (distance %ld / 1 - 10)",(long)read_atomic(&vacuum_distance));update_text(checks[MOB_VACUUM],text);
@@ -258,7 +258,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   if(notice==BN_CLICKED){
    if(id>=400&&id<=403){switch_page(id-400);return 0;}
    if(id==433){copy_startup_report(hwnd);return 0;}
-   if(id==437){if(commission_auto.running)commission_cancel(hwnd);else if(read_atomic(&init_state)==1&&(daily_selection&((1u<<6)|(1u<<9)))&&!claim_click.phase){HWND game=NULL;EnumWindows(daily_lua_find_game,(LPARAM)&game);if(!commission_start(hwnd,self_module,game,daily_selection)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,commission_auto_message(),L"SoraVynx - Auto Commission",MB_OK|MB_ICONINFORMATION);}}refresh_status();return 0;}
+   if(id==437){if(commission_auto.running)commission_cancel(hwnd);else if(read_atomic(&init_state)==1&&(daily_selection&((1u<<2)|(1u<<3)|(1u<<6)|(1u<<9)))&&!claim_click.phase){HWND game=NULL;EnumWindows(daily_lua_find_game,(LPARAM)&game);if(!commission_start(hwnd,self_module,game,daily_selection)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,commission_auto_message(),L"SoraVynx - Auto Commission",MB_OK|MB_ICONINFORMATION);}}refresh_status();return 0;}
    if(commission_auto.running&&(id==430||id==431||id==432||id==435||id==436))return 0;
    if(id==435){if(claim_select((claim_selected+1)%CLAIM_TARGET_COUNT))refresh_status();return 0;}
    if(id==436){if(claim_set_double(!claim_click.double_click))refresh_status();return 0;}
@@ -266,7 +266,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
    if(id==431){daily_copy_setup(hwnd);return 0;}
    if(id==432){if(read_atomic(&init_state)==1&&(daily_selection&(1u<<(claim_selected?9:7)))){if(!claim_start(hwnd)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,claim_click_message(),claim_action_title(),MB_OK|MB_ICONINFORMATION);}}return 0;}
    if(id==610)return 0;
-   if(id>=600&&id<612){daily_selection^=1u<<(id-600);if((id==606||id==609)&&commission_auto.running)commission_cancel(hwnd);if((id==607&&claim_selected==0&&!(daily_selection&(1u<<7)))||(id==609&&claim_selected!=0&&!(daily_selection&(1u<<9))))claim_cancel(hwnd);wchar_t value[16];swprintf(value,16,L"%u",daily_selection);if(!WritePrivateProfileStringW(L"AutoDaily",L"Tasks",value,ui_config_path)||!WritePrivateProfileStringW(L"AutoDaily",L"TaskCount",L"12",ui_config_path))MessageBoxW(hwnd,L"Daily task selection could not be saved.",L"SoraVynx",MB_OK|MB_ICONWARNING);InvalidateRect(GetDlgItem(hwnd,id),NULL,TRUE);return 0;}
+   if(id>=600&&id<612){daily_selection^=1u<<(id-600);if((id==602||id==603||id==606||id==609)&&commission_auto.running)commission_cancel(hwnd);if((id==607&&claim_selected==0&&!(daily_selection&(1u<<7)))||(id==609&&claim_selected!=0&&!(daily_selection&(1u<<9))))claim_cancel(hwnd);wchar_t value[16];swprintf(value,16,L"%u",daily_selection);if(!WritePrivateProfileStringW(L"AutoDaily",L"Tasks",value,ui_config_path)||!WritePrivateProfileStringW(L"AutoDaily",L"TaskCount",L"12",ui_config_path))MessageBoxW(hwnd,L"Daily task selection could not be saved.",L"SoraVynx",MB_OK|MB_ICONWARNING);InvalidateRect(GetDlgItem(hwnd,id),NULL,TRUE);return 0;}
    if(id==410){ShowWindow(hwnd,SW_HIDE);return 0;}
    if(id==411){SendMessageW(hwnd,WM_CLOSE,0,0);return 0;}
    if(id==420){if(choose_background(hwnd))refresh_background();return 0;}
@@ -396,7 +396,7 @@ static DWORD WINAPI run(void *unused) {
  daily_report=page_control(3,L"BUTTON",L"Lua report",BS_OWNERDRAW|WS_TABSTOP,648,464,148,24,430);
  page_control(3,L"BUTTON",L"API report",BS_OWNERDRAW|WS_TABSTOP,812,464,148,24,431);
  page_control(3,L"BUTTON",L"Claim Gifts / status",BS_OWNERDRAW|WS_TABSTOP,648,368,312,36,432);
- page_control(3,L"BUTTON",L"Auto Home / Commission",BS_OWNERDRAW|WS_TABSTOP,648,412,312,40,437);
+ page_control(3,L"BUTTON",L"Run selected daily steps",BS_OWNERDRAW|WS_TABSTOP,648,412,312,40,437);
  control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,48,200);
  status_label=control(L"STATIC",L"Connecting to game...",0,208,516,752,24,0);
  footer=control(L"STATIC",L"",0,208,552,528,24,0);

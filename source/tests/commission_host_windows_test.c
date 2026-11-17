@@ -5,6 +5,8 @@ int main(void){
  commission_code("READY");assert(!commission_auto.terminal);
  commission_code("HOLD_MOUSE");assert(commission_auto.mouse_held);commission_code("UP_MOUSE");assert(!commission_auto.mouse_held);
  commission_code("HOLD_ESCAPE");assert(commission_auto.escape_held);commission_code("UP_ESCAPE");assert(!commission_auto.escape_held);
+ commission_code("ACTION_COMMIT_UPGRADE");assert(wcsstr(commission_auto_message(),L"never retried"));
+ commission_code("STATE_TREKKER_EDIT");assert(wcsstr(commission_auto_message(),L"training"));
  commission_code("ACTION_INTERACT");assert(wcsstr(commission_auto_message(),L"home character"));
  commission_code("STATE_ITEMS");assert(wcsstr(commission_auto_message(),L"Items Obtained"));
  commission_code("DONE");assert(commission_auto.terminal==1);commission_code("STATE_CLAIM");assert(wcsstr(commission_auto_message(),L"not auto-verified"));
@@ -23,7 +25,7 @@ int main(void){
  HWND fake=CreateWindowW(L"UnityWndClass",L"No-input fixture",WS_OVERLAPPEDWINDOW|WS_VISIBLE,10,10,200,120,NULL,NULL,instance,NULL);assert(fake);
  HWND owner=CreateWindowW(L"STATIC",L"Host fixture",WS_OVERLAPPED,300,300,100,100,NULL,NULL,instance,NULL);assert(owner);
  assert(!commission_start(owner,instance,fake,0));
- assert(commission_start(owner,instance,fake,576));BOOL in_job=FALSE;assert(IsProcessInJob(commission_auto.process,commission_auto.job,&in_job)&&in_job);
+ assert(commission_start(owner,instance,fake,588));BOOL in_job=FALSE;assert(IsProcessInJob(commission_auto.process,commission_auto.job,&in_job)&&in_job);
  ULONGLONG deadline=GetTickCount64()+25000;
  while(commission_auto.running&&GetTickCount64()<deadline){MSG msg;while(PeekMessageW(&msg,NULL,0,0,PM_REMOVE)){TranslateMessage(&msg);DispatchMessageW(&msg);}commission_poll(owner);Sleep(20);}
  assert(!commission_auto.running&&commission_auto.terminal==-1&&!commission_auto.process&&!commission_auto.job&&!commission_auto.pipe&&!commission_auto.script);

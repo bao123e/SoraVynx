@@ -14,7 +14,7 @@ static struct {
  char pending[128];size_t used;
  wchar_t message[256];
 } commission_auto;
-static const wchar_t *commission_auto_message(void){return commission_auto.message[0]?commission_auto.message:L"Start on the main screen for home interaction. The selected home and Commission tasks run once; F1 stops.";}
+static const wchar_t *commission_auto_message(void){return commission_auto.message[0]?commission_auto.message:L"Start on the main screen. Selected home, Disc, Trekker and Commission tasks run once; F1 stops.";}
 static void commission_status(const wchar_t *text){wcsncpy(commission_auto.message,text,255);commission_auto.message[255]=0;}
 /* Only enumerated progress codes cross the pipe; no OCR text or screenshot is returned. */
 static void commission_code(const char *code){
@@ -22,22 +22,31 @@ static void commission_code(const char *code){
  if(!strcmp(code,"UP_MOUSE")){commission_auto.mouse_held=false;return;}
  if(!strcmp(code,"HOLD_ESCAPE")){commission_auto.escape_held=true;return;}
  if(!strcmp(code,"UP_ESCAPE")){commission_auto.escape_held=false;return;}
- if(!strcmp(code,"DONE")){commission_auto.terminal=1;commission_status(L"Selected home / Commission inputs finished. Check daily progress in game; server completion is not auto-verified.");return;}
+ if(!strcmp(code,"DONE")){commission_auto.terminal=1;commission_status(L"Selected daily inputs finished. Check daily progress in game; server completion is not auto-verified.");return;}
  if(!strcmp(code,"NO_REWARDS")){commission_auto.terminal=2;commission_status(L"No enabled Claim All button found. No reward click was sent; check whether rewards are ready.");return;}
  if(!strncmp(code,"ERR_",4)){
   for(size_t i=0;code[i];i++)if(i>60||!((code[i]>='A'&&code[i]<='Z')||code[i]=='_')){commission_auto.terminal=-1;commission_status(L"Stopped: invalid helper output.");return;}
   commission_auto.terminal=-1;
   if(!strcmp(code,"ERR_OCR_LANGUAGE"))commission_status(L"English OCR is unavailable. Install English OCR in Windows language settings, then retry. No game input was sent.");
-  else if(!strcmp(code,"ERR_HOME_REQUIRED"))commission_status(L"Home interaction is USE. Return to the main screen, then start this run again.");
+  else if(!strcmp(code,"ERR_HOME_REQUIRED"))commission_status(L"Home interaction or upgrades are USE. Return to the main screen, then start this run again.");
   else swprintf(commission_auto.message,256,L"Commission stopped: %hs. Check the game; no blind retry was made.",code);
   return;
  }
  static const struct {const char *code;const wchar_t *text;} messages[]={
   {"READY",L"Screen reader ready. Keep the game focused; F1 or Disable all stops this run."},
-  {"STATE_HOME",L"Main screen recognized. Opening Commission."},{"STATE_CLAIM",L"Commission rewards recognized."},
+  {"STATE_HOME",L"Main screen recognized. Running selected daily tasks."},{"STATE_CLAIM",L"Commission rewards recognized."},
   {"STATE_STORY",L"Story overlay recognized (Esc Skip and Space Next)."},{"STATE_ITEMS",L"Items Obtained overlay recognized."},
   {"STATE_RESULT",L"Commission Complete and Dispatch Again recognized."},{"STATE_UNKNOWN",L"Waiting for a recognized Commission screen; no input on unknown screens."},
   {"STATE_NO_REWARDS",L"Claim All is not enabled."},
+  {"STATE_DISC_LIST",L"Disc list recognized."},{"STATE_TREKKER_LIST",L"Trekker list recognized."},
+  {"STATE_DISC_DETAILS",L"Disc details recognized."},{"STATE_TREKKER_DETAILS",L"Trekker details recognized."},
+  {"STATE_DISC_EDIT",L"Disc upgrade screen recognized."},{"STATE_TREKKER_EDIT",L"Trekker training screen recognized."},
+  {"ACTION_ENTER_DISC",L"Opening Disc list."},{"ACTION_ENTER_TREKKER",L"Opening Trekker list."},
+  {"ACTION_SELECT_LOW",L"Selecting the lowest readable visible level (1-10)."},
+  {"ACTION_OPEN_UPGRADE",L"Opening the selected item's upgrade screen."},
+  {"ACTION_PREPARE_LEVEL",L"Selecting materials with Upgrade 1 level."},
+  {"ACTION_COMMIT_UPGRADE",L"Confirming one upgrade; this spend is never retried in the run."},
+  {"ACTION_RETURN_HOME",L"Upgrade level change and cleared selection observed. Returning home."},
   {"ACTION_INTERACT",L"Touching the home character once at the center of the recognized home screen."},
   {"ACTION_OPEN",L"Opening Commission."},{"ACTION_CLAIM",L"Clicking the recognized Claim All button."},
   {"ACTION_ESC",L"Sending Esc to the recognized story overlay."},{"ACTION_CONTINUE",L"Closing the recognized Items Obtained overlay."},
@@ -87,8 +96,8 @@ static bool commission_script_matches(HANDLE file,const void *expected,DWORD byt
  bool ok=ReadFile(file,buffer,bytes,&read,NULL)&&read==bytes&&!memcmp(buffer,expected,bytes);free(buffer);return ok;
 }
 static bool commission_start(HWND owner,HMODULE module,HWND game,unsigned tasks){
- tasks&=(1u<<6)|(1u<<9);
- if(!tasks){commission_status(L"Set home interaction or Dispatch to USE first.");return false;}
+ tasks&=(1u<<2)|(1u<<3)|(1u<<6)|(1u<<9);
+ if(!tasks){commission_status(L"Set a supported daily task to USE first.");return false;}
  if(commission_auto.running)return false;
  wchar_t name[64],path[2048],exe[1024],command[4096];DWORD pid=0;
  if(!game||!IsWindow(game)||IsIconic(game)||!GetWindowThreadProcessId(game,&pid)||pid!=GetCurrentProcessId()||!GetClassNameW(game,name,64)||wcscmp(name,L"UnityWndClass")){commission_status(L"Open the game main screen or Commission before starting.");return false;}
@@ -139,7 +148,7 @@ static bool commission_start(HWND owner,HMODULE module,HWND game,unsigned tasks)
 static bool commission_poll(HWND owner){
  if(!commission_auto.running)return false;
  commission_read();DWORD exit_code=0;
- if(commission_auto.terminal<0||GetTickCount64()-commission_auto.started>100000){
+ if(commission_auto.terminal<0||GetTickCount64()-commission_auto.started>190000){
   wchar_t reason[256];wcscpy(reason,commission_auto_message());if(commission_auto.terminal>=0)wcscpy(reason,L"Commission stopped after its time limit.");commission_end(owner,true);commission_status(reason);return true;
  }
  if(!GetExitCodeProcess(commission_auto.process,&exit_code)||exit_code!=STILL_ACTIVE){
