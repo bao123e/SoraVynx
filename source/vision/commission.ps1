@@ -244,6 +244,20 @@ function Read-Observation($bitmap){
    }
   }
   $observation=Observe $read.Lines $read.Bitmap $tokens $read.Words
+  if($observation.State -in @('DISC_DETAILS','TREKKER_DETAILS','DISC_EDIT','TREKKER_EDIT')){
+   if($observation.Level -eq 0){
+    foreach($invert in @($false,$true)){
+     $crop=[CommissionDesktop]::Region($bitmap,.68,.12,.24,.20,$invert);$detail=$null
+     try{
+      $detail=Read-Image $crop
+      $mapped=@(foreach($word in $detail.Words){[pscustomobject]@{Text=$word.Text;X=.68+$word.X*.24;Y=.12+$word.Y*.20;W=$word.W*.24;H=$word.H*.20}})
+      $observation.Level=Visible-Level $mapped
+      if($SelfTest -and !$observation.Level){foreach($w in $detail.Words){[Console]::Out.WriteLine(('LEVEL CROP FIXTURE: [{0}] height {1:N3}' -f $w.Text,$w.H))}}
+      if($observation.Level -gt 0){break}
+     }finally{$crop.Dispose();if($detail){$detail.Bitmap.Dispose()}}
+    }
+   }
+  }
   if($observation.State -in @('DISC_LIST','TREKKER_LIST') -and $observation.Cards.Count -eq 0){
    foreach($invert in @($false,$true)){
     $crop=[CommissionDesktop]::Region($bitmap,.04,.30,.91,.58,$invert);$detail=$null
@@ -497,7 +511,7 @@ if($SelfTest){
       $g.FillRectangle([Drawing.Brushes]::WhiteSmoke,80,140,230,220)
       $g.DrawString('Lv.1',$smallFont,[Drawing.Brushes]::DarkBlue,100,320)
      }else{
-      $g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,135);$g.DrawString('/10',$smallFont,[Drawing.Brushes]::White,1045,165)
+      $g.DrawString(($kind+' Level'),$smallFont,[Drawing.Brushes]::White,800,165);$g.DrawString('1',$levelFont,[Drawing.Brushes]::White,990,135);$g.DrawString('/10',$smallFont,[Drawing.Brushes]::White,1045,165)
       if($screen -eq 'DETAILS'){
        if($kind -eq 'DISC'){$g.DrawString('Melody Skill',$smallFont,[Drawing.Brushes]::White,890,230);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,500,655)}
        else{$g.FillRectangle([Drawing.Brushes]::Turquoise,950,510,240,65);$g.DrawString('Upgrade',$smallFont,[Drawing.Brushes]::White,990,525)}
