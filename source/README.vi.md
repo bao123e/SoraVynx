@@ -1,3 +1,9 @@
+## Dùng kết quả Inspect thực tế để sửa Details — 1.3.2-upgrade-preview.5
+
+Inspect của chủ tool tại Details: Disc label 1, Header/House True, DetailsActive/UpgradeInactive True, hai cờ Melody/Harmony False, Commit False; editor thì nhận đúng DISC_EDIT và cấp 1. Vì vậy Details được nhận bằng caption Disc ở header cùng header/home icon và trạng thái hai tab đã được đo đúng; không còn bắt buộc cờ màu hai thanh kỹ năng khi caption đã xác nhận. Vẫn yêu cầu ngữ cảnh Disc đã chọn, trạng thái tab không mâu thuẫn và không có nút xác nhận editor. Khi không có caption, phương án hai thanh kỹ năng cũ vẫn có điều kiện đầy đủ.
+
+Kiểm thử dùng đúng vector cờ người dùng cung cấp và ảnh tổng hợp không có thanh kỹ năng để kiểm tra mở Upgrade mà chưa chi tiêu. Cổng kiểm tra cấp editor 1–9, chi phí 0, chọn nguyên liệu và xác nhận đúng một lần giữ nguyên. Inspect cập nhật có thêm caption header và chi phí editor để đối chiếu nếu cần. Bản sửa cần xác nhận bằng auto trên game thật.
+
 ## Nhận diện bố cục Disc và kiểm tra chỉ đọc — 1.3.2-upgrade-preview.4
 
 Chủ tool gửi ảnh ERR_UNKNOWN_SCREEN ở Claw the Claw 1/10; nhánh thử lại mở tab trong preview.3 chưa được chạy vì chưa nhận ra màn hình. Preview.4 thêm nhận diện quang học có ngữ cảnh: chỉ khi lượt hiện tại đã mở thẻ Disc, yêu cầu đồng thời header/home icon, trạng thái thanh tab và hai thanh kỹ năng của Details hoặc các nút vật liệu/xác nhận ở editor. Không tự áp dụng bố cục Disc cho Trekker hay cửa sổ chưa có thẻ được mở. Bố cục thiếu hoặc bị làm tối sẽ bị từ chối.

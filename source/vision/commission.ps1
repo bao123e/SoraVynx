@@ -323,17 +323,23 @@ function Disc-Layout-Checks($bitmap){
   Commit=(Color-Patch $bitmap .73 .736 .08 .007 'CYAN')
  }
 }
-function Disc-Layout($bitmap,$session){
+function Disc-Layout-FromChecks($c,$session,[bool]$discCaption=$false){
  if(!$session -or $session.UpgradeKind -ne 'DISC'){return $null}
- $c=Disc-Layout-Checks $bitmap
  if(!$c.Header -or !$c.House){return $null}
- if($session.UpgradePhase -in @('DETAILS','EDIT') -and $c.DetailsActive -and $c.UpgradeInactive -and $c.Melody -and $c.Harmony){
+ # Actual owner inspection: header/tab checks succeed, skill-band color
+ # checks fail. A localized Disc caption supplies the independent page anchor.
+ $detailAnchor=$discCaption -or ($c.Melody -and $c.Harmony)
+ if($session.UpgradePhase -in @('DETAILS','EDIT') -and $c.DetailsActive -and !$c.DetailsInactive -and $c.UpgradeInactive -and !$c.UpgradeActive -and !$c.Commit -and $detailAnchor){
   return [pscustomobject]@{State='DISC_DETAILS';X=.435;Y=.923;Level=0;Layout=$true}
  }
  if($session.UpgradePhase -in @('EDIT','PREPARED','VERIFY') -and $c.UpgradeActive -and $c.DetailsInactive -and $c.OnePill -and $c.MaxPill -and $c.Commit){
   return [pscustomobject]@{State='DISC_EDIT';X=0.0;Y=0.0;Level=0;Cost=-1;OneX=.72;OneY=.657;CommitX=.785;CommitY=.763;Layout=$true}
  }
  return $null
+}
+function Disc-Layout($bitmap,$session,[bool]$discCaption=$false){
+ if(!$session -or $session.UpgradeKind -ne 'DISC'){return $null}
+ return Disc-Layout-FromChecks (Disc-Layout-Checks $bitmap) $session $discCaption
 }
 function Read-Observation($bitmap,$session=$null){
  $read=Read-Image $bitmap
@@ -349,7 +355,7 @@ function Read-Observation($bitmap,$session=$null){
    }
   }
   $observation=Observe $read.Lines $read.Bitmap $tokens $read.Words
-  if($observation.State -eq 'UNKNOWN'){$layout=Disc-Layout $bitmap $session;if($layout){$observation=$layout}}
+  if($observation.State -eq 'UNKNOWN'){$discCaption=@(Label $read.Lines 'disc' 0 .30 0 .12).Count -eq 1;$layout=Disc-Layout $bitmap $session $discCaption;if($layout){$observation=$layout}}
   if($observation.State -eq 'UNKNOWN'){
    $regions=@(@(.08,.015,.23,.085),@(.69,.18,.29,.09),@(.69,.52,.29,.08),@(.35,.89,.15,.075))
    foreach($region in $regions){
@@ -839,6 +845,28 @@ if($SelfTest){
   Check ($null -eq (Disc-Layout $bitmap $null)) 'Disc layout fallback ran without an established candidate'
   Paint-Region ([Drawing.Brushes]::DarkBlue) .70 .50 .25 .06
   Check ($null -eq (Disc-Layout $bitmap $session)) 'Partial layout was accepted'
+  # Regression uses the exact boolean vector reported by the owner on
+  # Details: header/house and tabs agree, both skill colors fail, white skill
+  # panels also trigger OnePill/MaxPill. Those do not make this an editor.
+  $reported=[pscustomobject]@{Header=$true;House=$true;DetailsActive=$true;DetailsInactive=$false;UpgradeActive=$false;UpgradeInactive=$true;Melody=$false;Harmony=$false;OnePill=$true;MaxPill=$true;Commit=$false}
+  $recovered=Disc-Layout-FromChecks $reported $session $true
+  Check ($recovered.State -eq 'DISC_DETAILS') 'Owner-reported Details flags were rejected'
+  Check ($null -eq (Disc-Layout-FromChecks $reported $session $false)) 'Missing caption and missing skill anchors were accepted'
+  Check ($null -eq (Disc-Layout-FromChecks $reported $wrong $true)) 'Caption recovery escaped Disc task context'
+  $reported.UpgradeActive=$true
+  Check ($null -eq (Disc-Layout-FromChecks $reported $session $true)) 'Conflicting active tabs were accepted'
+  $reported.UpgradeActive=$false;$reported.Commit=$true
+  Check ($null -eq (Disc-Layout-FromChecks $reported $session $true)) 'Details/editor conflict was accepted'
+  Paint-DiscLayout $false
+  Paint-Region ([Drawing.Brushes]::DarkBlue) .70 .18 .25 .06
+  Paint-Region ([Drawing.Brushes]::DarkBlue) .70 .50 .25 .06
+  Paint-Region ([Drawing.Brushes]::White) .70 .62 .25 .07
+  $g.DrawString('Disc',$font,[Drawing.Brushes]::White,[single](.12*$bitmap.Width),[single](.03*$bitmap.Height));$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+  $session=New-Session 4;$session.Actions=2;$session.UpgradeKind='DISC';$session.UpgradePhase='DETAILS'
+  $o=Read-Observation $bitmap $session
+  Check ($o.State -eq 'DISC_DETAILS' -and $o.Layout) 'Real OCR caption plus owner-matching layout failed'
+  Check ((Next-Action $session $o 3000) -eq 'OPEN_UPGRADE') 'Owner-matching Details did not advance into editor'
+  Check ($session.UpgradeCommits -eq 0) 'Caption recovery sent a spend'
   Paint-DiscLayout $true
   $o=Read-Observation $bitmap $session
   Check ($o.State -eq 'DISC_EDIT' -and $o.Layout -and $o.Level -eq 0) 'Text-free editor layout was not identified'
@@ -873,11 +901,13 @@ if($Inspect){
   foreach($name in @('disc','melodyskill','harmonyskill','upgrade')){
    [Console]::Out.WriteLine(('Known label {0}: {1}' -f $name,@(Label $read.Lines $name 0 1 0 1).Count))
   }
+  [Console]::Out.WriteLine(('Disc header caption: {0}' -f @(Label $read.Lines 'disc' 0 .30 0 .12).Count))
   $facts=Disc-Layout-Checks $snapshot
   foreach($property in $facts.PSObject.Properties){[Console]::Out.WriteLine(('Layout {0}: {1}' -f $property.Name,$property.Value))}
   $context=New-Session 4;$context.UpgradeKind='DISC';$context.UpgradePhase='EDIT'
   $observed=Read-Observation $snapshot $context
   [Console]::Out.WriteLine(('Recognized state: {0}; editor level (0 = not validated): {1}' -f $observed.State,$observed.Level))
+  $editorCost=-1;if($observed.State -eq 'DISC_EDIT'){$editorCost=$observed.Cost};[Console]::Out.WriteLine(('Editor cost (-1 = not validated): {0}' -f $editorCost))
  }catch{[Console]::Out.WriteLine('READ_ONLY_INSPECTION_FAILED: keep the unobscured Unity game foreground and try again.')}finally{if($read){$read.Bitmap.Dispose()};if($snapshot){$snapshot.Dispose()}}
  exit 0
 }
