@@ -95,6 +95,7 @@ public static class CommissionDesktop {
    }
   }
  }
+ public static bool DebugNumbers=false;
  static int Classify(bool[] sample,bool tilted){
   var templates=tilted?CostTemplates:DigitTemplates;var digits=tilted?CostTemplateDigits:TemplateDigits;
   var scores=new double[10];for(int d=0;d<10;d++)scores[d]=1;
@@ -109,6 +110,7 @@ public static class CommissionDesktop {
   }
   int winner=0;for(int d=1;d<10;d++)if(scores[d]<scores[winner])winner=d;
   double runner=1;for(int d=0;d<10;d++)if(d!=winner)runner=Math.Min(runner,scores[d]);
+  if(DebugNumbers)Console.Out.WriteLine("NUMERIC FIXTURE digit="+winner+" error="+scores[winner]+" runner="+runner);
   return scores[winner]<=0.30&&runner-scores[winner]>=0.035?winner:-1;
  }
  public static int Number(Bitmap source,double rx,double ry,double rw,double rh,bool bright,double minHeight,double maxHeight){return ReadNumber(source,rx,ry,rw,rh,bright,minHeight,maxHeight,false);}
@@ -122,10 +124,15 @@ public static class CommissionDesktop {
   for(int p=0;p<mask.Length;p++)if(mask[p]&&!seen[p]){
    int head=0,tail=0,l=w,t=h,r=0,bt=0;queue[tail++]=p;seen[p]=true;
    while(head<tail){int v=queue[head++],x=v%w,y=v/w;l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);bt=Math.Max(bt,y);
-    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){int nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;int n=ny*w+nx;if(mask[n]&&!seen[n]){seen[n]=true;queue[tail++]=n;}}
+    for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){if(tilted&&Math.Abs(dx)+Math.Abs(dy)!=1)continue;int nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;int n=ny*w+nx;if(mask[n]&&!seen[n]){seen[n]=true;queue[tail++]=n;}}
    }
    int ch=bt-t+1,cw=r-l+1;
-   if(l>0&&t>0&&r<w-1&&bt<h-1&&ch>=minHeight*source.Height&&ch<=maxHeight*source.Height&&cw>=2&&cw<=ch*1.1)components.Add(new[]{l,t,cw,ch});
+   if(l>0&&t>0&&r<w-1&&bt<h-1&&ch>=minHeight*source.Height&&ch<=maxHeight*source.Height&&cw>=2){
+    if(DebugNumbers)Console.Out.WriteLine("NUMERIC FIXTURE box="+l+","+t+","+cw+","+ch);
+    // Never drop a digit-height merged glyph group and parse only its suffix.
+    if(tilted&&cw>ch*1.1)return -1;
+    if(cw<=ch*1.1)components.Add(new[]{l,t,cw,ch});
+   }
   }
   if(components.Count==0)return -1;int tallest=0;foreach(var c in components)tallest=Math.Max(tallest,c[3]);
   components.RemoveAll(c=>c[3]<tallest*0.80);components.Sort((a,b)=>a[0].CompareTo(b[0]));
@@ -1006,6 +1013,7 @@ if($SelfTest){
      }finally{$g.Restore($saved)}
      $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
      $readCost=Read-Disc-Cost $bitmap
+     if($readCost -ne $item[1]){[CommissionDesktop]::DebugNumbers=$true;try{$null=Read-Disc-Cost $bitmap}finally{[CommissionDesktop]::DebugNumbers=$false}}
      Check ($readCost -eq $item[1]) ('Tilted icon-bearing cost failed at '+$angle+': '+$item[0]+' -> '+$readCost)
     }
    }
