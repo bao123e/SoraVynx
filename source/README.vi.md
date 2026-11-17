@@ -1,3 +1,11 @@
+## Cấp xem trước màu xanh / điểm đóng Power Up — 1.3.3-trekker-preview.2
+
+Inspect thực tế của Disc: DISC_EDIT, cấp 0, chi phí 250; ảnh cho thấy cấp xem trước màu xanh là 3. Bộ mask cũ yêu cầu R>150, loại mất phần màu xanh có kênh đỏ thấp. Thêm nhánh màu xanh cho bộ đọc cấp (không thay bộ số giá), vẫn loại nền cyan và không coi thanh XP/dòng 910/1150 là cấp. Giữ nguyên điều kiện cấp xem trước tăng so với ban đầu và chi phí >0 trước xác nhận, không suy đoán cấp hay bỏ cổng kiểm tra.
+
+Ảnh Trekker xác nhận lên cấp 2 nhưng không đóng được Power Up. Chủ tool đã thử và xác nhận nhấp vùng tối phía dưới, giữa màn ở 85% chiều cao đóng được. Chuyển điểm đóng từ vùng trắng của bảng sang đúng điểm nền này cho cả Disc và Trekker. Giữ nhận diện bảng sau xác nhận, tối đa hai nhấp có kiểm tra lại, kiểm tra Training/editor sau khi đóng rồi mới về Home; không lặp nâng.
+
+Kiểm thử mới tái hiện cấp Disc 2->3 xanh, phí 250, thanh XP xanh và chữ 910/1150, các trường hợp thiếu cấp/chi phí không được xác nhận, và tọa độ nền đóng bảng do chủ tool xác nhận. Bản sửa cần thử lại auto trong game. Có thể dùng key cũ và toàn bộ ZIP mới; bắt đầu từ Home, chỉ USE bước muốn thử. Không cần nâng lại Trekker đã hoàn thành chỉ để thử đóng bảng.
+
 ## Trekker Details / Training riêng — 1.3.3-trekker-preview.1
 
 Nối đầy đủ luồng Trekker theo các ảnh chủ tool đã gửi: Home -> Trekker List (6 cột) -> Trekker Details -> nút Upgrade bên phải -> Trekker Training -> Upgrade 1 level -> xác nhận một lần -> Power Up -> kiểm tra Training thấy cấp mới và chi phí 0 -> Home. Chọn Upgrade Trekker once USE, các mục khác SKIP để thử riêng, bấm Run selected daily steps. Giữ key hiện tại, giải nén toàn bộ ZIP và khởi động lại game/tool cũ.

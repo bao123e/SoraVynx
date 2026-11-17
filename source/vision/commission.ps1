@@ -117,7 +117,7 @@ public static class CommissionDesktop {
   MakeDigits(tilted);int left=(int)(rx*source.Width),top=(int)(ry*source.Height),w=(int)(rw*source.Width),h=(int)(rh*source.Height);
   var mask=new bool[w*h];var seen=new bool[w*h];var queue=new int[w*h];var components=new System.Collections.Generic.List<int[]>();
   for(int y=0;y<h;y++)for(int x=0;x<w;x++){
-   Color c=source.GetPixel(left+x,top+y);mask[y*w+x]=bright?(c.R>150&&c.G>140&&(c.B<180||(c.R>190&&c.G>190&&c.B>190))):(c.R<130&&c.G<150&&c.B<220);
+   Color c=source.GetPixel(left+x,top+y);mask[y*w+x]=bright?((c.R>150&&c.G>140&&(c.B<180||(c.R>190&&c.G>190&&c.B>190)))||(!tilted&&c.R>=80&&c.G>=145&&c.G-c.R>=20&&c.B<=155)):(c.R<130&&c.G<150&&c.B<220);
   }
   for(int p=0;p<mask.Length;p++)if(mask[p]&&!seen[p]){
    int head=0,tail=0,l=w,t=h,r=0,bt=0;queue[tail++]=p;seen[p]=true;
@@ -424,7 +424,7 @@ function Upgrade-Result-Overlay($bitmap,$session){
     (Color-Patch $bitmap .82 .36 .14 .025 'CYAN') -and
     (Color-Patch $bitmap .05 .46 .16 .13 'WHITE') -and
     (Color-Patch $bitmap .80 .46 .15 .13 'WHITE')){
-  return [pscustomobject]@{State='POWER_UP';X=.80;Y=.50}
+  return [pscustomobject]@{State='POWER_UP';X=.50;Y=.85}
  }
  return $null
 }
@@ -995,7 +995,7 @@ if($SelfTest){
   $bubbleFont=[Drawing.Font]::new('Segoe UI',18,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
   try{
    foreach($angle in @(-8,0,8)){
-    foreach($item in @(@('0',0),@('100',100),@('2,860',2860))){
+    foreach($item in @(@('0',0),@('100',100),@('250',250),@('2,860',2860))){
      $g.Clear([Drawing.Color]::FromArgb(60,95,155));$saved=$g.Save()
      try{
       $g.TranslateTransform([single](.817*$bitmap.Width),[single](.69*$bitmap.Height));$g.RotateTransform([single]$angle)
@@ -1028,6 +1028,7 @@ if($SelfTest){
    $o=Read-Observation $bitmap $session
    Check ($o.State -eq 'POWER_UP') 'Committed upgrade result was not recognized'
    Check ((Next-Action $session $o 2200) -eq 'CLOSE_POWER_UP') 'Power Up dismissal missing'
+   Check ([Math]::Abs($session.TargetX-.50) -lt .001 -and [Math]::Abs($session.TargetY-.85) -lt .001) 'Power Up click was not moved to the owner-confirmed dark backdrop'
    Check ($session.UpgradeCommits -eq 1 -and !$session.DiscDone -and !$session.TrekkerDone -and $session.UpgradePhase -eq 'VERIFY') 'Overlay alone proved completion or sent another spend'
    Check ((Next-Action $session $o 3000) -eq 'WAIT') 'Power Up dismissal did not settle'
    $editor=[pscustomobject]@{State=($kind+'_EDIT');Level=2;Cost=0}
@@ -1123,7 +1124,7 @@ if($SelfTest){
    Check ($session.TargetX -gt .125 -and $session.UpgradeCommits -eq 0) 'Capped Training candidate repeated or spent materials'
    # Training prices have their own icon and vertical offset.
    foreach($angle in @(-8,0,8)){
-    foreach($item in @(@('0',0),@('100',100),@('2,860',2860))){
+    foreach($item in @(@('0',0),@('100',100),@('250',250),@('2,860',2860))){
      $g.Clear([Drawing.Color]::FromArgb(60,95,155));$saved=$g.Save()
      try{
       $g.TranslateTransform([single](.834*$bitmap.Width),[single](.755*$bitmap.Height));$g.RotateTransform([single]$angle)
@@ -1146,6 +1147,43 @@ if($SelfTest){
     Check ($null -eq (Trekker-Layout $bitmap $session $read.Lines)) 'Dimmed Training layout was accepted'
    }finally{$read.Bitmap.Dispose()}
   }finally{$tkFont.Dispose();$tkSmall.Dispose();$tkHeader.Dispose()}
+  # Exact owner observation: prepared Disc 2 -> green 3, cost 250 was read
+  # correctly but the green counter returned 0. Do not bypass either guard.
+  $previewFont=[Drawing.Font]::new('Segoe UI',56,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  $previewPrice=[Drawing.Font]::new('Segoe UI',18,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  $previewInk=[Drawing.SolidBrush]::new([Drawing.Color]::FromArgb(145,185,75))
+  try{
+   Paint-DiscLayout $true
+   $g.DrawString('3',$previewFont,$previewInk,[single](.74*$bitmap.Width),[single](.16*$bitmap.Height))
+   Paint-Region $previewInk .62 .256 .27 .020
+   $g.DrawString('910/1150',$previewPrice,[Drawing.Brushes]::White,[single](.76*$bitmap.Width),[single](.257*$bitmap.Height))
+   $saved=$g.Save()
+   try{
+    $g.TranslateTransform([single](.817*$bitmap.Width),[single](.69*$bitmap.Height));$g.RotateTransform(8)
+    $g.FillRectangle([Drawing.Brushes]::White,0,0,180,34);$g.FillRectangle([Drawing.Brushes]::DarkSlateBlue,8,1,18,29)
+    $g.DrawString('250',$previewPrice,[Drawing.Brushes]::DarkSlateBlue,38,4)
+   }finally{$g.Restore($saved)}
+   $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+   Check (([CommissionDesktop]::Number($bitmap,.72,.12,.14,.20,$true,.032,.10)) -eq 3) 'Green preview counter was omitted or XP text/bar was parsed as the level'
+   $session=New-Session 4;$session.Actions=4;$session.UpgradeKind='DISC';$session.UpgradePhase='PREPARED';$session.BeforeLevel=2;$session.Last=1000;$session.UpgradeAt=1000
+   $o=Read-Observation $bitmap $session
+   Check ($o.State -eq 'DISC_EDIT' -and $o.Level -eq 3 -and $o.Cost -eq 250) ('Owner-matching green/cost scene failed: '+$o.State+'/'+$o.Level+'/'+$o.Cost)
+   Check ((Next-Action $session $o 2200) -eq 'COMMIT_UPGRADE') 'Verified green preview 2->3 / cost 250 did not continue'
+   Check ((Next-Action $session $o 4000) -eq 'WAIT') 'Uncleared preview sent a repeated upgrade'
+   Check ($session.UpgradeCommits -eq 1) 'Green preview caused duplicate confirmation'
+   foreach($bad in @([pscustomobject]@{State='DISC_EDIT';Level=0;Cost=250},[pscustomobject]@{State='DISC_EDIT';Level=3;Cost=0},[pscustomobject]@{State='DISC_EDIT';Level=2;Cost=250})){
+    $session=New-Session 4;$session.Actions=4;$session.UpgradeKind='DISC';$session.UpgradePhase='PREPARED';$session.BeforeLevel=2;$session.Last=1000;$session.UpgradeAt=1000
+    Check ((Next-Action $session $bad 2200) -eq 'WAIT') 'Prepared-level/cost guard was weakened'
+    Check ($session.UpgradeCommits -eq 0) 'Unverified preparation spent resources'
+   }
+   $g.Clear([Drawing.Color]::FromArgb(30,50,100));Paint-Region $previewInk .62 .256 .27 .020
+   $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+   Check (([CommissionDesktop]::Number($bitmap,.72,.12,.14,.20,$true,.032,.10)) -eq -1) 'Green XP bar with no level invented a counter'
+   $g.Clear([Drawing.Color]::FromArgb(30,50,100))
+   $g.DrawString('3',$previewFont,$previewInk,[single](.760*$bitmap.Width),[single](.20*$bitmap.Height));$g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+   $r=Trekker-Level-Region 'TREKKER_EDIT'
+   Check (([CommissionDesktop]::Number($bitmap,$r.X,$r.Y,$r.W,$r.H,$true,.032,.10)) -eq 3) 'Green Training preview did not use its own counter region'
+  }finally{$previewFont.Dispose();$previewPrice.Dispose();$previewInk.Dispose()}
   Signal 'SELF_TEST_PASS'
  }finally{$g.Dispose();$bitmap.Dispose();if($font){$font.Dispose()}}
  exit 0
