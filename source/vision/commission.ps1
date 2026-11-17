@@ -86,12 +86,15 @@ public static class CommissionDesktop {
  static void MakeDigits(bool tilted){
   var templates=tilted?CostTemplates:DigitTemplates;var digits=tilted?CostTemplateDigits:TemplateDigits;
   if(templates.Count!=0)return;
-  foreach(string family in new[]{"Segoe UI","Arial","Calibri","Tahoma","Verdana"})foreach(FontStyle style in new[]{FontStyle.Regular,FontStyle.Bold})for(int digit=0;digit<10;digit++)foreach(int angle in tilted?new[]{-12,-6,0,6,12}:new[]{0}){
-   using(var b=new Bitmap(100,100))using(var g=Graphics.FromImage(b))using(var f=new Font(family,64,style,GraphicsUnit.Pixel)){
+  foreach(string family in new[]{"Segoe UI","Arial","Calibri","Tahoma","Verdana"})foreach(FontStyle style in new[]{FontStyle.Regular,FontStyle.Bold})for(int digit=0;digit<10;digit++)foreach(float pixelSize in tilted?new[]{18f,24f,64f}:new[]{64f})foreach(int angle in tilted?new[]{-12,-8,0,8,12}:new[]{0}){
+   using(var b=new Bitmap(100,100))using(var g=Graphics.FromImage(b))using(var f=new Font(family,pixelSize,style,GraphicsUnit.Pixel)){
     g.Clear(Color.Black);g.TranslateTransform(25,10);g.RotateTransform(angle);g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;g.DrawString(digit.ToString(),f,Brushes.White,0,0);g.Flush();
-    var mask=new bool[10000];int l=100,t=100,r=0,bt=0;
-    for(int y=0;y<100;y++)for(int x=0;x<100;x++)if(b.GetPixel(x,y).R>150){mask[y*100+x]=true;l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);bt=Math.Max(bt,y);}
-    if(r>=l&&bt>=t){templates.Add(Normalize(mask,100,l,t,r-l+1,bt-t+1));digits.Add(digit);}
+    var intensity=new byte[10000];for(int y=0;y<100;y++)for(int x=0;x<100;x++)intensity[y*100+x]=b.GetPixel(x,y).R;
+    foreach(int cutoff in tilted?new[]{150,175}:new[]{150}){
+     var mask=new bool[10000];int l=100,t=100,r=0,bt=0;
+     for(int y=0;y<100;y++)for(int x=0;x<100;x++)if(intensity[y*100+x]>cutoff){mask[y*100+x]=true;l=Math.Min(l,x);t=Math.Min(t,y);r=Math.Max(r,x);bt=Math.Max(bt,y);}
+     if(r>=l&&bt>=t){templates.Add(Normalize(mask,100,l,t,r-l+1,bt-t+1));digits.Add(digit);}
+    }
    }
   }
  }
