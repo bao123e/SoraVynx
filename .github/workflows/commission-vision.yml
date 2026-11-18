@@ -1,0 +1,24 @@
+name: Commission vision capability
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe built-in English OCR
+        shell: powershell
+        run: ./source/vision/probe.ps1
+      - name: Test real OCR and Commission state transitions without desktop input
+        shell: powershell
+        run: ./source/vision/commission.ps1 -SelfTest
+      - name: Keep synthetic fixture on a failed test only
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-ocr-fixture
+          path: ${{ runner.temp }}/ocr-fixture-*.png
+          if-no-files-found: ignore

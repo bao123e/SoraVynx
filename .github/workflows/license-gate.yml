@@ -2,7 +2,7 @@ name: Verify Windows license gate
 on:
   workflow_dispatch:
   push:
-    branches: [feature/license-gate, feature/key-recovery, fix/startup-compatibility-report, fix/dorm-claim-gifts, fix/claim-gifts-marked-click, feature/daily-dispatch-preview, feature/commission-ui-steps, fix/claim-all-double-click]
+    branches: [feature/license-gate, feature/key-recovery, fix/startup-compatibility-report, fix/dorm-claim-gifts, fix/claim-gifts-marked-click, feature/daily-dispatch-preview, feature/commission-ui-steps, fix/claim-all-double-click, feature/commission-vision]
     paths: ['source/**', 'licensing/**', '.github/workflows/license-gate.yml']
 permissions:
   contents: write
@@ -27,11 +27,14 @@ jobs:
       - name: Verify startup status and clipboard on Windows without game execution
         shell: pwsh
         run: |
-          zig cc -target x86_64-windows-gnu -O2 -UNDEBUG -std=c11 -Wall -Wextra -Werror -Wno-unused-function source/tests/startup_windows_test.c source/api.c source/backend.c source/vendor/minhook/src/hook.c source/vendor/minhook/src/buffer.c source/vendor/minhook/src/trampoline.c source/vendor/minhook/src/hde/hde64.c source/dist/ui.res -Isource/vendor/minhook/include -lgdiplus -lcomdlg32 -lmsimg32 -luser32 -lgdi32 -lkernel32 -lbcrypt -lwinhttp -lcrypt32 -ladvapi32 -o "$env:RUNNER_TEMP/startup-test.exe"
+          zig cc -target x86_64-windows-gnu -O2 -UNDEBUG -std=c11 -Wall -Wextra -Werror -Wno-unused-function source/tests/startup_windows_test.c source/api.c source/backend.c source/vendor/minhook/src/hook.c source/vendor/minhook/src/buffer.c source/vendor/minhook/src/trampoline.c source/vendor/minhook/src/hde/hde64.c source/dist/ui.res -Isource/vendor/minhook/include -lgdiplus -lcomdlg32 -lcomctl32 -lmsimg32 -luser32 -lgdi32 -lkernel32 -lbcrypt -lwinhttp -lcrypt32 -ladvapi32 -o "$env:RUNNER_TEMP/startup-test.exe"
           & "$env:RUNNER_TEMP/startup-test.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Startup status/clipboard regression failed' }
       - name: Verify deferred Lua bridge and report clipboard
         run: python source/test_report_windows.py --zig zig
+      - name: Test real English OCR and Commission action planning without game input
+        shell: powershell
+        run: ./source/vision/commission.ps1 -SelfTest
       - name: Prepare ephemeral issuer and native verifier
         shell: pwsh
         run: |
@@ -74,15 +77,15 @@ jobs:
         run: |
           tag="v$(python -c "import json; print(json.load(open('source/dist/build.json'))['version'])")"
           cat > "$RUNNER_TEMP/customer-notes.md" <<'NOTES'
-          Claim All double-click preview, requested after the owner's marked point was correct but the game button did not react. Add a per-target Single/Double mode; Claim All defaults to Double, other targets retain Single. This does not prove the cause of the original missed click or that the game will accept this new input.
+          Auto Daily and menu preview: Disc/Trekker candidates at levels 1–89 are eligible; levels >=90 are skipped. Each upgrade uses Upgrade 1 level and one final confirmation, then closes Power Up at the lower dark backdrop, verifies the cleared cost/new level and returns home. The owner has observed real Disc and Trekker Power Up results; changes in this release still require live-game verification.
 
-          Close the old game/tool, extract the matching EXE/DLL pair and use the existing key. Open Commission, choose Target: Claim All and leave Dispatch 1 commission at USE. Confirm Clicks: Double. F1 hides the tool; hover CLAIM ALL and F9 marks without clicking. F1 restores the tool; press Claim All / status once. Keep hands off the mouse while the short batch runs, then send the result screenshot. Coordinates must be marked again in the new game session. Do not manually claim or advance to auto-team/start yet.
+          Live actions now require two matching observations at least 400 ms apart, wait up to 30 seconds per transition, and stop after six minutes total. Unknown or unreadable numeric frames do not authorize input. Navigation may retry within its bound; the final upgrade confirmation is never repeated. Unreadable editor levels additionally use a narrow yellow/green current-counter crop that excludes /cap, XP and neighboring ascension diamonds; two-digit 13/35/89/90 fixtures cover both editor profiles. Inspect reports whether another OS window covers the level region. Close error dialogs before inspecting.
 
-          Timing: 350 ms focus settle, 80 ms DOWN hold, 120 ms gap after the first UP, then the second 80 ms DOWN/UP at the same point, followed by 100 ms at the target before cursor restoration. Keep the cursor at the marked point between click pairs and restore only after the final release. Before the second DOWN recheck focus, client dimensions, point ownership, window position, cursor position and mouse-up state. Changes/cancellation suppress the second press; an owned press is always released when cancellation is processed. One batch is capped per target/session, with no automatic repeat. If the first click already acted, a skipped second click is reported without claiming server confirmation.
+          The menu starts hidden and remains centered on the game client. F1 shows/hides and stops Auto Daily; F6/F7/F8 retain Event shortcuts; F9 retains manual point marking. Ctrl+Alt+1..5 toggle the five Player features, Ctrl+Alt+9 starts/stops selected daily steps, Ctrl+Alt+0 disables all. The Keybinds button now edits all twelve shortcuts using native hotkey fields with Save, Cancel and Reset defaults. Bindings persist in config.ini; duplicate/unavailable shortcuts reject Save and preserve the previous configuration. All listed keys are initial defaults and can be changed. Feature shortcuts require the game or menu foreground.
 
-          Windows tests verify the actual helper with fake input APIs: four input events in order, no cursor restore in the gap, no duplicate batch, focus/cover/resize/cursor/mouse guards between clicks and cancellation in either half. Single clicks also get the final 100 ms cursor settle delay so game UP processing is not immediately followed by a pointer jump. Existing per-target, startup/clipboard and license tests remain. Player/Event and issuer are unchanged, no production log files. Claim All gameplay remains unverified on this new build.
+          Extract the WHOLE ZIP, preserving automation/commission.ps1 beside EXE/DLL. Exit the old game/tool first, use the existing key, press F1 and wait for READY. Start on Home, select supported USE/SKIP steps in Auto Daily, then Run selected daily steps. Home interaction, Disc, Trekker and Commission are supported previews; Shop remains skipped. Keep the game foreground and avoid resizing it. Local OCR uses memory only; no screenshot, account text or log is saved. Issuer and access keys are unchanged.
           NOTES
-          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - Claim All double-click preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
+          gh release create "$tag" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip" "$RUNNER_TEMP/SoraVynx-${tag#v}-win64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SoraVynx $tag - Daily wait and centered menu preview" --notes-file "$RUNNER_TEMP/customer-notes.md" --prerelease --latest=false
       - name: Upload owner-configured customer build only
         if: steps.issuer.outputs.configured == 'true'
         uses: actions/upload-artifact@v4

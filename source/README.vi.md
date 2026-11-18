@@ -1,3 +1,101 @@
+## Điều kiện chọn cấp dưới 90 — 1.3.3-trekker-preview.2
+
+Theo yêu cầu mới của chủ tool, cả Disc và Trekker chỉ bỏ qua mục từ cấp 90 trở lên; cấp 1–89 đều được chọn, không còn ngưỡng 10. Áp dụng ở danh sách, màn chi tiết và màn nâng trước chọn nguyên liệu. Nâng từ 89 lên 90 vẫn được xác nhận đúng một lần rồi về Home. Các cổng đọc cấp, chọn nguyên liệu 1 level, chi phí hợp lệ và kiểm tra kết quả giữ nguyên; điều kiện chọn không tự mở khóa mốc nâng của game.
+
+Bản này đồng thời sửa đọc cấp xem trước màu xanh theo Inspect thực tế (cấp 0 nhưng ảnh là 3, giá 250) và dùng điểm nền tối dưới Power Up (50%, 85%) do chủ tool xác nhận đóng được. Kiểm thử có biên 10/35/89 được chọn, 90 bị bỏ, 89->90 được nâng, màu xanh/giá 250, không lặp xác nhận và điểm nhấp nền đúng. Cần xác nhận các lượt auto trên game thật.
+
+## Cấp xem trước màu xanh / điểm đóng Power Up — 1.3.3-trekker-preview.2
+
+Inspect thực tế của Disc: DISC_EDIT, cấp 0, chi phí 250; ảnh cho thấy cấp xem trước màu xanh là 3. Bộ mask cũ yêu cầu R>150, loại mất phần màu xanh có kênh đỏ thấp. Thêm nhánh màu xanh cho bộ đọc cấp (không thay bộ số giá), vẫn loại nền cyan và không coi thanh XP/dòng 910/1150 là cấp. Giữ nguyên điều kiện cấp xem trước tăng so với ban đầu và chi phí >0 trước xác nhận, không suy đoán cấp hay bỏ cổng kiểm tra.
+
+Ảnh Trekker xác nhận lên cấp 2 nhưng không đóng được Power Up. Chủ tool đã thử và xác nhận nhấp vùng tối phía dưới, giữa màn ở 85% chiều cao đóng được. Chuyển điểm đóng từ vùng trắng của bảng sang đúng điểm nền này cho cả Disc và Trekker. Giữ nhận diện bảng sau xác nhận, tối đa hai nhấp có kiểm tra lại, kiểm tra Training/editor sau khi đóng rồi mới về Home; không lặp nâng.
+
+Kiểm thử mới tái hiện cấp Disc 2->3 xanh, phí 250, thanh XP xanh và chữ 910/1150, các trường hợp thiếu cấp/chi phí không được xác nhận, và tọa độ nền đóng bảng do chủ tool xác nhận. Bản sửa cần thử lại auto trong game. Có thể dùng key cũ và toàn bộ ZIP mới; bắt đầu từ Home, chỉ USE bước muốn thử. Không cần nâng lại Trekker đã hoàn thành chỉ để thử đóng bảng.
+
+## Trekker Details / Training riêng — 1.3.3-trekker-preview.1
+
+Nối đầy đủ luồng Trekker theo các ảnh chủ tool đã gửi: Home -> Trekker List (6 cột) -> Trekker Details -> nút Upgrade bên phải -> Trekker Training -> Upgrade 1 level -> xác nhận một lần -> Power Up -> kiểm tra Training thấy cấp mới và chi phí 0 -> Home. Chọn Upgrade Trekker once USE, các mục khác SKIP để thử riêng, bấm Run selected daily steps. Giữ key hiện tại, giải nén toàn bộ ZIP và khởi động lại game/tool cũ.
+
+Details và Training có profile riêng: header/caption, nút nâng, bảng chỉ số, cấp tránh huy hiệu chân dung, giá nằm thấp/phải hơn Disc. Phần số giá loại biểu tượng tiền, hỗ trợ thẻ hơi nghiêng. Nếu chỉ đọc được cấp >=10 ở Training, bấm Back qua Details rồi về List trước khi chọn ứng viên khác; tối đa 12 ô trong hai hàng, không tự cuộn. Không dùng vị trí tab Upgrade của Disc cho Trekker.
+
+Có Inspect-Trekker.cmd riêng (chỉ đọc, không nhấp/phím/log/ảnh lưu), in nhãn Trekker và cờ bố cục/cấp/giá. Chỉ cần dùng nếu lỗi cần đối chiếu game thật. Script/helper được pin nguyên byte như trước. Kiểm thử mô phỏng kiểm tra cả luồng, tránh đọc nhầm huy hiệu, giá có icon ở độ nghiêng khác nhau, hai bước Back, đúng USE/SKIP và xác nhận nâng tối đa một lần. Chưa xác minh tự động Trekker trong game thật; không xác nhận nhiệm vụ từ server. Các bước Disc/Home/Commission và issuer giữ nguyên.
+
+## Đóng Power Up rồi về Home — 1.3.2-upgrade-preview.7
+
+Ảnh của chủ tool xác nhận nâng Disc thành công lên cấp 2, sau đó dừng vì chưa xử lý bảng Power Up. Bản này nhận bảng kết quả bằng dải cyan toàn chiều ngang và bảng sáng ở giữa, chỉ trong phase VERIFY sau khi lượt hiện tại đã gửi xác nhận nâng. Nhấp vùng trống bên phải bảng; nếu animation còn hiện thì có tối đa một lần thử đóng lại sau 1,8 giây, vẫn nhận diện lại bảng trước mỗi nhấp.
+
+Không xem overlay là bằng chứng hoàn tất. Sau khi đóng phải đọc lại editor, thấy cấp mới >= cấp đã chuẩn bị và chi phí về 0, rồi mới bấm ngôi nhà. Không chọn nguyên liệu hay nâng thêm. Nếu bảng không đóng trong giới hạn thì ERR_UPGRADE_OVERLAY_NOT_CLOSED. Luồng không có overlay vẫn kiểm tra editor như trước. Mã chung hỗ trợ bảng tương tự ở Trekker, nhưng chỉ Disc được chủ tool xác nhận tới bước nâng thực tế.
+
+Khi phiên cũ đã dừng, bảng đang mở có thể đóng bằng một nhấp tay rồi về Home; không cần nâng thêm chỉ để nhận lại phần đã hoàn thành. Bản sửa áp dụng cho các lượt auto tiếp theo. Kiểm thử Windows mô phỏng kiểm tra đầy đủ overlay -> editor -> Home, giới hạn đóng bảng và không lặp chi tiêu; cần xác nhận giao diện thực tế.
+
+## Tách biểu tượng tiền khỏi chi phí Disc — 1.3.2-upgrade-preview.6
+
+Ảnh thực tế xác nhận đã vào editor và đọc được cấp 1, nhưng báo ERR_UPGRADE_COST_UNREADABLE khi chi phí hiển thị 0. Vùng số trước đây bắt đầu ở x=82% và bao gồm biểu tượng tiền cao hơn chữ số, làm bộ phân đoạn chọn nhầm thành phần lớn nhất. Bản này đọc phần số Disc từ x=84,2%, không đổi vùng Trekker; mẫu chữ số chi phí riêng có các góc nghiêng nhỏ để đọc thẻ giá. Bộ đọc cấp vẫn dùng mẫu thẳng như trước.
+
+Kiểm thử mới có biểu tượng cao hơn chữ, giá 0/100/2,860 và thẻ trắng nghiêng -8/0/+8 độ, đồng thời yêu cầu ảnh không có chữ phải trả không đọc được, không mặc định là 0. Cổng editor cấp 1–9, giá trống 0, chuẩn bị 1 level rồi xác nhận tối đa một lần giữ nguyên. Đây là sửa vùng đọc dựa trên ảnh đã gửi, vẫn cần kiểm tra auto trong game.
+
+## Dùng kết quả Inspect thực tế để sửa Details — 1.3.2-upgrade-preview.5
+
+Inspect của chủ tool tại Details: Disc label 1, Header/House True, DetailsActive/UpgradeInactive True, hai cờ Melody/Harmony False, Commit False; editor thì nhận đúng DISC_EDIT và cấp 1. Vì vậy Details được nhận bằng caption Disc ở header cùng header/home icon và trạng thái hai tab đã được đo đúng; không còn bắt buộc cờ màu hai thanh kỹ năng khi caption đã xác nhận. Vẫn yêu cầu ngữ cảnh Disc đã chọn, trạng thái tab không mâu thuẫn và không có nút xác nhận editor. Khi không có caption, phương án hai thanh kỹ năng cũ vẫn có điều kiện đầy đủ.
+
+Kiểm thử dùng đúng vector cờ người dùng cung cấp và ảnh tổng hợp không có thanh kỹ năng để kiểm tra mở Upgrade mà chưa chi tiêu. Cổng kiểm tra cấp editor 1–9, chi phí 0, chọn nguyên liệu và xác nhận đúng một lần giữ nguyên. Inspect cập nhật có thêm caption header và chi phí editor để đối chiếu nếu cần. Bản sửa cần xác nhận bằng auto trên game thật.
+
+## Nhận diện bố cục Disc và kiểm tra chỉ đọc — 1.3.2-upgrade-preview.4
+
+Chủ tool gửi ảnh ERR_UNKNOWN_SCREEN ở Claw the Claw 1/10; nhánh thử lại mở tab trong preview.3 chưa được chạy vì chưa nhận ra màn hình. Preview.4 thêm nhận diện quang học có ngữ cảnh: chỉ khi lượt hiện tại đã mở thẻ Disc, yêu cầu đồng thời header/home icon, trạng thái thanh tab và hai thanh kỹ năng của Details hoặc các nút vật liệu/xác nhận ở editor. Không tự áp dụng bố cục Disc cho Trekker hay cửa sổ chưa có thẻ được mở. Bố cục thiếu hoặc bị làm tối sẽ bị từ chối.
+
+Nếu cấp ở Details không đọc được, được mở editor để kiểm tra vì chuyển màn không dùng nguyên liệu. Chỉ chọn vật liệu sau khi đọc rõ cấp editor 1–9 và chi phí hiện tại 0. Cấp >=10 quay lại chọn thẻ khác; cấp/chi phí không đọc được báo lỗi riêng. Xác nhận nâng vẫn tối đa một lần. Mẫu thử Windows mới bao gồm không có toàn bộ nhãn OCR, thiếu landmark, sai ngữ cảnh, làm tối giao diện, bộ đếm vàng và không được dùng nguyên liệu khi chưa xác minh editor.
+
+ZIP có Inspect-Screen.cmd: chạy rồi chuyển focus sang game trong 8 giây, chỉ đọc các nhãn cố định và cờ bố cục. In chữ không chứa tên tài khoản, key hay đường dẫn; không gửi click/phím, không lưu/gửi ảnh hoặc log. Dùng kết quả này khi cần đối chiếu game thật để tránh tiếp tục đoán. Bản sửa cần thử lại trên game; không khẳng định đã sửa xong từ ảnh tổng hợp.
+
+## Mở lại tab Upgrade có kiểm tra — 1.3.2-upgrade-preview.3
+
+Chủ tool báo dừng ở Disc 1/10 với ERR_UPGRADE_SCREEN_NOT_CHANGED. Bản này nhận diện lại màn chi tiết sau lần mở Upgrade: nếu vẫn là cùng mục và qua ít nhất 1,8 giây, thử chuyển tab thêm một lần. Nếu vẫn không mở được thì báo ERR_UPGRADE_TAB_NOT_OPENED. Các lỗi mở danh sách/chi tiết/về Home có mã riêng, không dùng chung thông báo không đổi màn hình.
+
+Đây chỉ là thử lại thao tác chuyển màn, không áp dụng cho chọn nguyên liệu hoặc xác nhận nâng. Chi tiêu Upgrade vẫn tối đa một lần. Dùng key cũ, giải nén toàn bộ ZIP, bắt đầu từ màn chính như trước. Khả năng click tab được game nhận vẫn cần thử lại trong game; chưa khẳng định nguyên nhân đầu vào từ ảnh và mã lỗi hiện có.
+
+## Sửa chọn mục đầy cấp và nhận diện Disc — 1.3.2-upgrade-preview.2
+
+Preview.1 đã chọn Daylight Garden 10/10 rồi dừng ERR_UNKNOWN_SCREEN, không đạt yêu cầu chọn cấp thấp. Preview.2 đọc cấp Disc Details ở góc trên phải, tách khỏi vùng cấp trong màn Upgrade; đọc lại header/tab/skill bằng các vùng phóng to nếu OCR toàn khung bỏ sót. Chỉ nâng cấp 1–9. Cấp từ 10 trở lên hoặc không đọc rõ thì quay lại danh sách, kiểm tra thẻ khác; không mở màn chi tiêu cho thẻ bị loại.
+
+Tìm trong hai hàng đang thấy: tối đa 10 Disc hoặc 12 Trekker. Ưu tiên nhãn cấp thấp đọc được; mỗi ô thẻ chỉ kiểm tra một lần trong một lượt. Nếu không tìm thấy mục phù hợp thì dừng trước khi dùng nguyên liệu, không tự cuộn hay Ascension. Các bước Upgrade 1 level, xác nhận một lần, kiểm tra kết quả và về Home giữ nguyên. Dùng key cũ, giải nén đủ ZIP mới. Chưa xác nhận bản sửa trong game thật.
+
+## Disc / Trekker upgrade — 1.3.2-upgrade-preview.1
+
+Mở màn chính, Auto Daily chọn USE/SKIP cho Upgrade Disc once, Upgrade Trekker once, Interact with home Trekker và Dispatch 1 commission rồi **Run selected daily steps**. Giữ key cũ, giải nén đầy đủ ZIP; không cần F9. Thứ tự các mục USE: Home interaction -> Disc -> Trekker -> Commission. Mỗi mục nâng xong sẽ nhấp icon ngôi nhà và đợi màn chính trước khi chuyển bước.
+
+Theo ảnh hướng dẫn của chủ tool, đọc nhãn cấp trên các thẻ đang nhìn thấy và chọn cấp thấp nhất trong khoảng 1–10. Nếu nhãn cấp nhỏ không đọc được, mở thẻ đầu tiên để xem cấp lớn ở màn chi tiết; chỉ tiếp tục khi đọc rõ cấp 1–10. Không tự cuộn, không nâng mục cấp cao hoặc không đọc được cấp. Mở màn nâng, bấm Upgrade 1 level để game chọn nguyên liệu, đợi mức xem trước tăng và chi phí dương rồi bấm Upgrade đúng một lần. Sau đó yêu cầu mức mới vẫn hiện và phần chọn nguyên liệu/chi phí đã về 0 trước khi về Home. Các ô cấp/chi phí bị OCR bỏ qua có bộ đối chiếu chữ số bằng mẫu font Windows tạo cục bộ trong bộ nhớ; kết quả không rõ sẽ dừng. Chi tiêu Upgrade không được thử lại trong cùng lượt. Đã chọn sẵn nguyên liệu, thiếu nguyên liệu, không đọc được UI hoặc không thấy thay đổi thì dừng với mã lỗi. Không dùng Upgrade to Max, Crescendo hoặc Ascension.
+
+Hai thao tác này dùng nguyên liệu và tiền game theo nút Upgrade 1 level. Chỉ USE những mục bạn muốn chạy. Kiểm thử Windows dùng màn hình tổng hợp, không chạy trên tài khoản game; Disc/Trekker mới cần chủ tool xác nhận trong game. Kết thúc luồng không chứng minh nhiệm vụ đã Complete; chưa phải toàn bộ Auto Daily. Player/Event, issuer và cấu hình bot/thanh toán không đổi; không tạo log sản phẩm.
+
+## Home interaction + Commission — 1.3.1-home-commission-preview.1
+
+Chủ tool cho biết nhiệm vụ Interact with home Trekker chỉ cần nhấp nhân vật ở màn chính. Bản này thêm một lần nhấp tại giữa vùng client (50%, 50%) theo ảnh giao diện đã cung cấp, chỉ khi OCR nhận ra màn hình HOME. Đây là điểm theo bố cục tham chiếu, không phải nhận diện hình nhân vật. Không nhấp lại trong cùng lượt chạy; không tự kiểm tra nhiệm vụ qua server.
+
+Ở Auto Daily, chọn USE/SKIP độc lập cho Interact with home Trekker và Dispatch 1 commission; nút mới là **Auto Home / Commission**. Nếu cả hai USE: bắt đầu màn chính -> nhấp nhân vật -> chờ -> Commission và luồng nhận thưởng/Dispatch Again như trước. Chỉ Home USE thì dừng sau thao tác và chờ; chỉ Dispatch USE thì không nhấp nhân vật. Nếu Home USE mà đang ở trang Commission, tool yêu cầu về màn chính. Không cần F9. F1 hoặc thay lựa chọn trong lúc chạy sẽ dừng helper.
+
+Commission preview.3 được chủ tool đánh giá có vẻ ổn và yêu cầu chuyển bước; chưa có xác nhận riêng cho lần gặp overlay tùy chọn. Home interaction mới cần thử trong game. Giữ key và issuer hiện tại, giải nén đầy đủ ZIP.
+
+## Xử lý overlay sau Dispatch Again — 1.3.0-commission-ocr-preview.3
+
+Chủ tool xác nhận preview.2 đã tự chạy được, nhưng hội thoại Esc Skip và Items Obtained đôi khi xuất hiện sau Dispatch Again. Preview.3 tiếp tục đọc màn hình sau nút này, xử lý hội thoại/vật phẩm được nhận diện ở cả trước lẫn sau Dispatch Again. Chỉ kết thúc khi thấy lại trang Commission ổn định ít nhất 2,5 giây và đã quan sát tối thiểu 8 giây sau Dispatch Again. Không bấm Dispatch Again hoặc Claim All thêm trong giai đoạn này; modal không đổi hoặc màn hình không rõ sẽ dừng có lỗi. Không xác minh tiến độ nhiệm vụ qua server.
+
+Giải nén toàn bộ ZIP mới, giữ key cũ. Chạy từ màn chính hoặc Commission như preview.2. F1 vẫn dừng. Hội thoại không xuất hiện thì tool chỉ chờ quan sát rồi kết thúc; không gửi Esc/click dư. Bản sửa thứ tự này chưa được chủ tool thử trong game.
+
+## Sửa nhận diện màn chính — 1.3.0-commission-ocr-preview.2
+
+Chủ tool báo preview.1 dừng `ERR_UNKNOWN_SCREEN` ngay màn chính, chưa mở Commission. Preview.2 đọc vị trí từng từ thay cho so khớp nguyên dòng (OCR có thể gộp Purchase và Commission), thêm đọc phóng to vùng biểu tượng góc phải với hai kiểu màu. Vẫn chỉ bấm khi nhận diện duy nhất chữ Commission trong vùng màn chính; không đoán điểm bấm khi thiếu chữ. Dùng key cũ và giải nén toàn bộ ZIP mới, không chỉ thay script. Bản sửa chưa được xác nhận trong game thật.
+
+## Auto Commission OCR — 1.3.0-commission-ocr-preview.1
+
+Chủ tool đã xác nhận Tower nhận quà/daily Complete và Dispatch Again dẫn tới nhiệm vụ Dispatch 1/1. Bản này ghép riêng Commission thành một lượt chạy dựa trên chữ/UI tiếng Anh, không cần F9 cho module này: màn chính -> Commission -> Claim All -> hội thoại nếu có (Esc Skip + Space Next) -> Items Obtained (nhấp dòng tiếp tục) -> Commission Complete / Dispatch Again.
+
+Giải nén đủ thư mục automation cùng EXE/DLL, giữ key hiện tại. Vào màn chính hoặc Commission, chờ READY, Auto Daily để Dispatch 1 commission ở USE rồi **Auto Commission**. Giữ game foreground, không đổi kích thước/chuyển ứng dụng. **F1 dừng luồng và hiện tool**; Disable all cũng hủy helper và nhả input thuộc luồng. Chế độ F9 thủ công vẫn giữ nguyên. Không yêu cầu chọn lại commission/đội; dùng đúng nút Dispatch Again đã được kiểm chứng ở bước thủ công.
+
+Dùng OCR tiếng Anh tích hợp Windows, xử lý ảnh trong bộ nhớ ở helper cục bộ; không lưu/gửi screenshot hoặc xuất chữ tài khoản. Chỉ các mã trạng thái/input định sẵn đi qua pipe. Native kiểm tra script trùng resource của DLL và giữ file read-only trong cả phiên; helper ở job riêng kill-on-close, chỉ kế thừa ba handle stdio cần thiết. Dừng nếu focus/window thay đổi, không hiểu màn hình, vượt giới hạn bước/thời gian hoặc thiếu OCR. Không gửi Esc khi không nhận diện cặp dấu hiệu hội thoại. Claim All chỉ tối đa hai lần có nhận diện lại, Dispatch Again một lần; không bấm mù theo tọa độ cũ.
+
+Kiểm thử Windows dùng OCR thật trên bitmap tổng hợp cho các trạng thái và kiểm tra máy trạng thái/lỗi/protocol/script pinning. Chưa kiểm tra nhận diện luồng mới trong game thật. Dòng hoàn tất chỉ xác nhận gửi input, chưa truy vấn server/quest. Đây chưa phải toàn chuỗi Auto Daily. Player/Event, issuer và cấu hình bot/thanh toán không đổi; không tạo log sản phẩm.
+
 ## Claim All double-click — 1.2.3-dispatch-preview.4
 
 Chủ tool báo con trỏ đến đúng điểm F9 nhưng Claim All không nhận click và yêu cầu thử double click. Thêm **Clicks: Single / Double** theo từng target; Claim All mặc định Double, các target khác Single. Một lần bấm nút tool tạo một batch, không tự lặp batch sau khi đã thử. Chưa kết luận nguyên nhân cú nhấp cũ không được game nhận.

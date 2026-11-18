@@ -5,18 +5,61 @@
     "mode": "user-marked-one-shot-click"
   },
   "dispatch": {
-    "status": "blocked-at-live-limit-4-of-4-awaiting-claim-all-test",
-    "build": "1.2.3-dispatch-preview.2",
-    "proposed_flow": [
+    "status": "owner-confirmed-daily-1-of-1-with-manual-step-input",
+    "tested_build": "1.2.3-dispatch-preview.4",
+    "observed_flow": [
       "claim_all",
-      "observe_game_auto_team_or_continue_ui",
-      "start_only_if_game_allows"
+      "optional_story_esc_skip",
+      "items_obtained_continue",
+      "dispatch_again"
     ],
-    "claim_all_resets_limit_verified": false,
-    "auto_team_ui_observed": false
+    "automatic_module_build": "1.3.3-trekker-preview.2",
+    "automatic_module_status": "preview.3-owner-tentatively-ok-requested-next-task",
+    "automatic_home_and_dispatch": "owner-confirmed-preview.2",
+    "optional_overlay_order": "before-or-after-dispatch-again",
+    "previous_automatic_module_result": "preview.1-owner-reported-unknown-screen-on-home-before-navigation"
   },
   "automatic_navigation": false,
   "automatic_task_selection": false,
   "automatic_quest_verification": false,
-  "complete_auto_daily_chain": false
+  "complete_auto_daily_chain": false,
+  "commission_screen_recognition_implemented": true,
+  "commission_automatic_navigation_implemented": true,
+  "home_interaction": {
+    "status": "owner-described-one-touch-home-character-implementation-awaiting-live-test",
+    "mode": "recognized-home-layout-center-click-once",
+    "point": [
+      0.5,
+      0.5
+    ],
+    "task_selection": "independent-use-skip",
+    "build": "1.3.1-home-commission-preview.1"
+  },
+  "disc_upgrade": {
+    "status": "owner-inspection-level-0-cost-250-for-green-preview-3;green-counter-fix-awaiting-auto-retest",
+    "mode": "inspect-up-to-10-visible-cells;skip-level-ge90-or-unreadable;upgrade-1-level-once",
+    "spend_retry": false,
+    "owner_verified_effect": "Disc level 2 shown in Power Up result"
+  },
+  "trekker_upgrade": {
+    "status": "owner-confirmed-level-2;owner-confirmed-dark-backdrop-dismissal;new-target-awaiting-auto-retest",
+    "build": "1.3.3-trekker-preview.1",
+    "mode": "inspect-up-to-12-visible-cells;details-upgrade-button;training-one-level;power-up;home",
+    "spend_retry": false,
+    "training_reject_back_path": [
+      "details",
+      "list"
+    ],
+    "power_up_dismiss_point": [
+      0.5,
+      0.85
+    ]
+  },
+  "upgrade_selection_policy": {
+    "minimum_level": 1,
+    "maximum_eligible_level": 89,
+    "skip_at_or_above": 90,
+    "source": "owner-explicit-request",
+    "game_material_and_preparation_checks_required": true
+  }
 }
