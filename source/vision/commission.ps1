@@ -3,7 +3,7 @@ param([long]$GameWindow=0,[int]$GamePid=0,[int]$Tasks=512,[switch]$SelfTest,[swi
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
 $script:TransitionTimeout=10000
-$script:NavigationRetry=1800;$script:EntryTimeout=3000;$script:ClaimRetry=1500;$script:OverlayRetry=1800
+$script:DispatchTimeout=8000;$script:NavigationRetry=1800;$script:EntryTimeout=3000;$script:ClaimRetry=1500;$script:OverlayRetry=1800
 function Signal([string]$code){[Console]::Out.WriteLine('SV1|'+$code);[Console]::Out.Flush()}
 try {
  Add-Type -AssemblyName System.Drawing
@@ -680,7 +680,7 @@ function Next-Action($session,$observation,[long]$now){
   $session.StableSince=-1;$session.StableState=''
   if($observation.State -eq 'RESULT'){
    $session.Unknown=0
-   if($now-$session.Last -lt [Math]::Max(8000,$script:TransitionTimeout)){return 'WAIT'}
+   if($now-$session.Last -lt $script:DispatchTimeout){return 'WAIT'}
    return 'ERR_DISPATCH_NOT_CHANGED'
   }
   if($observation.State -eq 'HOME'){return 'ERR_LEFT_COMMISSION'}
@@ -1287,7 +1287,7 @@ if($Inspect){
  exit 0
 }
 try {
- [CommissionDesktop]::Init($GameWindow,$GamePid);$session=New-Session $Tasks;$clock=[Diagnostics.Stopwatch]::StartNew();$script:TransitionTimeout=30000;$script:NavigationRetry=6000;$script:EntryTimeout=30000;$script:ClaimRetry=6000;$script:OverlayRetry=3000;$lastProgress=0;Signal 'READY'
+ [CommissionDesktop]::Init($GameWindow,$GamePid);$session=New-Session $Tasks;$clock=[Diagnostics.Stopwatch]::StartNew();$script:TransitionTimeout=30000;$script:DispatchTimeout=30000;$script:NavigationRetry=6000;$script:EntryTimeout=30000;$script:ClaimRetry=6000;$script:OverlayRetry=3000;$lastProgress=0;Signal 'READY'
  while($clock.ElapsedMilliseconds -lt 360000){
   $bitmap=[CommissionDesktop]::Capture()
   try{$observation=Read-Observation $bitmap $session}finally{$bitmap.Dispose()}
