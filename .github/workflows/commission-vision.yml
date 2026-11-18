@@ -2,7 +2,7 @@ name: Commission vision capability
 on:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   probe:
     runs-on: windows-latest
@@ -25,3 +25,25 @@ jobs:
           name: synthetic-ocr-fixture
           path: ${{ runner.temp }}/ocr-fixture-*.png
           if-no-files-found: ignore
+      - name: Package only standalone read-only scripts
+        if: success() && github.ref_name == 'fix/counter-inspection'
+        shell: python
+        run: |
+          import os,hashlib
+          from pathlib import Path
+          from zipfile import ZipFile,ZIP_DEFLATED
+          root=Path('source/vision')
+          out=Path(os.environ['RUNNER_TEMP'])/'SoraVynx-Counter-ReadOnly-v1.zip'
+          script=(root/'Inspect-Counters.ps1').read_text()
+          assert 'SendInput' not in script and 'SetCursorPos' not in script and 'WebRequest' not in script
+          with ZipFile(out,'w',ZIP_DEFLATED) as z:
+            for name in ['Inspect-Counters.cmd','Inspect-Counters.ps1']:z.write(root/name,name)
+            z.write(root/'Counter-ReadOnly-README.vi.txt','README.vi.txt')
+          with ZipFile(out) as z:assert z.testzip() is None and len(z.namelist())==3
+          Path(str(out)+'.sha256').write_text(hashlib.sha256(out.read_bytes()).hexdigest()+'  '+out.name+'\n')
+      - name: Publish the tested diagnostic alongside the existing customer release
+        if: success() && github.ref_name == 'fix/counter-inspection'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload v1.3.5-custom-keys-preview.1 "$RUNNER_TEMP/SoraVynx-Counter-ReadOnly-v1.zip" "$RUNNER_TEMP/SoraVynx-Counter-ReadOnly-v1.zip.sha256" --repo "$GITHUB_REPOSITORY"
