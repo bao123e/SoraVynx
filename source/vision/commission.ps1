@@ -460,18 +460,19 @@ function Upgrade-Result-Overlay($bitmap,$session){
 }
 function Focused-Level-Region([string]$state){
  if($state -eq 'DISC_EDIT'){return [pscustomobject]@{X=.718;Y=.158;W=.045;H=.080}}
- if($state -eq 'TREKKER_EDIT'){return [pscustomobject]@{X=.748;Y=.18;W=.043;H=.10}}
+ if($state -eq 'TREKKER_EDIT'){return [pscustomobject]@{X=.748;Y=.18;W=.045;H=.10}}
  return $null
 }
 function Read-Focused-Level($bitmap,[string]$state){
- $r=Focused-Level-Region $state;if(!$r){return 0}
- $crop=[CommissionDesktop]::CounterCrop($bitmap,$r.X,$r.Y,$r.W,$r.H);if(!$crop){return 0}
+ $script:FocusedFacts='NO_REGION';$r=Focused-Level-Region $state;if(!$r){return 0}
+ $crop=[CommissionDesktop]::CounterCrop($bitmap,$r.X,$r.Y,$r.W,$r.H);if(!$crop){$script:FocusedFacts='CLIPPED';return 0}
  $read=$null
  try{
   $read=Read-Image $crop
   $values=@($read.Words | Where-Object {$_.Text -match '^\d{1,2}$'})
   $ocr=0;if($values.Count -eq 1){$ocr=[int]$values[0].Text}
   $shape=[CommissionDesktop]::Number($crop,0,0,1,1,$true,.15,.95)
+  $script:FocusedFacts=('OCR={0}; shape={1}' -f $ocr,$shape)
   if($ocr -gt 0 -and $shape -gt 0 -and $ocr -ne $shape){return 0}
   if($ocr -ge 1 -and $ocr -le 99){return $ocr}
   if($shape -ge 1 -and $shape -le 99){return $shape}
@@ -1286,7 +1287,7 @@ if($SelfTest){
      $g.DrawString('780/2700',$counterSmall,[Drawing.Brushes]::White,[single](.76*$bitmap.Width),[single](.258*$bitmap.Height))
      $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
      $actual=Read-Focused-Level $bitmap $state
-     Check ($actual -eq $level) ('Focused current counter failed: '+$state+'/'+$level+' -> '+$actual)
+     Check ($actual -eq $level) ('Focused current counter failed: '+$state+'/'+$level+' -> '+$actual+' '+$script:FocusedFacts)
     }
     $g.Clear([Drawing.Color]::FromArgb(30,50,100))
     $g.DrawString('/20',$counterSmall,[Drawing.Brushes]::White,[single](($r.X+$r.W+.002)*$bitmap.Width),[single](($r.Y+.035)*$bitmap.Height))
@@ -1343,7 +1344,7 @@ if($Inspect){
   [Console]::Out.WriteLine(('Editor level region unobscured: {0}' -f $levelVisible))
   $observed=Read-Observation $snapshot $context
   [Console]::Out.WriteLine(('Recognized state: {0}; editor level (0 = not validated): {1}' -f $observed.State,$observed.Level))
-  $focused=Read-Focused-Level $snapshot ($InspectKind+'_EDIT');[Console]::Out.WriteLine(('Focused current level (0 = not validated): {0}' -f $focused))
+  $focused=Read-Focused-Level $snapshot ($InspectKind+'_EDIT');[Console]::Out.WriteLine(('Focused current level (0 = not validated): {0}' -f $focused));[Console]::Out.WriteLine(('Focused numeric validation: {0}' -f $script:FocusedFacts))
   $editorCost=-1;if($observed.State -in @('DISC_EDIT','TREKKER_EDIT')){$editorCost=$observed.Cost};[Console]::Out.WriteLine(('Editor cost (-1 = not validated): {0}' -f $editorCost))
  }catch{[Console]::Out.WriteLine('READ_ONLY_INSPECTION_FAILED: keep the unobscured Unity game foreground and try again.')}finally{if($read){$read.Bitmap.Dispose()};if($snapshot){$snapshot.Dispose()}}
  exit 0
