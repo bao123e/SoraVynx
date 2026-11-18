@@ -59,8 +59,9 @@ public static class CommissionDesktop {
  }
  // Isolate only the large yellow/green current-level glyphs. White cap/XP
  // text and adjacent ascension diamonds are outside this dedicated region.
+ public static string CounterClip="";
  public static Bitmap CounterCrop(Bitmap source,double rx,double ry,double rw,double rh){
-  int left=(int)(rx*source.Width),top=(int)(ry*source.Height),w=(int)(rw*source.Width),h=(int)(rh*source.Height);
+  CounterClip="";int left=(int)(rx*source.Width),top=(int)(ry*source.Height),w=(int)(rw*source.Width),h=(int)(rh*source.Height);
   var result=new Bitmap(w*4+8,h*4+8,PixelFormat.Format32bppArgb);
   using(var g=Graphics.FromImage(result)){
    g.Clear(Color.Black);
@@ -68,7 +69,7 @@ public static class CommissionDesktop {
     Color c=source.GetPixel(left+x,top+y);
     bool ink=(c.R>=155&&c.G>=140&&c.B<160)||(c.R>=80&&c.G>=145&&c.G-c.R>=20&&c.B<=155);
     if(!ink)continue;
-    if(x==0||y==0||x==w-1||y==h-1){result.Dispose();return null;}
+    if(x==0||y==0||x==w-1||y==h-1){CounterClip=String.Format("edge {0},{1} / {2},{3}; rgb {4},{5},{6}",x,y,w,h,c.R,c.G,c.B);result.Dispose();return null;}
     g.FillRectangle(Brushes.White,4+x*4,4+y*4,4,4);
    }
   }return result;
@@ -465,7 +466,7 @@ function Focused-Level-Region([string]$state){
 }
 function Read-Focused-Level($bitmap,[string]$state){
  $script:FocusedFacts='NO_REGION';$r=Focused-Level-Region $state;if(!$r){return 0}
- $crop=[CommissionDesktop]::CounterCrop($bitmap,$r.X,$r.Y,$r.W,$r.H);if(!$crop){$script:FocusedFacts='CLIPPED';return 0}
+ $crop=[CommissionDesktop]::CounterCrop($bitmap,$r.X,$r.Y,$r.W,$r.H);if(!$crop){$script:FocusedFacts=('CLIPPED '+[CommissionDesktop]::CounterClip);return 0}
  $read=$null
  try{
   $read=Read-Image $crop
