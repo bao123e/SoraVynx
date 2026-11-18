@@ -62,18 +62,28 @@ public static class CommissionDesktop {
  public static string CounterClip="";
  public static Bitmap CounterCrop(Bitmap source,double rx,double ry,double rw,double rh){
   CounterClip="";int left=(int)(rx*source.Width),top=(int)(ry*source.Height),w=(int)(rw*source.Width),h=(int)(rh*source.Height);
+  var mask=new bool[w*h];var seen=new bool[w*h];var queue=new int[w*h];
+  for(int y=0;y<h;y++)for(int x=0;x<w;x++){
+   Color c=source.GetPixel(left+x,top+y);
+   mask[y*w+x]=(c.R>=155&&c.G>=140&&c.B<160)||(c.R>=80&&c.G>=145&&c.G-c.R>=20&&c.B<=155);
+  }
   var result=new Bitmap(w*4+8,h*4+8,PixelFormat.Format32bppArgb);
   using(var g=Graphics.FromImage(result)){
    g.Clear(Color.Black);
-   for(int y=0;y<h;y++)for(int x=0;x<w;x++){
-    Color c=source.GetPixel(left+x,top+y);
-    bool ink=(c.R>=155&&c.G>=140&&c.B<160)||(c.R>=80&&c.G>=145&&c.G-c.R>=20&&c.B<=155);
-    if(!ink)continue;
-    if(x==0||y==0||x==w-1||y==h-1){CounterClip=String.Format("edge {0},{1} / {2},{3}; rgb {4},{5},{6}",x,y,w,h,c.R,c.G,c.B);result.Dispose();return null;}
-    g.FillRectangle(Brushes.White,4+x*4,4+y*4,4,4);
+   for(int start=0;start<mask.Length;start++)if(mask[start]&&!seen[start]){
+    int head=0,tail=0,l=w,t=h,r=0,bt=0;queue[tail++]=start;seen[start]=true;
+    while(head<tail){int value=queue[head++],x=value%w,y=value/w;l=Math.Min(l,x);r=Math.Max(r,x);t=Math.Min(t,y);bt=Math.Max(bt,y);
+     for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++){int nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=w||ny>=h)continue;int next=ny*w+nx;if(mask[next]&&!seen[next]){seen[next]=true;queue[tail++]=next;}}
+    }
+    // ClearType fringes from SMALL white /cap and XP glyphs can look orange.
+    // Reject clipped LARGE counter glyphs, not isolated small fringe pixels.
+    if(bt-t+1<source.Height*.030)continue;
+    if(l==0||t==0||r==w-1||bt==h-1){CounterClip=String.Format("large component {0},{1}..{2},{3} / {4},{5}",l,t,r,bt,w,h);result.Dispose();return null;}
+    for(int i=0;i<tail;i++)g.FillRectangle(Brushes.White,4+(queue[i]%w)*4,4+(queue[i]/w)*4,4,4);
    }
   }return result;
  }
+
  public static Bitmap PromptCrop(Bitmap source,bool invert){
   int w=Math.Max(1,(int)(source.Width*0.28)),h=Math.Max(1,(int)(source.Height*0.18));
   var output=new Bitmap(w*2,h*2,PixelFormat.Format32bppArgb);
@@ -461,7 +471,7 @@ function Upgrade-Result-Overlay($bitmap,$session){
 }
 function Focused-Level-Region([string]$state){
  if($state -eq 'DISC_EDIT'){return [pscustomobject]@{X=.718;Y=.158;W=.045;H=.080}}
- if($state -eq 'TREKKER_EDIT'){return [pscustomobject]@{X=.748;Y=.18;W=.050;H=.10}}
+ if($state -eq 'TREKKER_EDIT'){return [pscustomobject]@{X=.748;Y=.18;W=.045;H=.10}}
  return $null
 }
 function Read-Focused-Level($bitmap,[string]$state){
