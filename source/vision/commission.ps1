@@ -460,7 +460,7 @@ function Upgrade-Result-Overlay($bitmap,$session){
 }
 function Focused-Level-Region([string]$state){
  if($state -eq 'DISC_EDIT'){return [pscustomobject]@{X=.718;Y=.158;W=.045;H=.080}}
- if($state -eq 'TREKKER_EDIT'){return [pscustomobject]@{X=.748;Y=.18;W=.045;H=.10}}
+ if($state -eq 'TREKKER_EDIT'){return [pscustomobject]@{X=.748;Y=.18;W=.050;H=.10}}
  return $null
 }
 function Read-Focused-Level($bitmap,[string]$state){
