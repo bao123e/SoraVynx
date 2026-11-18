@@ -29,6 +29,7 @@ int main(void){
  assert(feature_hotkey_command(21)==100+GOD_MODE);
  assert(feature_hotkey_command(25)==100+MOB_VACUUM);
  assert(feature_hotkey_command(29)==437&&feature_hotkey_command(31)==200);
+ assert(feature_hotkey_command(30)==0); /* Mark key can never dispatch a claim click. */
  assert(feature_hotkey_command(19)==0&&feature_hotkey_command(32)==0);
  /* Custom combinations round-trip through native hotkey controls and one INI value. */
  struct SvKey keys[SV_KEY_COUNT],loaded[SV_KEY_COUNT];sv_key_defaults(keys);

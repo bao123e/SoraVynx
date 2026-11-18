@@ -169,7 +169,7 @@ static void center_panel(HWND hwnd){
  if(x!=r.left||y!=r.top)SetWindowPos(hwnd,NULL,x,y,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
 }
 static int feature_hotkey_command(unsigned id){
- static const int commands[]={0,100+GOD_MODE,100+MULTI_HIT,100+NO_COOLDOWN,100+UNLIMITED_ENERGY,100+MOB_VACUUM,300,301,302,437,432,200};
+ static const int commands[]={0,100+GOD_MODE,100+MULTI_HIT,100+NO_COOLDOWN,100+UNLIMITED_ENERGY,100+MOB_VACUUM,300,301,302,437,0,200};
  return id>=SV_KEY_FIRST&&id<SV_KEY_FIRST+SV_KEY_COUNT?commands[id-SV_KEY_FIRST]:0;
 }
 static bool feature_hotkey_context(HWND hwnd){
@@ -320,7 +320,7 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   if(!sv_license_alive()){disable_all();return 0;}
   if(sv_keys_editing)return 0;
   if(wp==SV_KEY_FIRST){commission_cancel(hwnd);toggle_panel(hwnd);}
-  else if(wp==SV_KEY_FIRST+10&&!commission_auto.running&&active_page==3&&read_atomic(&init_state)==1&&(daily_selection&(1u<<(claim_selected?9:7)))){bool marked=claim_mark();MessageBeep(marked?MB_OK:MB_ICONWARNING);refresh_status();}
+  else if(wp==SV_KEY_FIRST+10){if(!commission_auto.running&&active_page==3&&read_atomic(&init_state)==1&&(daily_selection&(1u<<(claim_selected?9:7)))){bool marked=claim_mark();MessageBeep(marked?MB_OK:MB_ICONWARNING);refresh_status();}return 0;}
   else if(wp>SV_KEY_FIRST&&wp<SV_KEY_FIRST+SV_KEY_COUNT){
    if(wp==SV_KEY_FIRST+11){disable_all();refresh_status();return 0;}
    if(wp==SV_KEY_FIRST+9&&commission_auto.running){commission_cancel(hwnd);refresh_status();return 0;}
