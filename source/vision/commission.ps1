@@ -57,6 +57,22 @@ public static class CommissionDesktop {
    if(!ClientToScreen(Window,ref point)||GetAncestor(WindowFromPoint(point),2)!=Window)return false;
   }return true;
  }
+ // Isolate only the large yellow/green current-level glyphs. White cap/XP
+ // text and adjacent ascension diamonds are outside this dedicated region.
+ public static Bitmap CounterCrop(Bitmap source,double rx,double ry,double rw,double rh){
+  int left=(int)(rx*source.Width),top=(int)(ry*source.Height),w=(int)(rw*source.Width),h=(int)(rh*source.Height);
+  var result=new Bitmap(w*4+8,h*4+8,PixelFormat.Format32bppArgb);
+  using(var g=Graphics.FromImage(result)){
+   g.Clear(Color.Black);
+   for(int y=0;y<h;y++)for(int x=0;x<w;x++){
+    Color c=source.GetPixel(left+x,top+y);
+    bool ink=(c.R>=155&&c.G>=140&&c.B<160)||(c.R>=80&&c.G>=145&&c.G-c.R>=20&&c.B<=155);
+    if(!ink)continue;
+    if(x==0||y==0||x==w-1||y==h-1){result.Dispose();return null;}
+    g.FillRectangle(Brushes.White,4+x*4,4+y*4,4,4);
+   }
+  }return result;
+ }
  public static Bitmap PromptCrop(Bitmap source,bool invert){
   int w=Math.Max(1,(int)(source.Width*0.28)),h=Math.Max(1,(int)(source.Height*0.18));
   var output=new Bitmap(w*2,h*2,PixelFormat.Format32bppArgb);
@@ -442,6 +458,26 @@ function Upgrade-Result-Overlay($bitmap,$session){
  }
  return $null
 }
+function Focused-Level-Region([string]$state){
+ if($state -eq 'DISC_EDIT'){return [pscustomobject]@{X=.718;Y=.158;W=.045;H=.080}}
+ if($state -eq 'TREKKER_EDIT'){return [pscustomobject]@{X=.748;Y=.18;W=.043;H=.10}}
+ return $null
+}
+function Read-Focused-Level($bitmap,[string]$state){
+ $r=Focused-Level-Region $state;if(!$r){return 0}
+ $crop=[CommissionDesktop]::CounterCrop($bitmap,$r.X,$r.Y,$r.W,$r.H);if(!$crop){return 0}
+ $read=$null
+ try{
+  $read=Read-Image $crop
+  $values=@($read.Words | Where-Object {$_.Text -match '^\d{1,2}$'})
+  $ocr=0;if($values.Count -eq 1){$ocr=[int]$values[0].Text}
+  $shape=[CommissionDesktop]::Number($crop,0,0,1,1,$true,.15,.95)
+  if($ocr -gt 0 -and $shape -gt 0 -and $ocr -ne $shape){return 0}
+  if($ocr -ge 1 -and $ocr -le 99){return $ocr}
+  if($shape -ge 1 -and $shape -le 99){return $shape}
+  return 0
+ }finally{if($read){$read.Bitmap.Dispose()};$crop.Dispose()}
+}
 function Read-Observation($bitmap,$session=$null){
  $resultOverlay=Upgrade-Result-Overlay $bitmap $session
  if($resultOverlay){return $resultOverlay}
@@ -499,6 +535,7 @@ function Read-Observation($bitmap,$session=$null){
   }
   if($observation.State -in @('DISC_DETAILS','TREKKER_DETAILS','DISC_EDIT','TREKKER_EDIT')){
    if(!$observation.Level -and !($discTop -and $observation.Layout)){$n=[CommissionDesktop]::Number($bitmap,$levelX,$levelY,$levelW,$levelH,$true,.032,.10);if($n -gt 0){$observation.Level=$n}}
+   if(!$observation.Level -and $observation.State -in @('DISC_EDIT','TREKKER_EDIT')){$observation.Level=Read-Focused-Level $bitmap $observation.State}
    if($observation.State -in @('DISC_EDIT','TREKKER_EDIT') -and $observation.Cost -lt 0){
     if($observation.State -eq 'DISC_EDIT'){$observation.Cost=Read-Disc-Cost $bitmap}
     else{$observation.Cost=Read-Trekker-Cost $bitmap}
@@ -1234,6 +1271,30 @@ if($SelfTest){
    Check ((Next-Action $session $preview 4000) -eq 'RETURN_HOME') 'Committed level 90 was incorrectly treated as a new candidate'
    Check ($session.UpgradeCommits -eq 1) '89 -> 90 upgrade was repeated'
   }
+  # Two-digit current levels with nearby cap, yellow diamond, XP and badge:
+  # only the current yellow/green digits belong to the focused region.
+  $counterFont=[Drawing.Font]::new('Segoe UI',[single]($bitmap.Height*.057),[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  $counterSmall=[Drawing.Font]::new('Segoe UI',18,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
+  try{
+   foreach($state in @('DISC_EDIT','TREKKER_EDIT')){
+    $r=Focused-Level-Region $state
+    foreach($level in @(13,35,89,90)){
+     $g.Clear([Drawing.Color]::FromArgb(30,50,100))
+     $g.DrawString([string]$level,$counterFont,[Drawing.Brushes]::Gold,[single](($r.X+.002)*$bitmap.Width),[single](($r.Y+.005)*$bitmap.Height))
+     $g.DrawString('/20',$counterSmall,[Drawing.Brushes]::White,[single](($r.X+$r.W+.002)*$bitmap.Width),[single](($r.Y+.035)*$bitmap.Height))
+     Paint-Region ([Drawing.Brushes]::Gold) ($r.X+$r.W+.035) ($r.Y+.02) .015 .05
+     $g.DrawString('780/2700',$counterSmall,[Drawing.Brushes]::White,[single](.76*$bitmap.Width),[single](.258*$bitmap.Height))
+     $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+     $actual=Read-Focused-Level $bitmap $state
+     Check ($actual -eq $level) ('Focused current counter failed: '+$state+'/'+$level+' -> '+$actual)
+    }
+    $g.Clear([Drawing.Color]::FromArgb(30,50,100))
+    $g.DrawString('/20',$counterSmall,[Drawing.Brushes]::White,[single](($r.X+$r.W+.002)*$bitmap.Width),[single](($r.Y+.035)*$bitmap.Height))
+    Paint-Region ([Drawing.Brushes]::Gold) ($r.X+$r.W+.035) ($r.Y+.02) .015 .05
+    $g.Flush([Drawing.Drawing2D.FlushIntention]::Sync)
+    Check ((Read-Focused-Level $bitmap $state) -eq 0) 'Cap or diamond invented a current level'
+   }
+  }finally{$counterFont.Dispose();$counterSmall.Dispose()}
   $settle=New-Session 8
   $sample=[pscustomobject]@{State='TREKKER_EDIT';Level=2;Cost=0}
   Check (!(Observation-Ready $settle $sample 0)) 'First frame authorized input'
@@ -1282,6 +1343,7 @@ if($Inspect){
   [Console]::Out.WriteLine(('Editor level region unobscured: {0}' -f $levelVisible))
   $observed=Read-Observation $snapshot $context
   [Console]::Out.WriteLine(('Recognized state: {0}; editor level (0 = not validated): {1}' -f $observed.State,$observed.Level))
+  $focused=Read-Focused-Level $snapshot ($InspectKind+'_EDIT');[Console]::Out.WriteLine(('Focused current level (0 = not validated): {0}' -f $focused))
   $editorCost=-1;if($observed.State -in @('DISC_EDIT','TREKKER_EDIT')){$editorCost=$observed.Cost};[Console]::Out.WriteLine(('Editor cost (-1 = not validated): {0}' -f $editorCost))
  }catch{[Console]::Out.WriteLine('READ_ONLY_INSPECTION_FAILED: keep the unobscured Unity game foreground and try again.')}finally{if($read){$read.Bitmap.Dispose()};if($snapshot){$snapshot.Dispose()}}
  exit 0

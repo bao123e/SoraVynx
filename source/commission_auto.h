@@ -14,7 +14,7 @@ static struct {
  char pending[128];size_t used;
  wchar_t message[256];
 } commission_auto;
-static const wchar_t *commission_auto_message(void){return commission_auto.message[0]?commission_auto.message:L"Start on the main screen. Selected home, Disc, Trekker and Commission tasks run once; F1 stops.";}
+static const wchar_t *commission_auto_message(void){return commission_auto.message[0]?commission_auto.message:L"Start on the main screen. Selected home, Disc, Trekker and Commission tasks run once; Menu key stops.";}
 static void commission_status(const wchar_t *text){wcsncpy(commission_auto.message,text,255);commission_auto.message[255]=0;}
 /* Only enumerated progress codes cross the pipe; no OCR text or screenshot is returned. */
 static void commission_code(const char *code){
@@ -36,7 +36,7 @@ static void commission_code(const char *code){
   return;
  }
  static const struct {const char *code;const wchar_t *text;} messages[]={
-  {"READY",L"Screen reader ready. Keep the game focused; F1 or Disable all stops this run."},
+  {"READY",L"Screen reader ready. Keep the game focused; Menu key or Disable all stops this run."},
   {"STATE_HOME",L"Main screen recognized. Running selected daily tasks."},{"STATE_CLAIM",L"Commission rewards recognized."},
   {"STATE_STORY",L"Story overlay recognized (Esc Skip and Space Next)."},{"STATE_ITEMS",L"Items Obtained overlay recognized."},
   {"STATE_RESULT",L"Commission Complete and Dispatch Again recognized."},{"STATE_UNKNOWN",L"Waiting for a recognized Commission screen; no input on unknown screens."},
@@ -140,7 +140,7 @@ static bool commission_start(HWND owner,HMODULE module,HWND game,unsigned tasks)
  created=CreateProcessW(exe,command,NULL,NULL,TRUE,CREATE_NO_WINDOW|CREATE_SUSPENDED|EXTENDED_STARTUPINFO_PRESENT,NULL,NULL,&startup.StartupInfo,&process)!=FALSE;
  if(!created||!AssignProcessToJobObject(job,process.hProcess))goto cleanup;
  memset(&commission_auto,0,sizeof(commission_auto));commission_auto.process=process.hProcess;commission_auto.job=job;commission_auto.pipe=read_pipe;commission_auto.script=file;
- commission_auto.running=true;commission_auto.started=GetTickCount64();commission_status(L"Starting local English OCR. Keep the game focused; F1 stops this run.");
+ commission_auto.running=true;commission_auto.started=GetTickCount64();commission_status(L"Starting local English OCR. Keep the game focused; Menu key stops this run.");
  ShowWindow(owner,SW_HIDE);SetForegroundWindow(game);
  if(ResumeThread(process.hThread)==(DWORD)-1||!SetTimer(owner,4,100,NULL)){commission_end(owner,true);file=NULL;job=NULL;read_pipe=NULL;process.hProcess=NULL;goto cleanup;}
  file=NULL;job=NULL;read_pipe=NULL;process.hProcess=NULL;ok=true;

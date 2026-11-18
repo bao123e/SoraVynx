@@ -34,20 +34,20 @@ static const wchar_t *claim_action_title(void){return claim_selected?L"SoraVynx 
 static const wchar_t *claim_click_message(void){
  if(claim_click.message)return claim_click.message;
  static const wchar_t *const help[]={
-  L"F1: hide tool. Hover Claim Gifts, press F9 to mark (no click). F1: return, then Claim Gifts / status.",
-  L"Open Commission with completed rewards. F1: hide tool, hover CLAIM ALL and press F9 (mark only). F1: return, then Claim All / status. Check the resulting screen and commission limit before continuing.",
-  L"Use only when the game's auto-team button is visible. F1: hide tool, hover that button and press F9 (mark only). F1: return, then Auto team / status. This step does not automatically press Start Dispatch.",
-  L"Use only when the game permits dispatch and the team is ready. F1: hide tool, hover START DISPATCH and press F9 (mark only). F1: return, then Start Dispatch / status."};return help[claim_selected];
+  L"Menu key: hide tool. Hover Claim Gifts, press Mark key to mark (no click). Menu key: return, then Claim Gifts / status.",
+  L"Open Commission with completed rewards. Menu key: hide tool, hover CLAIM ALL and press Mark key (mark only). Menu key: return, then Claim All / status. Check the resulting screen and commission limit before continuing.",
+  L"Use only when the game's auto-team button is visible. Menu key: hide tool, hover that button and press Mark key (mark only). Menu key: return, then Auto team / status. This step does not automatically press Start Dispatch.",
+  L"Use only when the game permits dispatch and the team is ready. Menu key: hide tool, hover START DISPATCH and press Mark key (mark only). Menu key: return, then Start Dispatch / status."};return help[claim_selected];
 }
 static const wchar_t *claim_click_hint(void){
  if(claim_click.phase)return claim_click.double_click?L"Double click is queued.\r\nKeep the game focused.":L"One click is queued.\r\nKeep the game focused.";
  if(claim_click.attempted)return L"ONE ATTEMPT USED\r\nCheck the game and daily.\r\nButton shows status only.";
  if(claim_click.marked)return L"POINT MARKED (no click)\r\nKeep the game page open.\r\nUse this step's action.\r\nCheck the result in game.";
  static const wchar_t *const hints[]={
-  L"F1 hide; hover Claim Gifts\r\nF9 mark (no click)\r\nF1 return to tool\r\nClaim Gifts / status",
-  L"F1 hide; hover CLAIM ALL\r\nF9 mark (no click)\r\nF1 return to tool\r\nClaim All / status",
-  L"F1 hide; hover auto-team\r\nF9 mark (no click)\r\nF1 return to tool\r\nAuto team / status",
-  L"F1 hide; hover START\r\nF9 mark (no click)\r\nF1 return to tool\r\nStart Dispatch / status"};return hints[claim_selected];
+  L"Menu key hide; hover Claim Gifts\r\nMark key mark (no click)\r\nMenu key return to tool\r\nClaim Gifts / status",
+  L"Menu key hide; hover CLAIM ALL\r\nMark key mark (no click)\r\nMenu key return to tool\r\nClaim All / status",
+  L"Menu key hide; hover auto-team\r\nMark key mark (no click)\r\nMenu key return to tool\r\nAuto team / status",
+  L"Menu key hide; hover START\r\nMark key mark (no click)\r\nMenu key return to tool\r\nStart Dispatch / status"};return hints[claim_selected];
 }
 static bool claim_game(HWND game){
  DWORD pid=0;wchar_t name[64]={0};
@@ -74,24 +74,24 @@ static bool claim_mark(void){
  if(claim_click.attempted||claim_click.phase){claim_click.message=L"One attempt is already pending or used. No new point was marked.";return false;}
  HWND game=GetForegroundWindow();POINT screen,point;RECT rect;
  if(!claim_game(game)||!GetCursorPos(&screen)||GetAncestor(WindowFromPoint(screen),GA_ROOT)!=game||(GetAsyncKeyState(VK_LBUTTON)&0x8000)){
-  claim_click.message=L"Not marked. Focus the game, hover the selected task button without holding the mouse button, then press F9.";return false;
+  claim_click.message=L"Not marked. Focus the game, hover the selected task button without holding the mouse button, then press Mark key.";return false;
  }
  point=screen;
  if(!ScreenToClient(game,&point)||!GetClientRect(game,&rect)||!claim_inside(point,rect))return false;
  claim_click.game=game;claim_click.point=point;claim_click.size.cx=rect.right-rect.left;claim_click.size.cy=rect.bottom-rect.top;
- claim_click.marked=true;claim_click.message=L"Selected task point marked (no click sent). F1 to return, then press the task action once.";return true;
+ claim_click.marked=true;claim_click.message=L"Selected task point marked (no click sent). Menu key to return, then press the task action once.";return true;
 }
 static bool claim_context(void){
  RECT rect;
  if(!claim_click.marked||!claim_game(claim_click.game)||!GetClientRect(claim_click.game,&rect)||
   rect.right-rect.left!=claim_click.size.cx||rect.bottom-rect.top!=claim_click.size.cy||!claim_inside(claim_click.point,rect)){
-  claim_click.message=L"Game window changed. No click sent. Hover the selected task button and press F9 to mark again.";return false;
+  claim_click.message=L"Game window changed. No click sent. Hover the selected task button and press Mark key to mark again.";return false;
  }
  return true;
 }
 static bool claim_start(HWND owner){
  if(claim_click.attempted||claim_click.phase){return false;}
- if(!claim_click.marked){claim_click.message=L"No point marked for this task. F1 to hide the tool, hover its game button and press F9 (no click), then F1 to return.";return false;}
+ if(!claim_click.marked){claim_click.message=L"No point marked for this task. Menu key to hide the tool, hover its game button and press Mark key (no click), then Menu key to return.";return false;}
  if(!claim_context()||!GetCursorPos(&claim_click.restore))return false;
  ShowWindow(owner,SW_HIDE);SetForegroundWindow(claim_click.game);claim_click.phase=1;claim_click.completed_clicks=0;
  if(!SetTimer(owner,3,350,NULL)){claim_click.phase=0;claim_click.message=L"Could not queue the click. No input sent.";return false;}
