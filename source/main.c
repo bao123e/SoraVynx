@@ -33,6 +33,7 @@ static HWND multiplier_hint,event_hint,section_title,section_caption,footer;
 static HWND background_name,background_mode;
 static HWND page_controls[4][20];static int page_count[4],active_page;
 static bool global_hotkey,claim_hotkey;
+static unsigned feature_hotkeys;
 static HBRUSH background_brush,background_pattern;
 static HFONT body_font,button_font,title_font,section_font,daily_font;
 static HDC background_dc;static HBITMAP background_bitmap;
@@ -154,9 +155,37 @@ static void refresh_status(void) {
  swprintf(text,256,L"Score Multiplier  (x%ld / 2 - 100)",(long)read_atomic(&event_multiplier));update_text(event_hint,text);
  swprintf(text,256,L"Mob Vacuum  (distance %ld / 1 - 10)",(long)read_atomic(&vacuum_distance));update_text(checks[MOB_VACUUM],text);
 }
+/* Always center on the Unity client owned by this runtime, with monitor fallback. */
+static void panel_position(HWND hwnd,int width,int height,int *x,int *y){
+ HWND game=NULL;RECT area;EnumWindows(daily_lua_find_game,(LPARAM)&game);
+ if(game&&!IsIconic(game)&&GetClientRect(game,&area)){
+  POINT origin={0,0};ClientToScreen(game,&origin);OffsetRect(&area,origin.x,origin.y);
+ }else{MONITORINFO monitor={0};monitor.cbSize=sizeof(monitor);GetMonitorInfoW(MonitorFromWindow(hwnd,MONITOR_DEFAULTTONEAREST),&monitor);area=monitor.rcWork;}
+ *x=area.left+((area.right-area.left)-width)/2;*y=area.top+((area.bottom-area.top)-height)/2;
+}
+static void center_panel(HWND hwnd){
+ RECT r;GetWindowRect(hwnd,&r);int x,y;panel_position(hwnd,r.right-r.left,r.bottom-r.top,&x,&y);
+ if(x!=r.left||y!=r.top)SetWindowPos(hwnd,NULL,x,y,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE);
+}
+static int feature_hotkey_command(unsigned id){
+ static const int commands[]={100+GOD_MODE,100+MULTI_HIT,100+NO_COOLDOWN,100+UNLIMITED_ENERGY,100+MOB_VACUUM,437,200};
+ return id>=20&&id<=26?commands[id-20]:0;
+}
+static bool feature_hotkey_context(HWND hwnd){
+ HWND game=NULL;EnumWindows(daily_lua_find_game,(LPARAM)&game);HWND foreground=GetForegroundWindow();
+ return foreground==hwnd||(game&&foreground==game);
+}
+static void show_keybinds(HWND hwnd){
+ wchar_t text[1400];swprintf(text,1400,
+ L"F1: show / hide menu; stop Auto Daily\r\nF6: Event No Cooldown\r\nF7: Event Energy\r\nF8: Event Score Multiplier\r\nF9: mark manual claim point (Auto Daily page)\r\n\r\n"
+ L"Ctrl+Alt+1: God Mode\r\nCtrl+Alt+2: Damage Multiplier\r\nCtrl+Alt+3: No Cooldown\r\nCtrl+Alt+4: Unlimited Energy\r\nCtrl+Alt+5: Mob Vacuum\r\nCtrl+Alt+9: run / stop selected daily steps\r\nCtrl+Alt+0: disable all\r\n\r\n"
+ L"Feature shortcuts require the game or tool in front.\r\nNew shortcuts registered: %u / 7. If unavailable, close the app using that shortcut and restart the tool.",
+ (unsigned)((feature_hotkeys&1)!=0)+((feature_hotkeys&2)!=0)+((feature_hotkeys&4)!=0)+((feature_hotkeys&8)!=0)+((feature_hotkeys&16)!=0)+((feature_hotkeys&32)!=0)+((feature_hotkeys&64)!=0));
+ MessageBoxW(hwnd,text,L"SoraVynx - Keybinds",MB_OK|MB_ICONINFORMATION);
+}
 static void toggle_panel(HWND hwnd) {
  if(IsWindowVisible(hwnd)&&!IsIconic(hwnd))ShowWindow(hwnd,SW_HIDE);
- else {ShowWindow(hwnd,SW_RESTORE);SetWindowPos(hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW);SetForegroundWindow(hwnd);}
+ else {center_panel(hwnd);ShowWindow(hwnd,SW_RESTORE);SetWindowPos(hwnd,HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW);SetForegroundWindow(hwnd);}
 }
 static void make_background(HWND hwnd) {
  if(background_pattern){DeleteObject(background_pattern);background_pattern=NULL;}
@@ -247,16 +276,17 @@ static void switch_page(int page) {
 }
 static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  switch(message){
- case WM_NCHITTEST:{
-  POINT point={(short)LOWORD(lp),(short)HIWORD(lp)};ScreenToClient(hwnd,&point);
-  if(point.y>=0&&point.y<80&&point.x>=0&&point.x<880)return HTCAPTION;
-  return HTCLIENT;
+ case WM_NCHITTEST:return HTCLIENT;
+ case WM_SYSCOMMAND:if((wp&0xfff0)==SC_MOVE||(wp&0xfff0)==SC_SIZE)return 0;break;
+ case WM_WINDOWPOSCHANGING:{WINDOWPOS *position=(WINDOWPOS*)lp;
+  if(!(position->flags&SWP_NOMOVE)){RECT r;GetWindowRect(hwnd,&r);panel_position(hwnd,(position->flags&SWP_NOSIZE)?r.right-r.left:position->cx,(position->flags&SWP_NOSIZE)?r.bottom-r.top:position->cy,&position->x,&position->y);}return 0;
  }
  case WM_COMMAND:{
   if(!sv_license_alive()){disable_all();return 0;}
   int id=LOWORD(wp),notice=HIWORD(wp);
   if(notice==BN_CLICKED){
    if(id>=400&&id<=403){switch_page(id-400);return 0;}
+   if(id==438){show_keybinds(hwnd);return 0;}
    if(id==433){copy_startup_report(hwnd);return 0;}
    if(id==437){if(commission_auto.running)commission_cancel(hwnd);else if(read_atomic(&init_state)==1&&(daily_selection&((1u<<2)|(1u<<3)|(1u<<6)|(1u<<9)))&&!claim_click.phase){HWND game=NULL;EnumWindows(daily_lua_find_game,(LPARAM)&game);if(!commission_start(hwnd,self_module,game,daily_selection)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,commission_auto_message(),L"SoraVynx - Auto Daily",MB_OK|MB_ICONINFORMATION);}}refresh_status();return 0;}
    if(commission_auto.running&&(id==430||id==431||id==432||id==435||id==436))return 0;
@@ -296,7 +326,13 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
   if(!sv_license_alive()){disable_all();return 0;}
   if(wp==1){commission_cancel(hwnd);toggle_panel(hwnd);}
   else if(wp==9&&!commission_auto.running&&active_page==3&&read_atomic(&init_state)==1&&(daily_selection&(1u<<(claim_selected?9:7)))){bool marked=claim_mark();MessageBeep(marked?MB_OK:MB_ICONWARNING);refresh_status();}
-  else if(wp>=6&&wp<=8){int i=(int)wp-6;if(read_atomic(&event_ready[i]))InterlockedExchange(&event_flags[i],!read_atomic(&event_flags[i]));refresh_status();}
+  else if(wp>=20&&wp<=26){
+   if(wp==26){disable_all();return 0;}
+   if(wp==25&&commission_auto.running){commission_cancel(hwnd);refresh_status();return 0;}
+   if(!feature_hotkey_context(hwnd)||read_atomic(&init_state)!=1)return 0;
+   SendMessageW(hwnd,WM_COMMAND,MAKEWPARAM(feature_hotkey_command((unsigned)wp),BN_CLICKED),0);refresh_status();
+  }
+  else if(wp>=6&&wp<=8&&feature_hotkey_context(hwnd)){int i=(int)wp-6;if(read_atomic(&event_ready[i]))InterlockedExchange(&event_flags[i],!read_atomic(&event_flags[i]));refresh_status();}
   return 0;
  case WM_DRAWITEM:{DRAWITEMSTRUCT *item=(DRAWITEMSTRUCT*)lp;
   if(item->CtlType==ODT_BUTTON){draw_button(item);return TRUE;}
@@ -311,11 +347,12 @@ static LRESULT CALLBACK procedure(HWND hwnd,UINT message,WPARAM wp,LPARAM lp) {
  case WM_ERASEBKGND:return 1;
  case WM_PAINT:{PAINTSTRUCT paint;HDC dc=BeginPaint(hwnd,&paint);if(background_dc){RECT r;GetClientRect(hwnd,&r);BitBlt(dc,0,0,r.right,r.bottom,background_dc,0,0,SRCCOPY);}EndPaint(hwnd,&paint);return 0;}
  case WM_TIMER:
-  if(!sv_license_alive()){disable_all();for(int id=1;id<=9;id++)UnregisterHotKey(hwnd,id);KillTimer(hwnd,1);DestroyWindow(hwnd);MessageBoxW(NULL,L"Your access key has expired. Reopen SoraVynx to activate a new key.",L"SoraVynx access",MB_OK|MB_ICONINFORMATION);PostQuitMessage(0);return 0;}
+  if(!sv_license_alive()){disable_all();for(int id=1;id<=26;id++)UnregisterHotKey(hwnd,id);KillTimer(hwnd,1);DestroyWindow(hwnd);MessageBoxW(NULL,L"Your access key has expired. Reopen SoraVynx to activate a new key.",L"SoraVynx access",MB_OK|MB_ICONINFORMATION);PostQuitMessage(0);return 0;}
   if(wp==4){if(commission_poll(hwnd)){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,commission_auto_message(),L"SoraVynx - Auto Daily",MB_OK|MB_ICONINFORMATION);}refresh_status();return 0;}
   if(wp==3){int result=claim_tick(hwnd);if(result<0){ShowWindow(hwnd,SW_SHOWNOACTIVATE);MessageBoxW(hwnd,claim_click_message(),claim_action_title(),MB_OK|MB_ICONINFORMATION);}refresh_status();return 0;}
+  if(IsWindowVisible(hwnd))center_panel(hwnd);
   daily_lua_poll(hwnd);
-  if(!global_hotkey){static bool previous;bool down=(GetAsyncKeyState(VK_F1)&0x8000)!=0;if(down&&!previous)toggle_panel(hwnd);previous=down;}
+  if(!global_hotkey){static bool previous;bool down=(GetAsyncKeyState(VK_F1)&0x8000)!=0;if(down&&!previous){commission_cancel(hwnd);toggle_panel(hwnd);}previous=down;}
   refresh_status();return 0;
  case WM_APP+1:refresh_status();return 0;
  case WM_CLOSE:disable_all();ShowWindow(hwnd,SW_HIDE);return 0;
@@ -398,6 +435,7 @@ static DWORD WINAPI run(void *unused) {
  page_control(3,L"BUTTON",L"Claim Gifts / status",BS_OWNERDRAW|WS_TABSTOP,648,368,312,36,432);
  page_control(3,L"BUTTON",L"Run selected daily steps",BS_OWNERDRAW|WS_TABSTOP,648,412,312,40,437);
  control(L"BUTTON",L"Disable all",BS_OWNERDRAW|WS_TABSTOP,16,440,146,48,200);
+ control(L"BUTTON",L"Keybinds",BS_OWNERDRAW|WS_TABSTOP,16,504,146,32,438);
  status_label=control(L"STATIC",L"Connecting to game...",0,208,516,752,24,0);
  footer=control(L"STATIC",L"",0,208,552,528,24,0);
  control(L"BUTTON",L"Copy startup report",BS_OWNERDRAW|WS_TABSTOP,752,546,208,32,433);
@@ -405,7 +443,8 @@ static DWORD WINAPI run(void *unused) {
  for(int i=6;i<=8;i++)RegisterHotKey(window,i,MOD_NOREPEAT,VK_F6+i-6);
  global_hotkey=RegisterHotKey(window,1,MOD_NOREPEAT,VK_F1)!=0;
  claim_hotkey=RegisterHotKey(window,9,MOD_NOREPEAT,VK_F9)!=0;
- switch_page(0);refresh_background();SetTimer(window,1,global_hotkey?500:50,NULL);ShowWindow(window,SW_SHOWNOACTIVATE);
+ for(int i=0;i<7;i++){UINT key=i<5?'1'+i:i==5?'9':'0';if(RegisterHotKey(window,20+i,MOD_CONTROL|MOD_ALT|MOD_NOREPEAT,key))feature_hotkeys|=1u<<i;}
+ switch_page(0);refresh_background();center_panel(window);SetTimer(window,1,global_hotkey?500:50,NULL);ShowWindow(window,SW_HIDE);
  HANDLE thread=CreateThread(NULL,0,initialize,NULL,0,NULL);if(thread)CloseHandle(thread);else {InterlockedExchange(&startup_code,SV_INIT_THREAD_FAILED);InterlockedExchange(&init_state,-1);}
  MSG msg;while(GetMessageW(&msg,NULL,0,0)>0){if(!IsDialogMessageW(window,&msg)){TranslateMessage(&msg);DispatchMessageW(&msg);}}
  return 0;

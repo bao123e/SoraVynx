@@ -155,7 +155,7 @@ static bool commission_start(HWND owner,HMODULE module,HWND game,unsigned tasks)
 static bool commission_poll(HWND owner){
  if(!commission_auto.running)return false;
  commission_read();DWORD exit_code=0;
- if(commission_auto.terminal<0||GetTickCount64()-commission_auto.started>190000){
+ if(commission_auto.terminal<0||GetTickCount64()-commission_auto.started>370000){
   wchar_t reason[256];wcscpy(reason,commission_auto_message());if(commission_auto.terminal>=0)wcscpy(reason,L"Commission stopped after its time limit.");commission_end(owner,true);commission_status(reason);return true;
  }
  if(!GetExitCodeProcess(commission_auto.process,&exit_code)||exit_code!=STILL_ACTIVE){

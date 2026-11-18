@@ -16,7 +16,10 @@ out=Path(os.environ.get('RUNNER_TEMP',build));archive=out/('SoraVynx-'+metadata[
 readme="""SoraVynx — selected daily steps preview
 
 Giải nén TOÀN BỘ ZIP, giữ thư mục automation/commission.ps1 cạnh EXE/DLL. Không sửa file script; tool kiểm tra nó khớp binary.
-Thoát game/tool cũ, mở cặp mới bằng key hiện tại, vào màn chính hoặc Commission và chờ READY.
+Thoát game/tool cũ, mở cặp mới bằng key hiện tại. Menu ẩn khi khởi động; F1 mở menu cố định giữa cửa sổ game. Vào màn chính và chờ READY.
+Keybinds: F1 hiện/ẩn và dừng Auto; F6/F7/F8 bật tắt ba chức năng Event; F9 đánh dấu điểm thủ công. Ctrl+Alt+1 God Mode, +2 Damage, +3 Cooldown, +4 Energy, +5 Vacuum; Ctrl+Alt+9 chạy/dừng các bước Daily đã chọn; Ctrl+Alt+0 tắt tất cả. Nút Keybinds trong menu hiển thị bảng phím và số phím đăng ký thành công. Phím chức năng yêu cầu game/menu ở trước.
+Auto chờ hai lần nhận diện khớp nhau trước khi bấm, chờ chuyển màn tối đa 30 giây và giới hạn toàn lượt 6 phút. Không tự bấm lại xác nhận Upgrade khi lag. Nếu game vẫn không đáp ứng thì dừng và báo lỗi.
+Trước khi Inspect: đóng OK của hộp lỗi, ẩn menu bằng F1, đưa game lên trước; hộp lỗi có thể che số cấp dù vẫn đọc được giá. Không tiếp tục lượt nâng cũ có nguyên liệu đang chọn: về Home rồi chạy lượt mới.
 Auto Daily -> chọn USE/SKIP cho Upgrade Disc once, Upgrade Trekker once, Interact with home Trekker, Dispatch 1 commission -> Run selected daily steps. Không cần F9.
 Bắt đầu màn chính. Các mục USE chạy theo thứ tự Home interaction -> Disc -> Trekker -> Commission.
 Disc/Trekker: ưu tiên cấp thấp nhất đọc được trên các thẻ đang thấy; nếu nhãn nhỏ thiếu thì kiểm tra cấp lớn ở màn chi tiết từng thẻ, chỉ chọn cấp 1–89. Bỏ qua cấp >=90/không đọc rõ, xem tối đa 10 Disc hoặc 12 Trekker trên hai hàng đang thấy, dùng Upgrade 1 level, xác nhận Upgrade một lần rồi về Home. Có dùng nguyên liệu/tiền game. Không dùng Max hoặc thử lại chi tiêu khi không rõ kết quả.
@@ -31,7 +34,7 @@ Sau khi xác nhận nâng: đóng Power Up nếu xuất hiện, kiểm tra edito
 Giữ game có focus, không đổi kích thước/chuyển ứng dụng trong lúc chạy. F1 dừng và hiện lại tool; Disable all cũng dừng.
 Không có thưởng, không nhận ra màn hình hoặc thiếu English OCR thì dừng, không bấm đoán. Nếu báo thiếu OCR, cần thành phần OCR tiếng Anh của Windows.
 Ảnh/chữ OCR chỉ xử lý cục bộ trong bộ nhớ, không lưu/gửi ảnh, không tạo log. Không đổi key/issuer/private PEM hoặc bot/SePay.
-Chủ tool xác nhận preview.2 mở Commission và Dispatch Again hoạt động. Chủ tool đánh giá preview.3 có vẻ ổn. Hai bước nâng Disc/Trekker mới cần thử trong game; kiểm thử Windows OCR dùng ảnh giả lập có chữ. Kết thúc input không đồng nghĩa server/daily đã xác nhận.
+Chủ tool xác nhận preview.2 mở Commission và Dispatch Again hoạt động. Chủ tool đánh giá preview.3 có vẻ ổn. Chủ tool đã nhận được Power Up của Disc và Trekker. Các thay đổi chờ lag/menu/phím tắt của bản này cần kiểm tra trong game; kiểm thử Windows OCR dùng ảnh giả lập có chữ. Kết thúc input không đồng nghĩa server/daily đã xác nhận.
 Home/Disc/Trekker/Commission là bốn bước được hỗ trợ, chưa phải tự chạy toàn bộ daily. Chế độ F9 thủ công vẫn có nếu cần.
 """
 checks=''.join(hashlib.sha256((build/name).read_bytes()).hexdigest()+'  '+name+'\n' for name in ['SoraVynx.exe','SoraVynx.Runtime.dll'])

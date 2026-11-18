@@ -2,6 +2,8 @@
 param([long]$GameWindow=0,[int]$GamePid=0,[int]$Tasks=512,[switch]$SelfTest,[switch]$Inspect,[ValidateSet('DISC','TREKKER')][string]$InspectKind='DISC')
 $ErrorActionPreference='Stop'
 $ProgressPreference='SilentlyContinue'
+$script:TransitionTimeout=10000
+$script:NavigationRetry=1800;$script:EntryTimeout=3000;$script:ClaimRetry=1500;$script:OverlayRetry=1800
 function Signal([string]$code){[Console]::Out.WriteLine('SV1|'+$code);[Console]::Out.Flush()}
 try {
  Add-Type -AssemblyName System.Drawing
@@ -46,6 +48,14 @@ public static class CommissionDesktop {
   if(!IsWindow(Window)||IsIconic(Window)||GetWindowThreadProcessId(Window,out pid)==0||pid!=Pid||GetClassName(Window,name,64)==0||name.ToString()!="UnityWndClass"||GetForegroundWindow()!=Window||!GetClientRect(Window,out r))throw new Exception("CONTEXT");
   int w=r.R-r.L,h=r.B-r.T;if(w<320||h<180)throw new Exception("SIZE");
   if(Width!=0&&(w!=Width||h!=Height))throw new Exception("RESIZED");Width=w;Height=h;return r;
+ }
+ // Detect OS dialogs covering a numeric region; foreground Unity alone is insufficient.
+ public static bool VisibleRegion(double x,double y,double w,double h){
+  Rect r=View();
+  for(int row=0;row<3;row++)for(int col=0;col<3;col++){
+   var point=new Point{X=(int)((x+w*(col+.5)/3)*(r.R-r.L)),Y=(int)((y+h*(row+.5)/3)*(r.B-r.T))};
+   if(!ClientToScreen(Window,ref point)||GetAncestor(WindowFromPoint(point),2)!=Window)return false;
+  }return true;
  }
  public static Bitmap PromptCrop(Bitmap source,bool invert){
   int w=Math.Max(1,(int)(source.Width*0.28)),h=Math.Max(1,(int)(source.Height*0.18));
@@ -521,6 +531,17 @@ function Read-Observation($bitmap,$session=$null){
  }finally{$read.Bitmap.Dispose()}
 }
 function New-Session([int]$selectedTasks=512) {return @{DiscEnabled=($selectedTasks -band 4) -ne 0;TrekkerEnabled=($selectedTasks -band 8) -ne 0;DiscDone=$false;TrekkerDone=$false;TriedCards=@();UpgradeKind='';UpgradePhase='';UpgradeAt=0;BeforeLevel=0;TargetLevel=0;UpgradeCommits=0;UpgradeOpenAttempts=0;UpgradeOverlayCloses=0;TargetX=0.0;TargetY=0.0;HomeEnabled=($selectedTasks -band 64) -ne 0;DispatchEnabled=($selectedTasks -band 512) -ne 0;Interact=0;Entry=0;Claim=0;Skip=0;Items=0;Again=0;AgainAt=0;StableSince=-1;StableState='';Last=0;Unknown=0;Actions=0;Commission=$false}}
+# Live input is gated by two matching observations, separated in time. A loading
+# frame or incomplete numeric read never authorizes an action. State transitions
+# invalidate the gate; the spend itself remains non-repeatable in Next-Upgrade.
+function Observation-Ready($session,$observation,[long]$now){
+ $valid=$observation.State -ne 'UNKNOWN'
+ if($observation.State -in @('DISC_EDIT','TREKKER_EDIT')){$valid=$valid -and $observation.Level -ge 1 -and $observation.Cost -ge 0}
+ $key=('{0}|{1}|{2}|{3}|{4}' -f $session.UpgradeKind,$session.UpgradePhase,$observation.State,$observation.Level,$observation.Cost)
+ if(!$valid){$session.SettleKey='';$session.SettleAt=$now;return $false}
+ if(!$session.ContainsKey('SettleKey') -or $session.SettleKey -ne $key){$session.SettleKey=$key;$session.SettleAt=$now;return $false}
+ return ($now-$session.SettleAt -ge 400)
+}
 function Next-Upgrade($session,$observation,[long]$now){
  $kind=$session.UpgradeKind
  if(!$kind){
@@ -576,7 +597,7 @@ function Next-Upgrade($session,$observation,[long]$now){
   # harmless page transition once, only after re-recognizing the same detail
   # layout. Never apply this policy to PREPARE_LEVEL or COMMIT_UPGRADE.
   if($session.BeforeLevel -gt 0 -and $observation.Level -gt 0 -and $observation.Level -ne $session.BeforeLevel){return 'ERR_UPGRADE_SELECTION_CHANGED'}
-  if($session.UpgradeOpenAttempts -lt 2 -and $now-$session.Last -ge 1800){
+  if($session.UpgradeOpenAttempts -lt 2 -and $now-$session.Last -ge $script:NavigationRetry){
    $session.UpgradeOpenAttempts++
    $session.TargetX=.435;$session.TargetY=.923
    if($kind -eq 'TREKKER'){$session.TargetX=$observation.X;$session.TargetY=$observation.Y}
@@ -602,8 +623,8 @@ function Next-Upgrade($session,$observation,[long]$now){
   }
  }
  if($phase -eq 'VERIFY' -and $observation.State -eq 'POWER_UP'){
-  if($now-$session.UpgradeAt -ge 10000){return 'ERR_UPGRADE_OVERLAY_NOT_CLOSED'}
-  if($session.UpgradeOverlayCloses -gt 0 -and $now-$session.Last -lt 1800){return 'WAIT'}
+  if($now-$session.UpgradeAt -ge $script:TransitionTimeout){return 'ERR_UPGRADE_OVERLAY_NOT_CLOSED'}
+  if($session.UpgradeOverlayCloses -gt 0 -and $now-$session.Last -lt $script:OverlayRetry){return 'WAIT'}
   if($session.UpgradeOverlayCloses -ge 2){return 'WAIT'}
   $session.UpgradeOverlayCloses++
   $session.TargetX=$observation.X;$session.TargetY=$observation.Y
@@ -619,7 +640,7 @@ function Next-Upgrade($session,$observation,[long]$now){
   }
  }
  if($observation.State -eq 'UNKNOWN'){$session.Unknown++;if($session.Unknown -ge 8){return 'ERR_UNKNOWN_SCREEN'}}else{$session.Unknown=0}
- if($now-$session.UpgradeAt -ge 10000){
+ if($now-$session.UpgradeAt -ge $script:TransitionTimeout){
   if($phase -eq 'PREPARED'){return 'ERR_UPGRADE_NOT_PREPARED'}
   if($phase -eq 'VERIFY'){return 'ERR_UPGRADE_NOT_CONFIRMED'}
   switch($phase){
@@ -659,7 +680,7 @@ function Next-Action($session,$observation,[long]$now){
   $session.StableSince=-1;$session.StableState=''
   if($observation.State -eq 'RESULT'){
    $session.Unknown=0
-   if($now-$session.Last -lt 8000){return 'WAIT'}
+   if($now-$session.Last -lt [Math]::Max(8000,$script:TransitionTimeout)){return 'WAIT'}
    return 'ERR_DISPATCH_NOT_CHANGED'
   }
   if($observation.State -eq 'HOME'){return 'ERR_LEFT_COMMISSION'}
@@ -670,11 +691,11 @@ function Next-Action($session,$observation,[long]$now){
    else {
     if($session.Interact -gt 0 -and $now-$session.Last -lt 1600){return 'WAIT'}
     if(!$session.DispatchEnabled){return 'DONE'}
-    if($session.Entry -gt 0){if($now-$session.Last -lt 3000){return 'WAIT'};return 'ERR_ENTRY_NOT_CHANGED'}
+    if($session.Entry -gt 0){if($now-$session.Last -lt $script:EntryTimeout){return 'WAIT'};return 'ERR_ENTRY_NOT_CHANGED'}
     $session.Entry++;$action='OPEN'
    }
   }
-  'CLAIM' {$session.Commission=$true;if($now-$session.Last -lt 1500){return 'WAIT'};if($session.Claim -ge 2){return 'ERR_CLAIM_NOT_CHANGED'};$session.Claim++;$action='CLAIM'}
+  'CLAIM' {$session.Commission=$true;if($now-$session.Last -lt $script:ClaimRetry){return 'WAIT'};if($session.Claim -ge 2){return 'ERR_CLAIM_NOT_CHANGED'};$session.Claim++;$action='CLAIM'}
   'STORY' {if(!$session.Commission){return 'ERR_NOT_COMMISSION'};if($now-$session.Last -lt 800){return 'WAIT'};if($session.Skip -ge 4){return 'ERR_STORY_LIMIT'};$session.Skip++;$action='ESC'}
   'ITEMS' {if(!$session.Commission){return 'ERR_NOT_COMMISSION'};if($now-$session.Last -lt 800){return 'WAIT'};if($session.Items -ge 4){return 'ERR_ITEMS_LIMIT'};$session.Items++;$action='CONTINUE'}
   'RESULT' {$session.Commission=$true;if($now-$session.Last -lt 800){return 'WAIT'};$session.Again++;$session.AgainAt=$now;$action='AGAIN'}
@@ -1213,11 +1234,34 @@ if($SelfTest){
    Check ((Next-Action $session $preview 4000) -eq 'RETURN_HOME') 'Committed level 90 was incorrectly treated as a new candidate'
    Check ($session.UpgradeCommits -eq 1) '89 -> 90 upgrade was repeated'
   }
+  $settle=New-Session 8
+  $sample=[pscustomobject]@{State='TREKKER_EDIT';Level=2;Cost=0}
+  Check (!(Observation-Ready $settle $sample 0)) 'First frame authorized input'
+  Check (!(Observation-Ready $settle $sample 200)) 'Unsettled frame authorized input'
+  Check ((Observation-Ready $settle $sample 500)) 'Stable editor never became ready'
+  $sample.Level=0;$sample.Cost=300
+  Check (!(Observation-Ready $settle $sample 1000)) 'Unreadable preview authorized spending'
+  $sample.Level=3
+  Check (!(Observation-Ready $settle $sample 1500)) 'New preview bypassed settling'
+  Check ((Observation-Ready $settle $sample 2000)) 'Stable preview was blocked'
+  $settle.UpgradePhase='VERIFY'
+  Check (!(Observation-Ready $settle $sample 2500)) 'New phase reused stale frame'
+  Check (!(Observation-Ready $settle ([pscustomobject]@{State='UNKNOWN'}) 3000)) 'Loading frame authorized input'
+  $script:TransitionTimeout=30000
+  $delayed=New-Session 8;$delayed.Actions=4;$delayed.UpgradeKind='TREKKER';$delayed.UpgradePhase='PREPARED';$delayed.BeforeLevel=2;$delayed.UpgradeAt=1000
+  $sample.Level=0
+  Check ((Next-Action $delayed $sample 16000) -eq 'WAIT') 'Lagging preview stopped at old deadline'
+  $sample=[pscustomobject]@{State='TREKKER_EDIT';Level=3;Cost=300;CommitX=.8;CommitY=.8}
+  Check ((Next-Action $delayed $sample 20000) -eq 'COMMIT_UPGRADE') 'Delayed preview did not commit'
+  Check ((Next-Action $delayed $sample 25000) -eq 'WAIT') 'Pending spend was repeated'
+  Check ($delayed.UpgradeCommits -eq 1) 'Lag caused repeated spending'
+  $script:TransitionTimeout=10000
   Signal 'SELF_TEST_PASS'
  }finally{$g.Dispose();$bitmap.Dispose();if($font){$font.Dispose()}}
  exit 0
 }
 if($Inspect){
+ [Console]::Out.WriteLine('Close any tool/error dialog first. Keep the game unobscured. No input is sent.')
  [Console]::Out.WriteLine('READ-ONLY INSPECTION: switch to the game within 8 seconds. No click or key will be sent. Keep this window open.')
  Start-Sleep -Seconds 8
  $snapshot=$null;$read=$null
@@ -1233,6 +1277,9 @@ if($Inspect){
   if($InspectKind -eq 'TREKKER'){$facts=Trekker-Layout-Checks $snapshot}
   foreach($property in $facts.PSObject.Properties){[Console]::Out.WriteLine(('Layout {0}: {1}' -f $property.Name,$property.Value))}
   $context=New-Session 4;$context.UpgradeKind=$InspectKind;$context.UpgradePhase='EDIT'
+  $levelVisible=[CommissionDesktop]::VisibleRegion(.75,.18,.065,.115)
+  if($InspectKind -eq 'DISC'){$levelVisible=[CommissionDesktop]::VisibleRegion(.73,.16,.07,.115)}
+  [Console]::Out.WriteLine(('Editor level region unobscured: {0}' -f $levelVisible))
   $observed=Read-Observation $snapshot $context
   [Console]::Out.WriteLine(('Recognized state: {0}; editor level (0 = not validated): {1}' -f $observed.State,$observed.Level))
   $editorCost=-1;if($observed.State -in @('DISC_EDIT','TREKKER_EDIT')){$editorCost=$observed.Cost};[Console]::Out.WriteLine(('Editor cost (-1 = not validated): {0}' -f $editorCost))
@@ -1240,15 +1287,25 @@ if($Inspect){
  exit 0
 }
 try {
- [CommissionDesktop]::Init($GameWindow,$GamePid);$session=New-Session $Tasks;$clock=[Diagnostics.Stopwatch]::StartNew();Signal 'READY'
- while($clock.ElapsedMilliseconds -lt 180000){
+ [CommissionDesktop]::Init($GameWindow,$GamePid);$session=New-Session $Tasks;$clock=[Diagnostics.Stopwatch]::StartNew();$script:TransitionTimeout=30000;$script:NavigationRetry=6000;$script:EntryTimeout=30000;$script:ClaimRetry=6000;$script:OverlayRetry=3000;$lastProgress=0;Signal 'READY'
+ while($clock.ElapsedMilliseconds -lt 360000){
   $bitmap=[CommissionDesktop]::Capture()
   try{$observation=Read-Observation $bitmap $session}finally{$bitmap.Dispose()}
-  $action=Next-Action $session $observation $clock.ElapsedMilliseconds
+  $now=$clock.ElapsedMilliseconds
+  if(!(Observation-Ready $session $observation $now)){
+   if($now-$lastProgress -ge $script:TransitionTimeout){
+    if($observation.State -in @('DISC_EDIT','TREKKER_EDIT') -and $observation.Level -lt 1){Signal 'ERR_UPGRADE_LEVEL_UNREADABLE'}
+    elseif($observation.State -in @('DISC_EDIT','TREKKER_EDIT') -and $observation.Cost -lt 0){Signal 'ERR_UPGRADE_COST_UNREADABLE'}
+    else{Signal 'ERR_UNKNOWN_SCREEN'};exit 3
+   }
+   Start-Sleep -Milliseconds 450;continue
+  }
+  $action=Next-Action $session $observation $now
   Signal ('STATE_'+$observation.State)
   if($action -eq 'DONE' -or $action -eq 'NO_REWARDS'){Signal $action;exit 0}
   if($action.StartsWith('ERR_')){Signal $action;exit 3}
   if($action -eq 'WAIT'){Start-Sleep -Milliseconds 450;continue}
+  $lastProgress=$now;$session.SettleKey=''
   Signal ('ACTION_'+$action)
   # The owner confirmed one touch on the displayed home character completes
   # interaction. Its center point is based on the supplied home layout; this

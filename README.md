@@ -21,7 +21,7 @@ SoraVynx is a Windows x64 toolkit for Stella Sora, with an experimental Android 
 
 Giao diện bo góc, logo SoraVynx và font **Be Vietnam Pro** nhúng sẵn. Không đánh số menu; không tạo log.
 
-Đóng game, chạy **SoraVynx.exe** và chọn **StellaSora.exe**. Giữ **SoraVynx.Runtime.dll** cạnh EXE; không trộn với bản cũ. **F1/Hide** ẩn, giữ tính năng; mở lại EXE để hiện bảng. **X/Alt+F4** tắt tính năng rồi ẩn. **F6/F7/F8** điều khiển event.
+Đóng game, chạy **SoraVynx.exe** và chọn **StellaSora.exe**. Giữ **SoraVynx.Runtime.dll** cạnh EXE; không trộn với bản cũ. **Menu ẩn khi vào game; F1 hiện/ẩn tại giữa cửa sổ game.** Nút **Keybinds** liệt kê phím tắt. **Ctrl+Alt+1…5** bật/tắt năm chức năng Player, **Ctrl+Alt+9** chạy/dừng Auto Daily đã chọn, **Ctrl+Alt+0** tắt tất cả. **X/Alt+F4** tắt tính năng rồi ẩn. **F6/F7/F8** điều khiển event.
 
 Repo chính thức: **[bao123e/SoraVynx](https://github.com/bao123e/SoraVynx)**. Repo chứa đầy đủ EXE, DLL, giấy phép và thư mục source; ZIP chỉ ở Releases.
 
