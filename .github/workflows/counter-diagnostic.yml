@@ -1,0 +1,36 @@
+name: Publish read-only counter diagnostic
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  diagnostic:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test fixed numeric field without desktop capture or input
+        shell: powershell
+        run: ./source/vision/Inspect-Counters.ps1 -SelfTest
+      - name: Package only standalone read-only scripts
+        shell: python
+        run: |
+          import os,hashlib
+          from pathlib import Path
+          from zipfile import ZipFile,ZIP_DEFLATED
+          root=Path('source/vision')
+          out=Path(os.environ['RUNNER_TEMP'])/'SoraVynx-Counter-ReadOnly-v1.zip'
+          script=(root/'Inspect-Counters.ps1').read_text()
+          assert 'SendInput' not in script and 'SetCursorPos' not in script and 'WebRequest' not in script
+          with ZipFile(out,'w',ZIP_DEFLATED) as z:
+            for name in ['Inspect-Counters.cmd','Inspect-Counters.ps1']:z.write(root/name,name)
+            z.write(root/'Counter-ReadOnly-README.vi.txt','README.vi.txt')
+          with ZipFile(out) as z:assert z.testzip() is None and len(z.namelist())==3
+          Path(str(out)+'.sha256').write_text(hashlib.sha256(out.read_bytes()).hexdigest()+'  '+out.name+'\n')
+      - name: Publish the tested diagnostic alongside the existing customer release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload v1.3.5-custom-keys-preview.1 "$RUNNER_TEMP/SoraVynx-Counter-ReadOnly-v1.zip" "$RUNNER_TEMP/SoraVynx-Counter-ReadOnly-v1.zip.sha256" --repo "$GITHUB_REPOSITORY"
