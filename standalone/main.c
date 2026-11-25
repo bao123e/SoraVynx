@@ -22,18 +22,23 @@
 #include <wchar.h>
 #include "ui_layout.h"
 #include "ui_background.h"
+#include "process_monitor.h"
 
 static bool shutting_down, test_mode;
 #include "keybinds.h"
 
 #define APP_CLASS L"WuwaWorkbenchStandalone"
-#define APP_TITLE L"Wuwa Workbench - Standalone UI"
+#define APP_TITLE L"Wuwa Workbench - Process Monitor"
 #define TRAY_MESSAGE (WM_APP+7)
 enum { TAB_OVERVIEW=101, TAB_APPEARANCE, EDIT_KEYS, SHOW_TOP, SHOW_CLOCK,
  SHOW_STATUS, START_PAUSE, RESET_TIMER, MARK_TIMER, PICK_IMAGE, CLEAR_IMAGE,
  SLIDER_IMAGE, SLIDER_PANEL, SLIDER_BUTTON };
+enum { TAB_TOOLS=160, SELECT_GAME, CLEAR_GAME, RESCAN_GAME, GAME_PATH };
 static HINSTANCE instance;
 static HWND window, overview[12], appearance[16], clock_label, status_label;
+static HWND game_controls[16],process_state,process_pid,process_version,process_note;
+static int game_count;
+static wchar_t game_executable[MONITOR_PATH_CAP],game_version[128]=L"Not provided";
 static int overview_count, appearance_count, page;
 static HFONT normal_font, title_font, number_font;
 static HBRUSH brush;
@@ -66,6 +71,7 @@ static void load_settings(void){
  sv_key_defaults(sv_keys);
  struct SvKey pending[SV_KEY_COUNT];
  if(sv_key_load(ui_config_path,pending))memcpy(sv_keys,pending,sizeof(pending));
+ GetPrivateProfileStringW(L"Game",L"Executable",L"",game_executable,MONITOR_PATH_CAP,ui_config_path);
 }
 static bool config_path(wchar_t *out,size_t cap){
  wchar_t base[MAX_PATH];
@@ -83,12 +89,32 @@ static HWND label(const wchar_t *text,int x,int y,int w,int h){return control(L"
 static HWND button(const wchar_t *text,int x,int y,int w,int id){return control(L"BUTTON",text,BS_OWNERDRAW|WS_TABSTOP,x,y,w,36,id);}
 static void add_overview(HWND c){overview[overview_count++]=c;}
 static void add_appearance(HWND c){appearance[appearance_count++]=c;}
+static void add_game(HWND c){game_controls[game_count++]=c;}
 static void switch_page(int next){
  page=next;
- for(int i=0;i<overview_count;i++)ShowWindow(overview[i],next==0?SW_SHOW:SW_HIDE);
+ for(int i=0;i<game_count;i++)ShowWindow(game_controls[i],next==0?SW_SHOW:SW_HIDE);
+ for(int i=0;i<overview_count;i++)ShowWindow(overview[i],next==2?SW_SHOW:SW_HIDE);
  for(int i=0;i<appearance_count;i++)ShowWindow(appearance[i],next==1?SW_SHOW:SW_HIDE);
- if(next==0){ShowWindow(clock_label,show_clock?SW_SHOW:SW_HIDE);ShowWindow(status_label,show_status?SW_SHOW:SW_HIDE);}
+ if(next==2){ShowWindow(clock_label,show_clock?SW_SHOW:SW_HIDE);ShowWindow(status_label,show_status?SW_SHOW:SW_HIDE);}
+ if(next==0)ShowWindow(process_note,show_status?SW_SHOW:SW_HIDE);
  InvalidateRect(window,NULL,TRUE);
+}
+static void refresh_process_view(void){
+ struct ProcessProbe result=monitor_result();wchar_t text[256];const wchar_t *state;
+ switch(result.status){
+ case MON_SELECT:state=L"Choose your game executable to begin.";break;
+ case MON_CHECKING:state=L"Checking the selected executable...";break;
+ case MON_STOPPED:state=L"Selected executable is not running.";break;
+ case MON_RUNNING:state=L"Running process found - full path verified.";break;
+ case MON_RESTRICTED:state=L"Matching filename found; path verification is restricted.";break;
+ default:state=L"Process scan unavailable. Use Rescan to retry.";break;
+ }
+ SetWindowTextW(process_state,state);
+ if(result.status==MON_RUNNING)swprintf(text,256,L"PID: %lu   |   Instances: %lu",(unsigned long)result.pid,(unsigned long)result.count);
+ else if(result.error)swprintf(text,256,L"PID: unavailable   |   Windows error: %lu",(unsigned long)result.error);
+ else wcscpy(text,L"PID: --");SetWindowTextW(process_pid,text);
+ swprintf(text,256,L"EXE file version: %ls",game_version);SetWindowTextW(process_version,text);
+ SetWindowTextW(process_note,last_action);
 }
 static void refresh(void){
  if(!window)return;
@@ -99,6 +125,24 @@ static void refresh(void){
  SetWindowTextW(GetDlgItem(window,SHOW_TOP),topmost?L"Always on top: ON":L"Always on top: OFF");
  SetWindowTextW(GetDlgItem(window,SHOW_CLOCK),show_clock?L"Clock: ON":L"Clock: OFF");
  SetWindowTextW(GetDlgItem(window,SHOW_STATUS),show_status?L"Status: ON":L"Status: OFF");
+ refresh_process_view();
+}
+static bool save_game_selection(const wchar_t *input){
+ wchar_t canonical[MONITOR_PATH_CAP]=L"";
+ if(input[0]&&!executable_path(input,canonical)){note(L"Choose an existing .exe file.");return false;}
+ if(!WritePrivateProfileStringW(L"Game",L"Executable",canonical,ui_config_path)){note(L"Could not save the executable selection. Previous selection kept.");return false;}
+ wcscpy(game_executable,canonical);wcscpy(game_version,L"Not provided");
+ if(canonical[0])executable_version(canonical,game_version,128);
+ SetWindowTextW(GetDlgItem(window,GAME_PATH),game_executable);monitor_target(game_executable);
+ note(canonical[0]?L"Selection saved. Process discovery does not enable gameplay features.":L"Selection cleared.");refresh();return true;
+}
+static void choose_game_executable(void){
+ wchar_t path[MONITOR_PATH_CAP]=L"";OPENFILENAMEW dialog={0};dialog.lStructSize=sizeof(dialog);dialog.hwndOwner=window;
+ dialog.lpstrTitle=L"Choose the WuWa game executable (not the launcher)";dialog.lpstrFilter=L"Windows executable (*.exe)\0*.exe\0\0";
+ dialog.lpstrFile=path;dialog.nMaxFile=MONITOR_PATH_CAP;dialog.Flags=OFN_EXPLORER|OFN_FILEMUSTEXIST|OFN_PATHMUSTEXIST|OFN_NOCHANGEDIR;
+ if(GetOpenFileNameW(&dialog))save_game_selection(path);
+ else if(CommDlgExtendedError())note(L"The executable picker could not be opened.");
+ refresh();
 }
 /* Only the restore shortcut is global. Other bindings are reserved while this
  * app has focus, so unrelated applications retain their keyboard shortcuts. */
@@ -140,8 +184,17 @@ static void tray_add(void){
 }
 static void create_controls(void){
  HWND title=label(L"WUWA WORKBENCH",28,24,650,42);SendMessageW(title,WM_SETFONT,(WPARAM)title_font,TRUE);
- label(L"Standalone UI preview  |  Game backend: not connected",30,72,880,26);
+ label(L"Process monitor preview  |  Gameplay integration: not implemented",30,72,880,26);
  button(L"Overview",28,115,160,TAB_OVERVIEW);button(L"Appearance",200,115,160,TAB_APPEARANCE);button(L"Keybinds",372,115,160,EDIT_KEYS);
+ button(L"Local tools",544,115,160,TAB_TOOLS);
+ add_game(label(L"GAME PROCESS",48,194,800,28));
+ process_state=label(L"",48,234,850,60);add_game(process_state);
+ add_game(button(L"Select game EXE",48,304,230,SELECT_GAME));add_game(button(L"Rescan",294,304,180,RESCAN_GAME));add_game(button(L"Clear selection",490,304,210,CLEAR_GAME));
+ process_pid=label(L"PID: --",48,366,330,30);add_game(process_pid);
+ process_version=label(L"",400,366,470,30);add_game(process_version);
+ add_game(label(L"Selected executable (select the game binary, not its launcher):",48,410,830,26));
+ add_game(control(L"EDIT",game_executable,ES_READONLY|ES_AUTOHSCROLL|WS_BORDER|WS_TABSTOP,48,442,820,30,GAME_PATH));
+ process_note=label(last_action,48,488,820,40);add_game(process_note);
  add_overview(label(L"Local timer",48,194,800,28));
  HWND digits=control(L"STATIC",L"00:00:00.0",SS_LEFT,44,230,810,70,450);SendMessageW(digits,WM_SETFONT,(WPARAM)number_font,TRUE);add_overview(digits);
  add_overview(button(L"Start timer",48,328,180,START_PAUSE));add_overview(button(L"Reset",244,328,180,RESET_TIMER));add_overview(button(L"Mark",440,328,180,MARK_TIMER));
@@ -181,13 +234,13 @@ static void draw_button(const DRAWITEMSTRUCT *d){
 static LRESULT CALLBACK window_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
  if(taskbar_created&&msg==taskbar_created){if(!test_mode)tray_add();return 0;}
  switch(msg){
- case WM_CREATE:window=hwnd;create_controls();SetTimer(hwnd,1,200,NULL);return 0;
+ case WM_CREATE:window=hwnd;create_controls();SetTimer(hwnd,1,200,NULL);SetTimer(hwnd,2,2000,NULL);return 0;
  case WM_ERASEBKGND:return 1;
  case WM_PAINT:paint_window(hwnd);return 0;
  case WM_CTLCOLORSTATIC:SetBkMode((HDC)wp,OPAQUE);SetBkColor((HDC)wp,bg_color());SetTextColor((HDC)wp,text_color());return (LRESULT)brush;
  case WM_DRAWITEM:draw_button((DRAWITEMSTRUCT*)lp);return TRUE;
  case WM_ACTIVATE:if(!sv_keys_editing)register_active_keys();return 0;
- case WM_TIMER:refresh();return 0;
+ case WM_TIMER:if(wp==2)monitor_refresh();refresh();return 0;
  case WM_HOTKEY:
   if(!sv_keys_editing&&(test_mode||wp==SV_KEY_FIRST||GetForegroundWindow()==hwnd))do_action((int)wp-SV_KEY_FIRST);
   return 0;
@@ -199,6 +252,10 @@ static LRESULT CALLBACK window_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
  }
  case WM_COMMAND:switch(LOWORD(wp)){
   case TAB_OVERVIEW:do_action(1);break;case TAB_APPEARANCE:do_action(2);break;
+  case TAB_TOOLS:switch_page(2);note(L"Local tools selected.");refresh();break;
+  case SELECT_GAME:choose_game_executable();break;
+  case CLEAR_GAME:save_game_selection(L"");break;
+  case RESCAN_GAME:monitor_refresh();note(L"Rescan requested.");refresh();break;
   case EDIT_KEYS:sv_key_show(hwnd,instance,ui_config_path);register_active_keys();note(L"Shortcut editor closed.");refresh();break;
   case SHOW_TOP:do_action(3);break;case SHOW_CLOCK:do_action(4);break;case SHOW_STATUS:do_action(5);break;
   case START_PAUSE:do_action(9);break;case RESET_TIMER:do_action(8);break;case MARK_TIMER:do_action(10);break;
@@ -212,7 +269,7 @@ static LRESULT CALLBACK window_proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){
    if(id==1){ShowWindow(hwnd,SW_RESTORE);SetForegroundWindow(hwnd);}if(id==2)DestroyWindow(hwnd);
   }return 0;
  case WM_CLOSE:DestroyWindow(hwnd);return 0;
- case WM_DESTROY:shutting_down=true;KillTimer(hwnd,1);sv_key_unregister(hwnd);if(tray_added)Shell_NotifyIconW(NIM_DELETE,&tray);PostQuitMessage(0);return 0;
+ case WM_DESTROY:shutting_down=true;KillTimer(hwnd,1);KillTimer(hwnd,2);monitor_shutdown();sv_key_unregister(hwnd);if(tray_added)Shell_NotifyIconW(NIM_DELETE,&tray);PostQuitMessage(0);return 0;
  }
  return DefWindowProcW(hwnd,msg,wp,lp);
 }
@@ -256,12 +313,64 @@ static int self_test(const wchar_t *report_path){
  WritePrivateProfileStringW(L"Appearance",L"Opacity",L"999",ui_config_path);
  if(image_decoder){GdiplusShutdown(image_decoder);image_decoder=0;}load_background_settings(ui_config_path);CHECK(background_opacity==35,"invalid opacity falls back to default");
  CHECK(GetModuleHandleW(L"GameAssembly.dll")==NULL,"self-test does not load Unity runtime");
+ wchar_t own[MONITOR_PATH_CAP],canonical[MONITOR_PATH_CAP],stored[MONITOR_PATH_CAP];GetModuleFileNameW(NULL,own,MONITOR_PATH_CAP);
+ CHECK(executable_path(own,canonical),"existing executable accepted");
+ CHECK(!executable_path(L"C:\\missing-workbench-file.exe",canonical),"missing executable rejected");
+ CHECK(!executable_path(ui_config_path,canonical),"non-executable file rejected");
+ CHECK(probe_process_path(L"").status==MON_SELECT,"empty process selection stays unconfigured");
+ executable_path(own,canonical);struct ProcessProbe detected=probe_process_path(canonical);
+ CHECK(detected.status==MON_RUNNING&&detected.count>=1&&detected.pid==GetCurrentProcessId(),"exact path discovers the current real process");
+ wchar_t wrong[MONITOR_PATH_CAP];swprintf(wrong,MONITOR_PATH_CAP,L"C:\\Different-Wuwa-Folder\\%ls",path_filename(canonical));
+ CHECK(probe_process_path(wrong).status==MON_STOPPED,"same filename with a different path is not accepted");
+ CHECK(save_game_selection(own),"executable selection saved");
+ GetPrivateProfileStringW(L"Game",L"Executable",L"",stored,MONITOR_PATH_CAP,ui_config_path);
+ CHECK(!_wcsicmp(stored,game_executable),"executable selection roundtrips through configuration");
+ CHECK(!save_game_selection(ui_config_path)&&!_wcsicmp(stored,game_executable),"invalid selection preserves the previous executable");
+ ULONGLONG deadline=GetTickCount64()+5000;
+ while(monitor_result().status==MON_CHECKING&&GetTickCount64()<deadline)Sleep(10);
+ CHECK(monitor_result().status==MON_RUNNING,"background scanner publishes a verified result");
+ SendMessageW(window,WM_COMMAND,TAB_TOOLS,0);CHECK(page==2&&(GetWindowLongW(overview[0],GWL_STYLE)&WS_VISIBLE),"local tools has its own page");
+ SendMessageW(window,WM_COMMAND,TAB_OVERVIEW,0);CHECK(page==0&&(GetWindowLongW(game_controls[0],GWL_STYLE)&WS_VISIBLE)&&!(GetWindowLongW(overview[0],GWL_STYLE)&WS_VISIBLE),"overview shows process monitor instead of local timer");
+ CHECK(save_game_selection(L""),"executable selection can be cleared");
+ deadline=GetTickCount64()+5000;while(monitor_result().status==MON_CHECKING&&GetTickCount64()<deadline)Sleep(10);
+ CHECK(monitor_result().status==MON_SELECT,"cleared target does not retain a running PID");
+ executable_path(own,canonical);monitor_target(canonical);monitor_target(L"");
+ deadline=GetTickCount64()+5000;while(monitor_busy()&&GetTickCount64()<deadline)Sleep(10);
+ CHECK(!monitor_busy()&&monitor_result().status==MON_SELECT&&monitor_result().pid==0,"rapid target changes cannot publish a stale PID");
+ /* A benign copy of this executable exercises actual start/exit discovery.
+  * The helper opens no game and uses a parent-owned event to exit. */
+ wchar_t helper[MONITOR_PATH_CAP],stop_name[128],ready_name[128],command[MONITOR_PATH_CAP];
+ swprintf(helper,MONITOR_PATH_CAP,L"%ls.helper.exe",ui_config_path);
+ bool copied=CopyFileW(own,helper,FALSE)!=FALSE;CHECK(copied,"create isolated lifecycle test executable");
+ if(copied){
+  executable_path(helper,canonical);CHECK(probe_process_path(canonical).status==MON_STOPPED,"helper is absent before launch");
+  swprintf(stop_name,128,L"Local\\WuwaWorkbenchStop_%lu",(unsigned long)GetCurrentProcessId());
+  swprintf(ready_name,128,L"Local\\WuwaWorkbenchReady_%lu",(unsigned long)GetCurrentProcessId());
+  HANDLE stop=CreateEventW(NULL,TRUE,FALSE,stop_name),ready=CreateEventW(NULL,TRUE,FALSE,ready_name);
+  swprintf(command,MONITOR_PATH_CAP,L"\"%ls\" --probe-helper %ls %ls",canonical,stop_name,ready_name);
+  STARTUPINFOW startup={0};startup.cb=sizeof(startup);PROCESS_INFORMATION child={0};
+  bool launched=stop&&ready&&CreateProcessW(canonical,command,NULL,NULL,FALSE,0,NULL,NULL,&startup,&child);
+  CHECK(launched,"launch benign probe helper");
+  if(launched){
+   CHECK(WaitForSingleObject(ready,5000)==WAIT_OBJECT_0,"helper is ready for discovery");
+   detected=probe_process_path(canonical);CHECK(detected.status==MON_RUNNING&&detected.pid==child.dwProcessId,"scanner detects started helper by full path");
+   SetEvent(stop);CHECK(WaitForSingleObject(child.hProcess,20000)==WAIT_OBJECT_0,"helper exits on its stop event");
+   CHECK(probe_process_path(canonical).status==MON_STOPPED,"scanner removes PID after helper exits");
+   CloseHandle(child.hThread);CloseHandle(child.hProcess);
+  }
+  if(stop)CloseHandle(stop);if(ready)CloseHandle(ready);DeleteFileW(helper);
+ }
  fprintf(out,"RESULT failures=%d\n",failures);fclose(out);return failures?1:0;
 #undef CHECK
 }
 
 int WINAPI wWinMain(HINSTANCE module,HINSTANCE previous,LPWSTR command,int show){
  (void)previous;(void)command;instance=module;int argc=0;wchar_t **argv=CommandLineToArgvW(GetCommandLineW(),&argc);
+ if(argc==4&&!wcscmp(argv[1],L"--probe-helper")){
+  HANDLE stop=OpenEventW(SYNCHRONIZE,FALSE,argv[2]),ready=OpenEventW(EVENT_MODIFY_STATE,FALSE,argv[3]);int code=2;
+  if(stop&&ready){SetEvent(ready);code=WaitForSingleObject(stop,15000)==WAIT_OBJECT_0?0:2;}
+  if(stop)CloseHandle(stop);if(ready)CloseHandle(ready);LocalFree(argv);return code;
+ }
  test_mode=argc>=3&&!wcscmp(argv[1],L"--self-test");
  wchar_t path[32768],temp_dir[MAX_PATH]=L"";
  if(test_mode){wchar_t temp[MAX_PATH];if(!GetTempPathW(MAX_PATH,temp)||!GetTempFileNameW(temp,L"wwb",0,temp_dir)){if(argv)LocalFree(argv);return 2;}
@@ -269,6 +378,7 @@ int WINAPI wWinMain(HINSTANCE module,HINSTANCE previous,LPWSTR command,int show)
  }else if(!config_path(path,32768)){MessageBoxW(NULL,L"Cannot create the configuration folder in LocalAppData.",APP_TITLE,MB_ICONERROR);if(argv)LocalFree(argv);return 2;}
  INITCOMMONCONTROLSEX init={sizeof(init),ICC_HOTKEY_CLASS|ICC_BAR_CLASSES};if(!InitCommonControlsEx(&init)){LocalFree(argv);return 2;}
  load_background_settings(path);load_settings();
+ executable_version(game_executable,game_version,128);monitor_init(game_executable);
  normal_font=CreateFontW(-18,0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
  title_font=CreateFontW(-30,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Segoe UI");
  number_font=CreateFontW(-52,0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,0,0,CLEARTYPE_QUALITY,0,L"Consolas");

@@ -24,20 +24,20 @@ def main():
         "-Wall", "-Wextra", "-Werror", "-Wno-unused-function",
         "-Wl,--dynamicbase", "-Wl,--nxcompat", "-municode", "-Wl,--subsystem,windows",
         str(ROOT / "main.c"), "-luser32", "-lgdi32", "-lcomctl32",
-        "-lcomdlg32", "-lshell32", "-lgdiplus", "-lmsimg32", "-lole32",
+        "-lcomdlg32", "-lshell32", "-lgdiplus", "-lmsimg32", "-lole32", "-lversion",
         "-o", str(exe),
     ], check=True)
     sources = sorted(p for p in ROOT.iterdir() if p.is_file() and p.name != ".gitignore")
     manifest = {
-        "product": "Wuwa Workbench", "version": "0.1.0-standalone-preview",
-        "source_base": BASE, "mode": "standalone-ui", "target": "windows-x64",
+        "product": "Wuwa Workbench", "version": "0.2.0-process-preview",
+        "source_base": BASE, "mode": "read-only-process-monitor", "target": "windows-x64",
         "compiler": "Zig " + subprocess.check_output([args.zig, "version"], text=True).strip(),
         "sha256": hashlib.sha256(exe.read_bytes()).hexdigest(),
         "sources": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sources},
     }
     (out / "build.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (out / "SHA256SUMS.txt").write_text(manifest["sha256"] + "  WuwaWorkbench.exe\n")
-    archive = out / "WuwaWorkbench-0.1.0-standalone-win64.zip"
+    archive = out / "WuwaWorkbench-0.2.0-process-monitor-win64.zip"
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
         for name in ["WuwaWorkbench.exe", "build.json", "SHA256SUMS.txt"]:
             z.write(out / name, name)
