@@ -1,0 +1,36 @@
+name: Offline C rules
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/kill-aura-c-tests]
+    paths: ['offline/kill_aura/**', '.github/workflows/offline-c-rules.yml']
+  pull_request:
+    paths: ['offline/kill_aura/**', '.github/workflows/offline-c-rules.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install C cross-compiler
+        run: python -m pip install ziglang==0.14.1
+      - name: Build and run C rules and local fixtures
+        shell: pwsh
+        run: |
+          $zig = python -c "from pathlib import Path; import ziglang; print(Path(ziglang.__file__).parent / 'zig.exe')"
+          python offline/kill_aura/build.py --target windows --zig $zig --run-tests
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: KaRules-offline-C-win64
+          path: offline/kill_aura/dist/
+          if-no-files-found: error
