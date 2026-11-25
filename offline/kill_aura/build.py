@@ -22,6 +22,11 @@ def main():
     args = p.parse_args()
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
+    license_file = next((base / "LICENSE.txt" for base in
+                         [ROOT, ROOT.parent, ROOT.parent.parent]
+                         if (base / "LICENSE.txt").is_file()), None)
+    if license_file is None:
+        raise SystemExit("LICENSE.txt is required beside the source or in its parent folders")
     suffix = ".exe" if args.target == "windows" else ""
     if args.target == "windows":
         command = [args.zig or "zig", "cc", "-target", "x86_64-windows-gnu"]
@@ -40,7 +45,6 @@ def main():
             raise SystemExit(result.returncode)
         subprocess.run([str(out / ("KaRulesDemo" + suffix))], check=True)
     sources = sorted(ROOT.glob("*.c")) + sorted(ROOT.glob("*.h")) + [ROOT / "build.py", ROOT / "README.txt"]
-    license_file = ROOT.parent.parent / "LICENSE.txt"
     binaries = [out / (name + suffix) for name in ["KaRulesDemo", "KaRulesTests"]]
     metadata = {
         "product": "Offline C Kill Aura selection rules", "version": "0.1.0",
